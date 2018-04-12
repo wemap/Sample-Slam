@@ -53,3 +53,6 @@
 .vs*
 x64*
 *.vcxproj.user
+
+#generated files
+solar_cloud*
