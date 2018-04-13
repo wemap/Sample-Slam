@@ -28,7 +28,7 @@
 #include "SolARDescriptorMatcherKNNOpencv.h"
 #include "SolARImageViewerOpencv.h"
 #include "SolARSideBySideOverlayOpencv.h"
-#include "SolARBasicMatchesFilterOpencv.h"
+#include "SolARBasicMatchesFilter.h"
 #include "SolARGeometricMatchesFilterOpencv.h"
 #include "SolARFundamentalMatrixEstimationOpencv.h"
 #include "SolARSVDFundamentalMatrixDecomposerOpencv.h"
@@ -38,6 +38,7 @@ using namespace SolAR;
 using namespace SolAR::datastructure;
 using namespace SolAR::api;
 using namespace SolAR::MODULES::OPENCV;
+using namespace SolAR::MODULES::TOOLS;
 
 namespace xpcf = org::bcom::xpcf;
 
@@ -83,7 +84,7 @@ int run(std::string& firstImagePath, std::string& secondImagePath, std::string& 
     SRef<display::IImageViewer>                          viewer;
 
     SRef<solver::pose::I2DTransformFinder>              fundamentalFinder;
-    SRef<solver::pose::IFundamentalMatrixDecomposer>    fundamentalDecomposer;
+    SRef<solver::pose::I2DTO3DTransformDecomposer>      fundamentalDecomposer;
     SRef<solver::map::ITriangulator>                    mapper;
 
     SRef<display::ISideBySideOverlay>                   overlay;
@@ -136,19 +137,11 @@ int run(std::string& firstImagePath, std::string& secondImagePath, std::string& 
 	xpcf::ComponentFactory::createComponent<SolARDescriptorMatcherKNNOpencv>(gen(features::IDescriptorMatcher::UUID), matcher);
     xpcf::ComponentFactory::createComponent<SolARSideBySideOverlayOpencv>(gen(display::ISideBySideOverlay::UUID ), overlay);
     xpcf::ComponentFactory::createComponent<SolARImageViewerOpencv>(gen(display::IImageViewer::UUID ), viewer);
-    xpcf::ComponentFactory::createComponent<SolARBasicMatchesFilterOpencv>(gen(features::IMatchesFilter::UUID ),
-                                                                            matchesFilterBasic);
-    xpcf::ComponentFactory::createComponent<SolARGeometricMatchesFilterOpencv>(gen(features::IMatchesFilter::UUID ),
-                                                                            matchesFilterGeometric);
-
-    xpcf::ComponentFactory::createComponent<SolARFundamentalMatrixEstimationOpencv>(gen(solver::pose::I2DTransformFinder::UUID ),
-                                                                           fundamentalFinder);
-
-    xpcf::ComponentFactory::createComponent<SolARSVDFundamentalMatrixDecomposerOpencv>(gen(solver::pose::IFundamentalMatrixDecomposer::UUID ),
-                                                                                        fundamentalDecomposer);
-
-    xpcf::ComponentFactory::createComponent<SolARSVDTriangulationOpencv>(gen(solver::map::ITriangulator::UUID ),
-                                                                                        mapper);
+    xpcf::ComponentFactory::createComponent<SolARBasicMatchesFilter>(gen(features::IMatchesFilter::UUID ), matchesFilterBasic);
+    xpcf::ComponentFactory::createComponent<SolARGeometricMatchesFilterOpencv>(gen(features::IMatchesFilter::UUID ), matchesFilterGeometric);
+    xpcf::ComponentFactory::createComponent<SolARFundamentalMatrixEstimationOpencv>(gen(solver::pose::I2DTransformFinder::UUID ), fundamentalFinder);
+    xpcf::ComponentFactory::createComponent<SolARSVDFundamentalMatrixDecomposerOpencv>(gen(solver::pose::I2DTO3DTransformDecomposer::UUID ), fundamentalDecomposer);
+    xpcf::ComponentFactory::createComponent<SolARSVDTriangulationOpencv>(gen(solver::map::ITriangulator::UUID ), mapper);
 
 	// load camera parameters from yml input file
 	camera->loadCameraParameters(cameraParameters);
