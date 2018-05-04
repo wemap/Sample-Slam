@@ -7,8 +7,6 @@ CONFIG += console
 
 DEFINES += MYVERSION=$${VERSION}
 
-QT += opengl
-
 CONFIG(debug,debug|release) {
     DEFINES += _DEBUG=1
     DEFINES += DEBUG=1
@@ -20,26 +18,15 @@ CONFIG(release,debug|release) {
 
 win32:CONFIG -= static
 win32:CONFIG += shared
-QMAKE_TARGET.arch = x86_64 #must be defined prior to include
+
 DEPENDENCIESCONFIG = sharedlib
-#NOTE : CONFIG as staticlib or sharedlib, DEPENDENCIESCONFIG as staticlib or sharedlib, QMAKE_TARGET.arch and PROJECTDEPLOYDIR MUST BE DEFINED BEFORE templatelibconfig.pri inclusion
+#NOTE : CONFIG as staticlib or sharedlib, DEPENDENCIESCONFIG as staticlib or sharedlib MUST BE DEFINED BEFORE templatelibconfig.pri inclusion
 include ($$(BCOMDEVROOT)/builddefs/qmake/templateappconfig.pri)
 
-
-
-INCLUDEPATH += "D:/AmineLib/freeglut/include"
-INCLUDEPATH += "D:/AmineLib/glcamera"
-LIBS += "D:/AmineLib/freeglut/bin/.dll*"
-
-HEADERS += constant.h \
-    constants.h \
-    utilities.h \
-    gl_camera.h
+HEADERS += \
 
 SOURCES += \
-    main.cpp \
-    utilities.cpp \
-    gl_camera.cpp
+    main.cpp
 
 unix {
 }
