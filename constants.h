@@ -19,6 +19,7 @@
 #include "SolARFundamentalMatrixEstimationOpencv.h"
 #include "SolARSVDFundamentalMatrixDecomposerOpencv.h"
 #include "SolARSVDTriangulationOpencv.h"
+#include "SolAR2D3DcorrespondencesFinderOpencv.h"
 #include "SolARMapperOpencv.h"
 #include "SolARPoseEstimationPnpOpencv.h"
 #include "freeglut.h"
@@ -51,6 +52,7 @@ namespace xpcf  = org::bcom::xpcf;
    SRef<solver::map::ITriangulator>                    mapper;
    SRef<solver::map::IMapper>                          poseGraph;
    SRef<solver::pose::I3DTransformFinder>              PnP;
+   SRef<solver::pose::I2D3DCorrespondencesFinder>      corr2D3DFinder;
 
    SRef<display::ISideBySideOverlay>                   overlay;
    SRef<display::I2DOverlay>                           overlay2d;

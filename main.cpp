@@ -298,6 +298,9 @@ void init(){
        xpcf::ComponentFactory::createComponent<SolARMapperOpencv>(gen(solver::map::IMapper::UUID), poseGraph);
        xpcf::ComponentFactory::createComponent<SolARPoseEstimationPnpOpencv>(gen(solver::pose::I3DTransformFinder::UUID), PnP);
 
+       xpcf::ComponentFactory::createComponent<SolAR2D3DCorrespondencesFinderOpencv>(gen(solver::pose::I2D3DCorrespondencesFinder::UUID), corr2D3DFinder);
+
+
        keypointsDetector->setType(features::KeypointDetectorType::SURF);       
        // load camera parameters from yml input file
        std::string cameraParameters = std::string("D:/AmineSolar/source/slam/build-SolARTriangulationSample/mycamera_calibration0.yml");
@@ -432,7 +435,6 @@ bool init_mapping(SRef<Image>&view_1,SRef<Image>&view_2, bool verbose){
     overlay->drawMatchesLines(views[0],views[1], viewerImage2, gmatchedKeypoints1, gmatchedKeypoints2,vizPoints1);
  }
  matchesFilterGeometric->filter(matches,ggmatches,keypoints1, keypoints2);
-
  if(verbose){
     std::cout<<"    #filtred matches: "<<ggmatches.size()<<std::endl;
     ggmatchedKeypoints1.clear();
@@ -486,10 +488,11 @@ bool tracking(SRef<Image>&view, const int kframe_idx, bool verbose){
     processFrame(view,keypoints3,descriptors3);
     matcher->match(descriptors2, descriptors3, new_matches);
     matchesFilterGeometric->filter(new_matches,new_matches_filtred,keypoints2, keypoints3);
-
     std::vector<SRef<Point2Df>>pt2d;
     std::vector<SRef<Point3Df>>pt3d;
-    poseGraph->find2D3DCorrespondances(kframe_idx,new_matches_filtred,keypoints3,pt2d,pt3d);
+//    poseGraph->find2D3DCorrespondances(kframe_idx,new_matches_filtred,keypoints3,pt2d,pt3d);
+//    std::cout<<"trying to find 2d/3d correspondences!"<<std::endl;
+    corr2D3DFinder->find(gcloud,kframe_idx,new_matches_filtred,keypoints3,pt3d,pt2d);
     if(PnP->estimate(pt2d,pt3d,pose_current) == FrameworkReturnCode::_SUCCESS){
         if(verbose){
             PnP->reproject(view,pose_current,K,dist,pt2d,pt3d);

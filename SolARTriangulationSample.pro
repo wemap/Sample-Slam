@@ -27,10 +27,7 @@ include ($$(BCOMDEVROOT)/builddefs/qmake/templateappconfig.pri)
 
 
 
-INCLUDEPATH += "D:/AmineLib/freeglut/include"
 INCLUDEPATH += "D:/AmineLib/glcamera"
-LIBS += "D:/AmineLib/freeglut/bin/.dll*"
-
 HEADERS += constant.h \
     constants.h \
     utilities.h \
