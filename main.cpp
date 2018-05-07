@@ -19,184 +19,9 @@
 #include "constants.h"
 
 
-void drawCamera(rigid_motion<float>&camPose, cv::Vec3f&color, float scale, bool check) {
-    double diameter = 0.01f * scale;
-    float offset = 0.075f *scale;
-    GLfloat line_width = 1.f *scale;
-    math_vector_3f origin[4], pos[4];
-
-    if (check) {
-        for (int i = 0; i < 3; ++i) {
-            for (int j = 0; j < 3; ++j) {
-                if (i == j)camPose.m_rotation(i, j) = 1.f;
-                else camPose.m_rotation(i, j) = 0.f;
-            }
-        }
-    }
-
-    origin[0] = math_vector_3f(offset, offset, 2.f*offset);
-    origin[1] = math_vector_3f(-offset, offset, 2.f*offset);
-    origin[2] = math_vector_3f(-offset, -offset, 2.f*offset);
-    origin[3] = math_vector_3f(offset, -offset, 2.f*offset);
-
-    for (int c = 0; c < 4; ++c)
-        pos[c] = camPose.apply(origin[c]);
 
 
-
-    GLUquadric * point = gluNewQuadric();
-    for (int i = 0; i < 4; ++i) {
-        glPopMatrix();
-        glPushMatrix();
-        glColor3f(color[0], color[1], color[2]);
-        glTranslatef(pos[i][0], pos[i][1], pos[i][2]);
-        gluSphere(point, diameter*0.5, 30, 30);
-        glPopMatrix();
-    }
-    gluDeleteQuadric(point);
-
-    for (int i = 0; i < 4; ++i) {
-        glLineWidth(line_width);
-        glColor3f(color[0], color[1], color[2]);
-        glBegin(GL_LINES);
-        glVertex3f(camPose.m_translation[0], camPose.m_translation[1], camPose.m_translation[2]);
-        glVertex3f(pos[i][0], pos[i][1], pos[i][2]);
-        glEnd();
-    }
-
-
-    glLineWidth(line_width);
-    glColor3f(color[0], color[1], color[2]);
-    glBegin(GL_LINES);
-    glVertex3f(pos[0][0], pos[0][1], pos[0][2]);
-    glVertex3f(pos[1][0], pos[1][1], pos[1][2]);
-    glEnd();
-
-    glLineWidth(line_width);
-    glColor3f(color[0], color[1], color[2]);
-    glBegin(GL_LINES);
-    glVertex3f(pos[1][0], pos[1][1], pos[1][2]);
-    glVertex3f(pos[2][0], pos[2][1], pos[2][2]);
-    glEnd();
-
-    glLineWidth(line_width);
-    glColor3f(color[0], color[1], color[2]);
-    glBegin(GL_LINES);
-    glVertex3f(pos[2][0], pos[2][1], pos[2][2]);
-    glVertex3f(pos[3][0], pos[3][1], pos[3][2]);
-    glEnd();
-
-    glLineWidth(line_width);
-    glColor3f(color[0], color[1], color[2]);
-    glBegin(GL_LINES);
-    glVertex3f(pos[3][0], pos[3][1], pos[3][2]);
-    glVertex3f(pos[0][0], pos[0][1], pos[0][2]);
-    glEnd();
-}
-void solarPoseToRigidMotion(Transform3Df&m, rigid_motion<float>&rm, float scale) {
-    rm.m_rotation(0, 0) = m(0, 0);
-    rm.m_rotation(0, 1) = m(0, 1);
-    rm.m_rotation(0, 2) = m(0, 2);
-
-    rm.m_rotation(1, 0) = m(1, 0);
-    rm.m_rotation(1, 1) = m(1, 1);
-    rm.m_rotation(1, 2) = m(1, 2);
-
-    rm.m_rotation(2, 0) = m(2, 0);
-    rm.m_rotation(2, 1) = m(2, 1);
-    rm.m_rotation(2, 2) = m(2, 2);
-
-    rm.m_translation[0] = m(0, 3) * scale;
-    rm.m_translation[1] = m(1, 3) * scale;
-    rm.m_translation[2] = m(2, 3) * scale;
-}
-void resize(int _w, int _h) {
-    w = _w;
-    h = _h;
-}
-void mm(int x, int y)
-{
-    y = h - y;
-    g_camera.mouse_move(x, y);
-
-}
-void mb(int button, int state, int x, int y)
-{
-    y = h - y;
-    int zoom = 3;
-    Mouse::button b = Mouse::NONE;
-
-    if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
-
-        b = Mouse::ROTATE;
-        g_camera.mouse(x, y, b);
-
-    }
-    else if (button == GLUT_RIGHT_BUTTON && state == GLUT_DOWN) {
-
-        b = Mouse::MOVEXY;
-        g_camera.mouse(x, y, b);
-    }
-    else if ((button & 3) == 3) {
-
-        g_camera.mouse_wheel(zoom);
-    }
-    else if ((button & 4) == 4) {
-
-        g_camera.mouse_wheel(-zoom);
-    }
-}
-void draw() {
-   if(drawing){
-        glEnable(GL_NORMALIZE);
-        glEnable(GL_DEPTH_TEST);
-
-        g_camera.set_viewport(0, 0, w, h);
-        g_camera.setup();
-        g_camera.use_light(false);
-
-        glClearColor(1, 1, 1, 1);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glDisable(GL_CULL_FACE);
-        glPushMatrix();
-    //	glPointSize(3.25f);
-        glBegin(GL_POINTS);
-        for (unsigned int i = 0; i <gcloud.size(); ++i) {
-            glColor3f(0.0, 0.0, 1.0);
-            cv::Vec3f v = cv::Vec3f(gcloud[i]->getX(), gcloud[i]->getY(), gcloud[i]->getZ());
-    //		v *= sc;
-            glVertex3f(v[0], v[1], v[2]);
-        }
-        glEnd();
-
-        // draw  camera pose !
-
-        glPushMatrix();
-        if(processing){
-            double sc = 1.0;
-            rigid_motion<float>cam_temp, cam_canonique, cam_current;
-            solarPoseToRigidMotion(pose_current, cam_current, sc);
-            drawCamera(cam_current, cv::Vec3f(0.0, 0.0, 1.0), 4 * sc, false);
-        }
-        /*
-        double sc = 1.0;
-        rigid_motion<float>cam_temp, cam_canonique, cam_current;
-
-        solarPoseToRigidMotion(pose_final, cam_temp, sc);
-        solarPoseToRigidMotion(pose_canonique, cam_canonique, sc);
-
-        drawCamera(cam_temp, cv::Vec3f(1.0, 0.0, 0.0), 4 * sc, false);
-        drawCamera(cam_canonique, cv::Vec3f(0.0, 1.0, 0.0), 4 * sc, false);
-        */
-
-        glPopMatrix();
-        glutSwapBuffers();
-        glutPostRedisplay();
-   }
-}
-
-void keyBord(unsigned char key,
-             int x, int y){
+void keyBord(unsigned char key){
     switch (key) {
     case 's': {
         saving_images = !saving_images;
@@ -210,8 +35,8 @@ void keyBord(unsigned char key,
         break;
     }
     case 'd': {
-        drawing = !drawing;
-        std::cout << "drawing started: " << drawing << std::endl;
+        viewerGL.SetPointCloudToDisplay(&gcloud);
+        std::cout << "drawing started "  << std::endl;
         break;
     }
     case 'p': {
@@ -253,7 +78,8 @@ void init(){
 
        keypointsDetector->setType(features::KeypointDetectorType::SURF);       
        // load camera parameters from yml input file
-       std::string cameraParameters = std::string("D:/AmineSolar/source/slam/build-SolARTriangulationSample/mycamera_calibration0.yml");
+    //   std::string cameraParameters = std::string("D:/AmineSolar/source/slam/build-SolARTriangulationSample/mycamera_calibration0.yml");
+       std::string cameraParameters = std::string("D:/Development/SDK/SolARFramework/mycamera_calibration0.yml");
 
        camera->loadCameraParameters(cameraParameters);
        PnP->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
@@ -422,8 +248,9 @@ bool init_mapping(SRef<Image>&view_1,SRef<Image>&view_2, bool verbose){
          std::cout<<"   #final cloud size: "<<gcloud.size()<<std::endl;
          computeGravity(gcloud,gravity, maxDist);
          std::cout<<"gravity center: "<<gravity<<std::endl;
-         g_camera.resetview(math_vector_3f(gravity[0], gravity[1], gravity[2]), maxDist);
-         g_camera.rotate_180();
+         // to do : move these two lines elsewhere :
+         viewerGL.m_glcamera.resetview(math_vector_3f(gravity[0], gravity[1], gravity[2]), maxDist);
+         viewerGL.m_glcamera.rotate_180();
          SRef<Keyframe> kframe1 = xpcf::utils::make_shared<Keyframe>(view_1,frame1->getDescriptors(),0,pose_canonique, frame1->getKeyPoints());
          SRef<Keyframe> kframe2 = xpcf::utils::make_shared<Keyframe>(view_2,frame2->getDescriptors(),1,pose_final,frame2->getKeyPoints());
          std::cout<<"   #map init"<<std::endl;
@@ -465,6 +292,7 @@ bool tracking(SRef<Image>&view, const int kframe_idx, bool verbose){
     if(PnP->estimate(pt2d,pt3d,pose_current) == FrameworkReturnCode::_SUCCESS)
     {
         newFrame->m_pose = pose_current ;
+        viewerGL.SetRealCameraPose(pose_current);
         if(verbose){
             PnP->reproject(view,pose_current,K,dist,pt2d,pt3d, projected_image, false);
             viewer->display("pnp reprojection image", projected_image, &escape_key,640,480);
@@ -503,19 +331,14 @@ void idle(){
 int main(int argc, char* argv[]){
 //    debug_reprojection();
     init();
-    glutInit(&argc, argv);
-    //	capture_data();
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
-    glutInitWindowSize(640, 480);
-    glutCreateWindow("window");
-    glutDisplayFunc(draw);
-    glutKeyboardFunc(keyBord);
-    glutMouseFunc(mb);
-    glutMotionFunc(mm);
-    glutReshapeFunc(resize);
-    glutIdleFunc(idle);
-    glutMainLoop();
+    viewerGL.callBackIdle = idle ;
+    viewerGL.callbackKeyBoard = keyBord;
+    viewerGL.InitViewer(640 , 480);
+   //
+   //
 
+
+   // gcloud
 }
 
 

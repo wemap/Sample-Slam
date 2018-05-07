@@ -27,16 +27,20 @@ include ($$(BCOMDEVROOT)/builddefs/qmake/templateappconfig.pri)
 
 
 
-INCLUDEPATH += "D:/AmineLib/glcamera"
+INCLUDEPATH += "D:/Documents/Documentation/Solar/3dparties/glcamera"
+
+
 HEADERS += constant.h \
     constants.h \
     utilities.h \
-    gl_camera.h
+    gl_camera.h \
+    OpenGLViewer.h
 
 SOURCES += \
     main.cpp \
     utilities.cpp \
-    gl_camera.cpp
+    gl_camera.cpp \
+    OpenGLViewer.cpp
 
 unix {
 }

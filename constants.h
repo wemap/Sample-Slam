@@ -24,6 +24,7 @@
 #include "SolARPoseEstimationPnpOpencv.h"
 #include "freeglut.h"
 #include "gl_camera.h"
+#include "OpenGLViewer.h"
 
 //#define MYDEBUG
 
@@ -100,12 +101,12 @@ namespace xpcf  = org::bcom::xpcf;
    cv::Vec3f                                          gravity;
    float                                              maxDist;
 
-   int w,h;
-   gl_camera g_camera;
+
+    OpenGLViewer                                       viewerGL ;
+
 
    bool saving_images = false;
    bool triangulation_first = true;
-   bool drawing = false;
    bool processing = false;
 
    // constants/ interactive
