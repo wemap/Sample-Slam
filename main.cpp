@@ -253,7 +253,7 @@ void init(){
 
        keypointsDetector->setType(features::KeypointDetectorType::SURF);       
        // load camera parameters from yml input file
-       std::string cameraParameters = std::string("D:/Development/SDK/SolARFramework/mycamera_calibration0.yml");
+       std::string cameraParameters = std::string("D:/AmineSolar/source/slam/build-SolARTriangulationSample/mycamera_calibration0.yml");
 
        camera->loadCameraParameters(cameraParameters);
        PnP->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
@@ -324,7 +324,7 @@ bool debug_reprojection(){
         }
         std::cout<<std::endl<<std::endl;
         std::cout<<"  number of correspondances: "<<pt2d_temp.size()<<"  "<<pt3d_temp.size()<<std::endl;
-        PnP->reproject(view_current,pose_current,K,dist,pt2d_temp,pt3d_temp);
+ //       PnP->reproject(view_current,pose_current,K,dist,pt2d_temp,pt3d_temp);
         viewer->display("2d-3d corr", view_current, &escape_key,640,480);
 
         cv::waitKey(0);
@@ -461,11 +461,13 @@ bool tracking(SRef<Image>&view, const int kframe_idx, bool verbose){
 //    poseGraph->find2D3DCorrespondances(kframe_idx,new_matches_filtred,keypoints3,pt2d,pt3d);
 //    std::cout<<"trying to find 2d/3d correspondences!"<<std::endl;
     corr2D3DFinder->find(gcloud,kframe_idx,new_matches_filtred, newFrame->getKeyPoints(),pt3d,pt2d);
+    SRef<Image>projected_image;
     if(PnP->estimate(pt2d,pt3d,pose_current) == FrameworkReturnCode::_SUCCESS)
     {
         newFrame->m_pose = pose_current ;
         if(verbose){
-            PnP->reproject(view,pose_current,K,dist,pt2d,pt3d);
+            PnP->reproject(view,pose_current,K,dist,pt2d,pt3d, projected_image, false);
+            viewer->display("pnp reprojection image", projected_image, &escape_key,640,480);
         }
         return true;
     }else{
@@ -513,28 +515,6 @@ int main(int argc, char* argv[]){
     glutReshapeFunc(resize);
     glutIdleFunc(idle);
     glutMainLoop();
-
-
-    /*
-    glutInit(&argc, argv);
-    if (argc == 4) {
-        std::string firstImagePath = std::string(argv[1]);
-        std::string secondImagePath = std::string(argv[2]);
-        std::string cameraParameters = std::string(argv[3]);
-        init(cameraParameters);
-        run(firstImagePath, secondImagePath);
-    }
-    //	capture_data();
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
-    glutInitWindowSize(640, 480);
-    glutCreateWindow("window");
-    glutDisplayFunc(draw);
-    glutMouseFunc(mb);
-    glutMotionFunc(mm);
-    glutReshapeFunc(resize);
-    glutIdleFunc(idle);
-    glutMainLoop();
-    */
 
 }
 
