@@ -93,22 +93,22 @@ void drawCamera(rigid_motion<float>&camPose, cv::Vec3f&color, float scale, bool 
     glVertex3f(pos[0][0], pos[0][1], pos[0][2]);
     glEnd();
 }
-void solarPoseToRigidMotion(SRef<Pose>&m, rigid_motion<float>&rm, float scale) {
-    rm.m_rotation(0, 0) = m->m_poseTransform(0, 0);
-    rm.m_rotation(0, 1) = m->m_poseTransform(0, 1);
-    rm.m_rotation(0, 2) = m->m_poseTransform(0, 2);
+void solarPoseToRigidMotion(Transform3Df&m, rigid_motion<float>&rm, float scale) {
+    rm.m_rotation(0, 0) = m(0, 0);
+    rm.m_rotation(0, 1) = m(0, 1);
+    rm.m_rotation(0, 2) = m(0, 2);
 
-    rm.m_rotation(1, 0) = m->m_poseTransform(1, 0);
-    rm.m_rotation(1, 1) = m->m_poseTransform(1, 1);
-    rm.m_rotation(1, 2) = m->m_poseTransform(1, 2);
+    rm.m_rotation(1, 0) = m(1, 0);
+    rm.m_rotation(1, 1) = m(1, 1);
+    rm.m_rotation(1, 2) = m(1, 2);
 
-    rm.m_rotation(2, 0) = m->m_poseTransform(2, 0);
-    rm.m_rotation(2, 1) = m->m_poseTransform(2, 1);
-    rm.m_rotation(2, 2) = m->m_poseTransform(2, 2);
+    rm.m_rotation(2, 0) = m(2, 0);
+    rm.m_rotation(2, 1) = m(2, 1);
+    rm.m_rotation(2, 2) = m(2, 2);
 
-    rm.m_translation[0] = m->m_poseTransform(0, 3) * scale;
-    rm.m_translation[1] = m->m_poseTransform(1, 3) * scale;
-    rm.m_translation[2] = m->m_poseTransform(2, 3) * scale;
+    rm.m_translation[0] = m(0, 3) * scale;
+    rm.m_translation[1] = m(1, 3) * scale;
+    rm.m_translation[2] = m(2, 3) * scale;
 }
 void resize(int _w, int _h) {
     w = _w;
@@ -194,8 +194,10 @@ void draw() {
         glutPostRedisplay();
    }
 }
-void fillPoseCanonique(SRef<Pose>&pcano){
+void fillPoseCanonique(Transform3Df&pcano){
 
+
+    /*
     pcano = sptrnms::make_shared<Pose>();
 
     pcano->m_poseTransform(0,0) = 1.0;
@@ -241,9 +243,27 @@ void fillPoseCanonique(SRef<Pose>&pcano){
     pcano->m_data[3][1] = 0.0;
     pcano->m_data[3][2] = 0.0;
     pcano->m_data[3][3] = 1.0;
+    */
 
+    pcano(0,0) = 1.0;
+    pcano(0,1) = 0.0;
+    pcano(0,2) = 0.0;
+    pcano(0,3) = 0.0;
 
+    pcano(1,0) = 0.0;
+    pcano(1,1) = 1.0;
+    pcano(1,2) = 0.0;
+    pcano(1,3) = 0.0;
 
+    pcano(2,0) = 0.0;
+    pcano(2,1) = 0.0;
+    pcano(2,2) = 1.0;
+    pcano(2,3) = 0.0;
+
+    pcano(3,0) = 0.0;
+    pcano(3,1) = 0.0;
+    pcano(3,2) = 0.0;
+    pcano(3,3) = 1.0;
 }
 void keyBord(unsigned char key,
              int x, int y){
@@ -362,7 +382,7 @@ bool debug_reprojection(){
 
         for(int ii = 0; ii < 4; ++ii){
             for(int jj = 0; jj < 4; ++jj){
-                std::cout<<pose_current->m_data[ii][jj]<<" ";
+                std::cout<<pose_current(ii,jj)<<" ";
             }
             std::cout<<std::endl;
         }

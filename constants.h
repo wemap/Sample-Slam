@@ -98,10 +98,10 @@ namespace xpcf  = org::bcom::xpcf;
    CamCalibration                                      K;
    CamDistortion                                       dist;
    Transform2Df                                        F;
-   std::vector<SRef<Pose>>                             poses;
-   SRef<Pose>                                          pose_canonique ;
-   SRef<Pose>                                          pose_final ;
-   SRef<Pose>                                          pose_current ;
+   std::vector<Transform3Df>                           poses;
+   Transform3Df                                        pose_canonique ;
+   Transform3Df                                        pose_final ;
+   Transform3Df                                        pose_current ;
    // The escape key to exit the sample
    char escape_key = 27;
 
