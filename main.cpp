@@ -473,7 +473,13 @@ bool init_mapping(SRef<Image>&view_1,SRef<Image>&view_2, bool verbose){
          std::cout<<"--<Pose graph: "<<std::endl;
          std::cout<<"     # kframe(t): "<<kframe1->m_idx<<std::endl;
          std::cout<<"     # kframe(t+1): "<<kframe2->m_idx<<std::endl;
+         return true;
      }
+     else{
+         std::cerr<<"can't find good baseline, select another pair of images for triangulation.."<<std::endl;
+         return false;
+     }
+
 }
 bool tracking(SRef<Image>&view, const int kframe_idx, bool verbose){
     std::vector<DescriptorMatch>new_matches, new_matches_filtred;
@@ -506,10 +512,8 @@ void idle(){
         triangulation_first = false;
     }
     if(processing){
-        std::cout<<"TRACKING THREAD"<<std::endl;
-        if(!tracking(view_current,1 /*kframe_idx*/,true)){
-            // update cloud ( + keyframe, + cloud,+ matches)
-        };
+       std::cout<<"TRACKING THREAD"<<std::endl;
+       tracking(view_current,1 /*kframe_idx*/,true);
     }
 }
 int main(int argc, char* argv[]){
