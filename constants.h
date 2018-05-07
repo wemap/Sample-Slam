@@ -61,17 +61,7 @@ namespace xpcf  = org::bcom::xpcf;
    SRef<Image>                                         view_2;
    SRef<Image>                                         view_current;
    std::vector<SRef<Image>>                            views;
-   SRef<Keyframe>                                      kframe1;
-   SRef<Keyframe>                                      kframe2;
-   SRef<Keyframe>                                      kframe3;
 
-   std::vector< SRef<Keypoint>>                        keypoints1;
-   std::vector< SRef<Keypoint>>                        keypoints2;
-   std::vector< SRef<Keypoint>>                        keypoints3;
-
-   SRef<DescriptorBuffer>                              descriptors1;
-   SRef<DescriptorBuffer>                              descriptors2;
-   SRef<DescriptorBuffer>                              descriptors3;
 
    std::vector<DescriptorMatch>                        matches;
 
@@ -104,6 +94,8 @@ namespace xpcf  = org::bcom::xpcf;
    Transform3Df                                        pose_current ;
    // The escape key to exit the sample
    char escape_key = 27;
+
+    int                                                 nbFrameSinceKeyFrame ;
 
    cv::Vec3f                                          gravity;
    float                                              maxDist;
