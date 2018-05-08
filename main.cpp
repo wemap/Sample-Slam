@@ -253,6 +253,8 @@ bool init_mapping(SRef<Image>&view_1,SRef<Image>&view_2, bool verbose){
          viewerGL.m_glcamera.rotate_180();
          SRef<Keyframe> kframe1 = xpcf::utils::make_shared<Keyframe>(view_1,frame1->getDescriptors(),0,pose_canonique, frame1->getKeyPoints());
          SRef<Keyframe> kframe2 = xpcf::utils::make_shared<Keyframe>(view_2,frame2->getDescriptors(),1,pose_final,frame2->getKeyPoints());
+         kframe1->addVisibleMapPoints(gcloud);
+         kframe2->addVisibleMapPoints(gcloud) ;
          std::cout<<"   #map init"<<std::endl;
          poseGraph->initMap(kframe1,kframe2,gcloud,ggmatches);
          std::cout<<"--<Pose graph: "<<std::endl;
@@ -281,18 +283,31 @@ bool tracking(SRef<Image>&view, const int kframe_idx, bool verbose){
    
     matchesFilterGeometric->filter(new_matches,new_matches_filtred, referenceKeyFrame->getKeyPoints(), newFrame->getKeyPoints());
 
-    newFrame->setMatchesWithReferenceKeyFrame(new_matches_filtred);
+
 
     std::vector<SRef<Point2Df>>pt2d;
     std::vector<SRef<Point3Df>>pt3d;
+    std::vector<SRef<CloudPoint>> foundPoints ;
+    std::vector<DescriptorMatch> remainingMatches ;
 //    poseGraph->find2D3DCorrespondances(kframe_idx,new_matches_filtred,keypoints3,pt2d,pt3d);
 //    std::cout<<"trying to find 2d/3d correspondences!"<<std::endl;
-    corr2D3DFinder->find(gcloud,kframe_idx,new_matches_filtred, newFrame->getKeyPoints(),pt3d,pt2d);
+    corr2D3DFinder->find(referenceKeyFrame->getVisibleMapPoints(),referenceKeyFrame->m_idx,new_matches_filtred, newFrame->getKeyPoints(), foundPoints,  pt3d,pt2d , remainingMatches);
     SRef<Image>projected_image;
     if(PnP->estimate(pt2d,pt3d,pose_current) == FrameworkReturnCode::_SUCCESS)
     {
         newFrame->m_pose = pose_current ;
         viewerGL.SetRealCameraPose(pose_current);
+
+        newFrame->addCommonMapPointsWithReferenceKeyFrame(foundPoints);
+        newFrame->setMatchesWithReferenceKeyFrame(remainingMatches);
+        if (poseGraph->tryToAddKeyFrame(newFrame)) // try to add key frame if success tracking
+        {
+            nbFrameSinceKeyFrame = 0 ;
+            std::cout << " add new key frame in the map"  << std::endl ;
+            // triangulate
+        }
+
+
         if(verbose){
             PnP->reproject(view,pose_current,K,dist,pt2d,pt3d, projected_image, false);
             viewer->display("pnp reprojection image", projected_image, &escape_key,640,480);
@@ -302,13 +317,7 @@ bool tracking(SRef<Image>&view, const int kframe_idx, bool verbose){
         return false;
     }
 	
-	if (poseGraph->tryToAddKeyFrame(newFrame))
-    {
-        nbFrameSinceKeyFrame = 0 ;
-        std::cout << " add new key frame in the map"  << std::endl ;
-        // triangulate
-    }
-	
+
 	
 }
 void idle(){
