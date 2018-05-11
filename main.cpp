@@ -35,7 +35,7 @@ void keyBord(unsigned char key){
         break;
     }
     case 'd': {
-        viewerGL.SetPointCloudToDisplay(&gcloud);
+        viewerGL.SetPointCloudToDisplay(poseGraph->getMap()->getPointCloud());
         std::cout << "drawing started "  << std::endl;
         break;
     }
@@ -79,7 +79,8 @@ void init(){
        keypointsDetector->setType(features::KeypointDetectorType::SURF);       
        // load camera parameters from yml input file
     //   std::string cameraParameters = std::string("D:/AmineSolar/source/slam/build-SolARTriangulationSample/mycamera_calibration0.yml");
-       std::string cameraParameters = std::string("D:/Development/SDK/SolARFramework/mycamera_calibration0.yml");
+      std::string cameraParameters = std::string("D:/Development/SDK/SolARFramework/mycamera_calibration0.yml");
+       // std::string cameraParameters = std::string("D:/Development/SDK/SolARFramework/camera_calibration.yml");
 
        camera->loadCameraParameters(cameraParameters);
        PnP->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
@@ -175,27 +176,7 @@ bool debug_reprojection(){
     }
 
 }
-void computeGravity(std::vector<SRef<CloudPoint>>&cloud,cv::Vec3f&grav, float& maxDist){
-   grav =  cv::Vec3f(0, 0, 0);
-   maxDist  =0.f;
 
-    cv::Vec3f vr_temp(0, 0, 0);
-    int count = 0;
-    for (int i = 0; i < cloud.size(); ++i) {
-        vr_temp = cv::Vec3f(cloud[i]->getX(), cloud[i]->getX(), cloud[i]->getY());
-        grav = grav + vr_temp;
-        count++;
-    }
-    maxDist = 0;
-    if (count > 0) {
-        grav= (1.f / (float)count)*gravity;
-        for (int i = 0; i < cloud.size(); ++i) {
-            vr_temp = cv::Vec3f(cloud[i]->getX(),cloud[i]->getY(), cloud[i]->getZ());
-            cv::Vec3f temp = vr_temp - grav;
-            maxDist = MAX(maxDist, (float)norm(vr_temp - grav));
-        }
-    }
-}
 bool init_mapping(SRef<Image>&view_1,SRef<Image>&view_2, bool verbose){
  SRef<Frame> frame1 = createAndInitFrame(views[0]);
  SRef<Frame> frame2 = createAndInitFrame((views[1])) ;
@@ -244,22 +225,27 @@ bool init_mapping(SRef<Image>&view_1,SRef<Image>&view_2, bool verbose){
 
    std::pair<int,int>working_view = std::make_pair(0,1);
    std::cout<<"   #full triangulation+filtering"<<std::endl;
-     if(mapper->triangulateFull(ggmatchedKeypoints1,ggmatchedKeypoints2,ggmatches, working_view,pose_canonique,poses,K,dist,pose_final,gcloud)){
-         std::cout<<"   #final cloud size: "<<gcloud.size()<<std::endl;
-         computeGravity(gcloud,gravity, maxDist);
-         std::cout<<"gravity center: "<<gravity<<std::endl;
+   std::vector<SRef<CloudPoint>> tempCloud ;
+     if(mapper->triangulateFull(ggmatchedKeypoints1,ggmatchedKeypoints2,ggmatches, working_view,pose_canonique,poses,K,dist,pose_final,tempCloud)){
+         std::cout<<"   #final cloud size: "<<tempCloud.size()<<std::endl;
+        /* std::cout<<"gravity center: "<<gravity<<std::endl;*/
          // to do : move these two lines elsewhere :
-         viewerGL.m_glcamera.resetview(math_vector_3f(gravity[0], gravity[1], gravity[2]), maxDist);
-         viewerGL.m_glcamera.rotate_180();
          SRef<Keyframe> kframe1 = xpcf::utils::make_shared<Keyframe>(view_1,frame1->getDescriptors(),0,pose_canonique, frame1->getKeyPoints());
          SRef<Keyframe> kframe2 = xpcf::utils::make_shared<Keyframe>(view_2,frame2->getDescriptors(),1,pose_final,frame2->getKeyPoints());
-         kframe1->addVisibleMapPoints(gcloud);
-         kframe2->addVisibleMapPoints(gcloud) ;
+         kframe1->addVisibleMapPoints(tempCloud);
+         kframe2->addVisibleMapPoints(tempCloud) ;
          std::cout<<"   #map init"<<std::endl;
-         poseGraph->initMap(kframe1,kframe2,gcloud,ggmatches);
+         poseGraph->initMap(kframe1,kframe2,tempCloud,ggmatches);
          std::cout<<"--<Pose graph: "<<std::endl;
          std::cout<<"     # kframe(t): "<<kframe1->m_idx<<std::endl;
          std::cout<<"     # kframe(t+1): "<<kframe2->m_idx<<std::endl;
+         Point3Df gravity  ;
+         float maxDist ;
+
+         std::cout << " compute gravity" << std::endl ;
+         poseGraph->getMap()->computeGravity(gravity , maxDist) ;
+         viewerGL.m_glcamera.resetview(math_vector_3f(gravity.getX(), gravity.getY(), gravity.getZ()), maxDist);
+         viewerGL.m_glcamera.rotate_180();
 		 nbFrameSinceKeyFrame = 0 ;
          return true;
      }
@@ -273,7 +259,7 @@ bool tracking(SRef<Image>&view, const int kframe_idx, bool verbose){
 	
 	nbFrameSinceKeyFrame++ ;
 	SRef<Frame> newFrame = createAndInitFrame(view);
-    poseGraph->AssociateReferenceKeyFrameToFrame(newFrame) ;
+    poseGraph->associateReferenceKeyFrameToFrame(newFrame) ;
     newFrame->setNumberOfFramesSinceLastKeyFrame(nbFrameSinceKeyFrame);
 
     std::vector<DescriptorMatch>new_matches, new_matches_filtred;
@@ -320,12 +306,27 @@ bool tracking(SRef<Image>&view, const int kframe_idx, bool verbose){
 
 	
 }
+/*
+SRef<Image>  im1 ;
+SRef<Image> im2 ;
+bool first = true  ;*/
+
 void idle(){
     camera->getNextImage(view_current);
     viewer->display("view current", view_current, &escape_key);
     cv::waitKey(1);
-    if(saving_images){
-        views.push_back(view_current);
+    if(saving_images)
+    {
+      views.push_back(view_current);
+      /* if (first)
+        {
+            views.push_back(im1) ;
+            first = false ;
+        }
+        else
+        {
+            views.push_back(im2) ;
+        }*/
         saving_images=false;
     }
     if (triangulation_first&& views.size()>1) {
@@ -339,7 +340,13 @@ void idle(){
 }
 int main(int argc, char* argv[]){
 //    debug_reprojection();
+
+
     init();
+    //
+   // imageLoader->loadImage("D:/Development/Code/Solar/Samples/Sample-Triangulation/Image2.png" ,im1) ;
+  //  imageLoader->loadImage("D:/Development/Code/Solar/Samples/Sample-Triangulation/Image1.png" ,im2) ;
+
     viewerGL.callBackIdle = idle ;
     viewerGL.callbackKeyBoard = keyBord;
     viewerGL.InitViewer(640 , 480);

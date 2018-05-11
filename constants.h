@@ -74,7 +74,6 @@ namespace xpcf  = org::bcom::xpcf;
 
    std::vector<SRef<Point2Df>>                         ggmatchedKeypoints1;
    std::vector<SRef<Point2Df>>                         ggmatchedKeypoints2;
-   std::vector<SRef<CloudPoint>>                       gcloud;
 
 
 
@@ -97,9 +96,6 @@ namespace xpcf  = org::bcom::xpcf;
    char escape_key = 27;
 
     int                                                 nbFrameSinceKeyFrame ;
-
-   cv::Vec3f                                          gravity;
-   float                                              maxDist;
 
 
     OpenGLViewer                                       viewerGL ;

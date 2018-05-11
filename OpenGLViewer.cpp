@@ -46,7 +46,7 @@ void OpenGLViewer::SetRealCameraPose(Transform3Df & m)
 {
     m_realCameraPose = m ;
 }
-void OpenGLViewer::SetPointCloudToDisplay(std::vector<SRef<CloudPoint>> * pointCloud)
+void OpenGLViewer::SetPointCloudToDisplay(SRef<std::vector<SRef<CloudPoint>>> pointCloud)
 {
     m_pointCloud = pointCloud ;
 }

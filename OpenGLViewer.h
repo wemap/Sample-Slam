@@ -24,7 +24,7 @@ public :
 
 
     void SetRealCameraPose(Transform3Df & m) ;
-    void SetPointCloudToDisplay(std::vector<SRef<CloudPoint>> * pointCloud) ;
+    void SetPointCloudToDisplay(SRef<std::vector<SRef<CloudPoint>>>  pointCloud) ;
 
 
     void OnMainLoop() ;
@@ -53,7 +53,7 @@ private :
     int             m_resolutionX ;
     int             m_resolutionY ;
 
-    std::vector<SRef<CloudPoint>> * m_pointCloud ;
+    SRef<std::vector<SRef<CloudPoint>>>  m_pointCloud ;
     Transform3Df    m_realCameraPose ;
 
 
