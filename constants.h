@@ -64,6 +64,16 @@ namespace xpcf  = org::bcom::xpcf;
    std::vector<SRef<Image>>                            views;
 
 
+   std::vector<DescriptorMatch>                        matches;
+
+   std::vector<SRef<Point2Df>>                         matchedKeypoints1;
+   std::vector<SRef<Point2Df>>                         matchedKeypoints2;
+
+   std::vector<SRef<Point2Df>>                         gmatchedKeypoints1;
+   std::vector<SRef<Point2Df>>                         gmatchedKeypoints2;
+
+   std::vector<SRef<Point2Df>>                         ggmatchedKeypoints1;
+   std::vector<SRef<Point2Df>>                         ggmatchedKeypoints2;
 
 
 
@@ -72,7 +82,8 @@ namespace xpcf  = org::bcom::xpcf;
    SRef<Image>                                         viewerImage3;
 
    SRef<features::IMatchesFilter>                      matchesFilterGeometric;
-
+   std::vector<DescriptorMatch>                        gmatches;
+   std::vector<DescriptorMatch>                        ggmatches;
 
    CamCalibration                                      K;
    CamDistortion                                       dist;
