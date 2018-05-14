@@ -104,6 +104,16 @@ SRef<Frame> createAndInitFrame(SRef<Image>&img)
     return resul ;
 }
 
+void getMatchedKeyPoints( std::vector<SRef<Keypoint>> & keyPoints1,  std::vector<SRef<Keypoint>> & keyPoints2,  std::vector<DescriptorMatch> & matches, std::vector<SRef<Point2Df>> & matchedKeyPoints1, std::vector<SRef<Point2Df>> & matchedKeyPoints2)
+{
+    matchedKeyPoints1.reserve(matches.size()); // allocate memory
+    for( int i = 0; i < matches.size(); i++ )
+    {
+       matchedKeyPoints1.push_back(xpcf::utils::make_shared<Point2Df>(keyPoints1[ matches[i].getIndexInDescriptorA()]->getX(),keyPoints1[ matches[i].getIndexInDescriptorA()]->getY()));
+       matchedKeyPoints2.push_back(xpcf::utils::make_shared<Point2Df>(keyPoints2[ matches[i].getIndexInDescriptorB()]->getX(),keyPoints2[ matches[i].getIndexInDescriptorB()]->getY()));
+     }
+}
+
 
 
 bool init_mapping(SRef<Image>&view_1,SRef<Image>&view_2){
@@ -111,20 +121,17 @@ bool init_mapping(SRef<Image>&view_1,SRef<Image>&view_2){
  SRef<Frame> frame2 = createAndInitFrame((views[1])) ;
 
 
-
+ std::vector<DescriptorMatch>  matches;
  matcher->match(frame1->getDescriptors(), frame2->getDescriptors(), matches);
 
 
  std::vector<SRef<Point2Df>>    matchedKeypoints1;
  std::vector<SRef<Point2Df>>    matchedKeypoints2;
 
- int vizPoints0 = int(matches.size());
- for( int i = 0; i < matches.size(); i++ )
- {
-    matchedKeypoints1.push_back(xpcf::utils::make_shared<Point2Df>(frame1->getKeyPoints()[ matches[i].getIndexInDescriptorA()]->getX(),frame1->getKeyPoints()[ matches[i].getIndexInDescriptorA()]->getY()));
-    matchedKeypoints2.push_back(xpcf::utils::make_shared<Point2Df>(frame2->getKeyPoints()[ matches[i].getIndexInDescriptorB()]->getX(),frame2->getKeyPoints()[ matches[i].getIndexInDescriptorB()]->getY()));
-  }
+ getMatchedKeyPoints(frame1->getKeyPoints(), frame2->getKeyPoints() , matches, matchedKeypoints1 , matchedKeypoints2) ;
+
  // Draw the matches in a dedicated image
+ int vizPoints0 = matches.size()  ;
  overlay->drawMatchesLines(views[0], views[1], viewerImage1, matchedKeypoints1, matchedKeypoints2, vizPoints0);
  //int vizPoints1 = int(gmatches.size());
  //overlay->drawMatchesLines(views[0],views[1], viewerImage2, gmatchedKeypoints1, gmatchedKeypoints2,vizPoints1);
@@ -133,14 +140,11 @@ bool init_mapping(SRef<Image>&view_1,SRef<Image>&view_2){
  // filter matches
  std::vector<DescriptorMatch>  ggmatches;
  matchesFilterGeometric->filter(matches,ggmatches,frame1->getKeyPoints(), frame2->getKeyPoints());
+
  std::vector<SRef<Point2Df>> ggmatchedKeypoints1;
  std::vector<SRef<Point2Df>> ggmatchedKeypoints2;
 
- for( int i = 0; i < ggmatches.size(); i++ )
- {
-    ggmatchedKeypoints1.push_back(xpcf::utils::make_shared<Point2Df>(frame1->getKeyPoints()[ggmatches[i].getIndexInDescriptorA()]->getX(),frame1->getKeyPoints()[ ggmatches[i].getIndexInDescriptorA()]->getY()));
-    ggmatchedKeypoints2.push_back(xpcf::utils::make_shared<Point2Df>(frame2->getKeyPoints()[ggmatches[i].getIndexInDescriptorB()]->getX(),frame2->getKeyPoints()[ ggmatches[i].getIndexInDescriptorB()]->getY()));
-  }
+ getMatchedKeyPoints(frame1->getKeyPoints(), frame2->getKeyPoints() ,ggmatches, ggmatchedKeypoints1 ,  ggmatchedKeypoints2 ) ;
 
   int vizPoints2 = int(ggmatches.size());
   overlay->drawMatchesLines(views[0], views[1], viewerImage3, ggmatchedKeypoints1, ggmatchedKeypoints2,vizPoints2);

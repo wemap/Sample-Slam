@@ -64,7 +64,7 @@ namespace xpcf  = org::bcom::xpcf;
    std::vector<SRef<Image>>                            views;
 
 
-   std::vector<DescriptorMatch>                        matches;
+
 
 
    SRef<Image>                                         viewerImage1;
