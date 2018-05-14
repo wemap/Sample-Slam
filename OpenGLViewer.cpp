@@ -92,7 +92,7 @@ void OpenGLViewer::OnRender()
          // draw  camera pose !
 
          glPushMatrix();
-         DrawPhysicalCamera(m_realCameraPose, cv::Vec3f(0.0, 0.0, 1.0), 4, false);
+         DrawPhysicalCamera(m_realCameraPose, cv::Vec3f(0.0, 0.0, 1.0), 1, false);
          glPopMatrix();
          glutSwapBuffers();
          glutPostRedisplay();

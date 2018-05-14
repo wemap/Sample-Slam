@@ -78,9 +78,8 @@ void init(){
 
        keypointsDetector->setType(features::KeypointDetectorType::SURF);       
        // load camera parameters from yml input file
-    //   std::string cameraParameters = std::string("D:/AmineSolar/source/slam/build-SolARTriangulationSample/mycamera_calibration0.yml");
-      std::string cameraParameters = std::string("D:/Development/SDK/SolARFramework/mycamera_calibration0.yml");
-       // std::string cameraParameters = std::string("D:/Development/SDK/SolARFramework/camera_calibration.yml");
+        std::string cameraParameters = std::string("calib.yml");
+
 
        camera->loadCameraParameters(cameraParameters);
        PnP->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
@@ -105,157 +104,87 @@ SRef<Frame> createAndInitFrame(SRef<Image>&img)
     return resul ;
 }
 
-bool debug_reprojection(){
-    init();
-    cv::namedWindow("debug_window",0);
-    cv::Mat view = cv::imread("D:/AmineSolar/mySLAM/my_validdata_2/0002.png");
-    if (!view.empty()) {
-        std::cout << " --------------------<debug 2d-3d reprojection>" << std::endl;
-        std::cout << "	#loading 2d-3d correspondances:" << std::endl;
-        int corr_no = 1817;
-        std::vector<SRef<Point2Df>>pt2d_temp;
-        std::vector<SRef<Point3Df>>pt3d_temp;
-        pt3d_temp.resize(corr_no); pt2d_temp.resize(corr_no);
-        std::string corr_path = "D:/corr_cvSlam.txt";
-        std::ifstream oxCorr(corr_path);
-        std::string dummy;
-        for (int i = 0; i < corr_no; ++i) {
-            float v[5];
-            for (int j = 0; j < 5; ++j) {
-                oxCorr >> dummy;
-                v[j] = std::stof(dummy);
-            }
-            pt3d_temp[i] = sptrnms::make_shared<Point3Df>(v[0], v[1], v[2]);
-            pt2d_temp[i] = sptrnms::make_shared<Point2Df>(v[3], v[4]);
-     //       std::cout << " pt3d: " << pt3d_temp[i]->getX() << " "<<pt3d_temp[i]->getY()<<" "<<
-      //                    pt3d_temp[i]->getZ()<<"   pt2d: " << pt2d_temp[i]->getX()<<" "<< pt2d_temp[i]->getY() << std::endl;
-       //     cv::waitKey(0);
-        }
-        std::string thirdImagePath = "D:/AmineSolar/source/slam/build-SolARTriangulationSample/0002.png";
-        if (imageLoader->loadImage(thirdImagePath,view_current) != FrameworkReturnCode::_SUCCESS)
-        {
-           LOG_ERROR("Cannot load image with path {}", std::string());
-           return -1;
-        }
 
-        SRef<Pose> pose_pnp;
-        PnP->estimate(pt2d_temp,pt3d_temp,pose_current);
 
-        std::cout<<" pose solar from pnp: "<<std::endl;
-
-        for(int ii = 0; ii < 4; ++ii){
-            for(int jj = 0; jj < 4; ++jj){
-                std::cout<<pose_current(ii,jj)<<" ";
-            }
-            std::cout<<std::endl;
-        }
-        std::cout<<std::endl<<std::endl;
-        std::cout<<"  number of correspondances: "<<pt2d_temp.size()<<"  "<<pt3d_temp.size()<<std::endl;
- //       PnP->reproject(view_current,pose_current,K,dist,pt2d_temp,pt3d_temp);
-        viewer->display("2d-3d corr", view_current, &escape_key,640,480);
-
-        cv::waitKey(0);
-
-        /*
-        std::pair<int, int>working_pair = std::make_pair<int, int>(0, 1);
-        if (vo->computePoseFromPnP(view, working_pair, rvec, t, R, pt3d_temp, pt2d_temp, paramPnP)) {
-            current_pose = cv::Matx34d(R(0, 0), R(0, 1), R(0, 2), t(0),
-                R(1, 0), R(1, 1), R(1, 2), t(1),
-                R(2, 0), R(2, 1), R(2, 2), t(2));
-
-            std::cout << "		# pose: " << t(0) << " " << t(1) << " " << t(2) << std::endl;
-            std::cout << "		# tracking: good" << std::endl;
-            cv::waitKey(0);
-            return true;
-        }
-        else {
-            std::cout << "		# tracking: bad" << std::endl;
-            return false;
-        }
-        */
-    }
-
-}
-
-bool init_mapping(SRef<Image>&view_1,SRef<Image>&view_2, bool verbose){
+bool init_mapping(SRef<Image>&view_1,SRef<Image>&view_2){
  SRef<Frame> frame1 = createAndInitFrame(views[0]);
  SRef<Frame> frame2 = createAndInitFrame((views[1])) ;
 
- std::cout<<"--< Descriptors matching: "<<std::endl;
+
+
  matcher->match(frame1->getDescriptors(), frame2->getDescriptors(), matches);
- std::cout<<"     #original matches: "<<matches.size()<<std::endl;
- if(verbose){
-     int vizPoints0 = int(matches.size());
-    matchedKeypoints1.clear();
-    matchedKeypoints2.clear();
-    for( int i = 0; i < matches.size(); i++ ){
-     matchedKeypoints1.push_back(xpcf::utils::make_shared<Point2Df>(frame1->getKeyPoints()[ matches[i].getIndexInDescriptorA()]->getX(),frame1->getKeyPoints()[ matches[i].getIndexInDescriptorA()]->getY()));
-     matchedKeypoints2.push_back(xpcf::utils::make_shared<Point2Df>(frame2->getKeyPoints()[ matches[i].getIndexInDescriptorB()]->getX(),frame2->getKeyPoints()[ matches[i].getIndexInDescriptorB()]->getY()));
-     }
-    // Draw the matches in a dedicated image
-     overlay->drawMatchesLines(views[0], views[1], viewerImage1, matchedKeypoints1, matchedKeypoints2, vizPoints0);
-    int vizPoints1 = int(gmatches.size());
-    overlay->drawMatchesLines(views[0],views[1], viewerImage2, gmatchedKeypoints1, gmatchedKeypoints2,vizPoints1);
- }
+
+
+ std::vector<SRef<Point2Df>>    matchedKeypoints1;
+ std::vector<SRef<Point2Df>>    matchedKeypoints2;
+
+ int vizPoints0 = int(matches.size());
+ for( int i = 0; i < matches.size(); i++ )
+ {
+    matchedKeypoints1.push_back(xpcf::utils::make_shared<Point2Df>(frame1->getKeyPoints()[ matches[i].getIndexInDescriptorA()]->getX(),frame1->getKeyPoints()[ matches[i].getIndexInDescriptorA()]->getY()));
+    matchedKeypoints2.push_back(xpcf::utils::make_shared<Point2Df>(frame2->getKeyPoints()[ matches[i].getIndexInDescriptorB()]->getX(),frame2->getKeyPoints()[ matches[i].getIndexInDescriptorB()]->getY()));
+  }
+ // Draw the matches in a dedicated image
+ overlay->drawMatchesLines(views[0], views[1], viewerImage1, matchedKeypoints1, matchedKeypoints2, vizPoints0);
+ //int vizPoints1 = int(gmatches.size());
+ //overlay->drawMatchesLines(views[0],views[1], viewerImage2, gmatchedKeypoints1, gmatchedKeypoints2,vizPoints1);
+
+
+ // filter matches
+ std::vector<DescriptorMatch>  ggmatches;
  matchesFilterGeometric->filter(matches,ggmatches,frame1->getKeyPoints(), frame2->getKeyPoints());
- if(verbose){
-    std::cout<<"    #filtred matches: "<<ggmatches.size()<<std::endl;
-    ggmatchedKeypoints1.clear();
-    ggmatchedKeypoints2.clear();
-    for( int i = 0; i < ggmatches.size(); i++ ){
-       ggmatchedKeypoints1.push_back(xpcf::utils::make_shared<Point2Df>(frame1->getKeyPoints()[ggmatches[i].getIndexInDescriptorA()]->getX(),frame1->getKeyPoints()[ ggmatches[i].getIndexInDescriptorA()]->getY()));
-       ggmatchedKeypoints2.push_back(xpcf::utils::make_shared<Point2Df>(frame2->getKeyPoints()[ggmatches[i].getIndexInDescriptorB()]->getX(),frame2->getKeyPoints()[ ggmatches[i].getIndexInDescriptorB()]->getY()));
-    }
-    int vizPoints2 = int(ggmatches.size());
-    overlay->drawMatchesLines(views[0], views[1], viewerImage3, ggmatchedKeypoints1, ggmatchedKeypoints2,vizPoints2);
-    viewer->display("original matches", viewerImage1, &escape_key,1280,480);
-    viewer->display("filtred matches (epipolar)", viewerImage3, &escape_key,1280,480);
-    }
-   std::cout<<"--<Triangulation: "<<std::endl;
-   std::cout<<"    #Fundamental calculation"<<std::endl;
+ std::vector<SRef<Point2Df>> ggmatchedKeypoints1;
+ std::vector<SRef<Point2Df>> ggmatchedKeypoints2;
+
+ for( int i = 0; i < ggmatches.size(); i++ )
+ {
+    ggmatchedKeypoints1.push_back(xpcf::utils::make_shared<Point2Df>(frame1->getKeyPoints()[ggmatches[i].getIndexInDescriptorA()]->getX(),frame1->getKeyPoints()[ ggmatches[i].getIndexInDescriptorA()]->getY()));
+    ggmatchedKeypoints2.push_back(xpcf::utils::make_shared<Point2Df>(frame2->getKeyPoints()[ggmatches[i].getIndexInDescriptorB()]->getX(),frame2->getKeyPoints()[ ggmatches[i].getIndexInDescriptorB()]->getY()));
+  }
+
+  int vizPoints2 = int(ggmatches.size());
+  overlay->drawMatchesLines(views[0], views[1], viewerImage3, ggmatchedKeypoints1, ggmatchedKeypoints2,vizPoints2);
+
+  viewer->display("original matches", viewerImage1, &escape_key,1280,480);
+  viewer->display("filtred matches (epipolar)", viewerImage3, &escape_key,1280,480);
+
+
    fundamentalFinder->find(ggmatchedKeypoints1, ggmatchedKeypoints2,F);
-   std::cout<<"    #Fundamental decomposition"<<std::endl;
    fundamentalDecomposer->decompose(F,K,dist,poses);
    pose_canonique.setIdentity() ;
 
-   std::cout<<"    #Full triangulation"<<std::endl;
-   std::cout<<"    #pt2d1 size: "<<ggmatchedKeypoints1.size()<<std::endl;
-   std::cout<<"    #pt2d2 size: "<<ggmatchedKeypoints2.size()<<std::endl;
-   std::cout<<"    #matches size: "<<ggmatches.size()<<std::endl;
-
    std::pair<int,int>working_view = std::make_pair(0,1);
-   std::cout<<"   #full triangulation+filtering"<<std::endl;
    std::vector<SRef<CloudPoint>> tempCloud ;
-     if(mapper->triangulateFull(ggmatchedKeypoints1,ggmatchedKeypoints2,ggmatches, working_view,pose_canonique,poses,K,dist,pose_final,tempCloud)){
-         std::cout<<"   #final cloud size: "<<tempCloud.size()<<std::endl;
-        /* std::cout<<"gravity center: "<<gravity<<std::endl;*/
-         // to do : move these two lines elsewhere :
+   if(mapper->triangulateFull(ggmatchedKeypoints1,ggmatchedKeypoints2,ggmatches, working_view,pose_canonique,poses,K,dist,pose_final,tempCloud)){
+
+         std::cout << "Init Mapping " << tempCloud.size()<<std::endl;
+
          SRef<Keyframe> kframe1 = xpcf::utils::make_shared<Keyframe>(view_1,frame1->getDescriptors(),0,pose_canonique, frame1->getKeyPoints());
          SRef<Keyframe> kframe2 = xpcf::utils::make_shared<Keyframe>(view_2,frame2->getDescriptors(),1,pose_final,frame2->getKeyPoints());
          kframe1->addVisibleMapPoints(tempCloud);
          kframe2->addVisibleMapPoints(tempCloud) ;
-         std::cout<<"   #map init"<<std::endl;
          poseGraph->initMap(kframe1,kframe2,tempCloud,ggmatches);
-         std::cout<<"--<Pose graph: "<<std::endl;
-         std::cout<<"     # kframe(t): "<<kframe1->m_idx<<std::endl;
-         std::cout<<"     # kframe(t+1): "<<kframe2->m_idx<<std::endl;
+
+
+         // For visualization purposes, compute map gravity
          Point3Df gravity  ;
          float maxDist ;
-
-         std::cout << " compute gravity" << std::endl ;
          poseGraph->getMap()->computeGravity(gravity , maxDist) ;
          viewerGL.m_glcamera.resetview(math_vector_3f(gravity.getX(), gravity.getY(), gravity.getZ()), maxDist);
          viewerGL.m_glcamera.rotate_180();
-		 nbFrameSinceKeyFrame = 0 ;
+
+         nbFrameSinceKeyFrame = 0 ;
          return true;
      }
-     else{
+     else
+     {
          std::cerr<<"can't find good baseline, select another pair of images for triangulation.."<<std::endl;
          return false;
      }
 
 }
-bool tracking(SRef<Image>&view, const int kframe_idx, bool verbose){
+
+bool tracking(SRef<Image>&view){
 	
 	nbFrameSinceKeyFrame++ ;
 	SRef<Frame> newFrame = createAndInitFrame(view);
@@ -265,6 +194,7 @@ bool tracking(SRef<Image>&view, const int kframe_idx, bool verbose){
     std::vector<DescriptorMatch>new_matches, new_matches_filtred;
 
 	SRef<Keyframe> referenceKeyFrame = newFrame->getReferenceKeyFrame() ;
+
     matcher->match(referenceKeyFrame->getDescriptors(), newFrame->getDescriptors(), new_matches);
    
     matchesFilterGeometric->filter(new_matches,new_matches_filtred, referenceKeyFrame->getKeyPoints(), newFrame->getKeyPoints());
@@ -275,15 +205,14 @@ bool tracking(SRef<Image>&view, const int kframe_idx, bool verbose){
     std::vector<SRef<Point3Df>>pt3d;
     std::vector<SRef<CloudPoint>> foundPoints ;
     std::vector<DescriptorMatch> remainingMatches ;
-//    poseGraph->find2D3DCorrespondances(kframe_idx,new_matches_filtred,keypoints3,pt2d,pt3d);
-//    std::cout<<"trying to find 2d/3d correspondences!"<<std::endl;
+
+
     corr2D3DFinder->find(referenceKeyFrame->getVisibleMapPoints(),referenceKeyFrame->m_idx,new_matches_filtred, newFrame->getKeyPoints(), foundPoints,  pt3d,pt2d , remainingMatches);
     SRef<Image>projected_image;
     if(PnP->estimate(pt2d,pt3d,pose_current) == FrameworkReturnCode::_SUCCESS)
     {
         newFrame->m_pose = pose_current ;
         viewerGL.SetRealCameraPose(pose_current);
-
         newFrame->addCommonMapPointsWithReferenceKeyFrame(foundPoints);
         newFrame->setMatchesWithReferenceKeyFrame(remainingMatches);
         if (poseGraph->tryToAddKeyFrame(newFrame)) // try to add key frame if success tracking
@@ -293,23 +222,19 @@ bool tracking(SRef<Image>&view, const int kframe_idx, bool verbose){
             // triangulate
         }
 
+        PnP->reproject(view,pose_current,K,dist,pt2d,pt3d, projected_image, false);
+        viewer->display("pnp reprojection image", projected_image, &escape_key,640,480);
 
-        if(verbose){
-            PnP->reproject(view,pose_current,K,dist,pt2d,pt3d, projected_image, false);
-            viewer->display("pnp reprojection image", projected_image, &escape_key,640,480);
-        }
         return true;
-    }else{
+    }
+    else{
         return false;
     }
 	
 
 	
 }
-/*
-SRef<Image>  im1 ;
-SRef<Image> im2 ;
-bool first = true  ;*/
+
 
 void idle(){
     camera->getNextImage(view_current);
@@ -318,43 +243,27 @@ void idle(){
     if(saving_images)
     {
       views.push_back(view_current);
-      /* if (first)
-        {
-            views.push_back(im1) ;
-            first = false ;
-        }
-        else
-        {
-            views.push_back(im2) ;
-        }*/
-        saving_images=false;
+      saving_images=false;
     }
-    if (triangulation_first&& views.size()>1) {
-        init_mapping(views[0],views[1], true);
+    if (triangulation_first&& views.size()>1)
+    {
+        init_mapping(views[0],views[1]);
         triangulation_first = false;
     }
-    if(processing){
-       std::cout<<"TRACKING THREAD"<<std::endl;
-       tracking(view_current,1 /*kframe_idx*/,true);
+    if(processing)
+    {
+       tracking(view_current);
     }
 }
-int main(int argc, char* argv[]){
-//    debug_reprojection();
 
+int main(int argc, char* argv[]){
 
     init();
-    //
-   // imageLoader->loadImage("D:/Development/Code/Solar/Samples/Sample-Triangulation/Image2.png" ,im1) ;
-  //  imageLoader->loadImage("D:/Development/Code/Solar/Samples/Sample-Triangulation/Image1.png" ,im2) ;
 
     viewerGL.callBackIdle = idle ;
     viewerGL.callbackKeyBoard = keyBord;
     viewerGL.InitViewer(640 , 480);
-   //
-   //
 
-
-   // gcloud
 }
 
 
