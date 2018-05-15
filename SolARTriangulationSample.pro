@@ -27,7 +27,6 @@ include ($$(BCOMDEVROOT)/builddefs/qmake/templateappconfig.pri)
 
 
 
-#INCLUDEPATH += "D:/Documents/Documentation/Solar/3dparties/glcamera"
 INCLUDEPATH += "$$(BCOMDEVROOT)/thirdParties/glcamera"
 
 HEADERS += constant.h \
