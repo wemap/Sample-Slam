@@ -63,7 +63,6 @@ void OpenGLViewer::OnMainLoop()
 
 void OpenGLViewer::OnRender()
 {
-   // std::cout << " render " << std::endl  ;
 
     bool drawing = (m_pointCloud != NULL) ;
     if(drawing){
@@ -79,7 +78,7 @@ void OpenGLViewer::OnRender()
          glDisable(GL_CULL_FACE);
          glPushMatrix();
      //	glPointSize(3.25f);
-
+		  
          glBegin(GL_POINTS);
          for (unsigned int i = 0; i < (*m_pointCloud).size(); ++i) {
              glColor3f(0.0, 0.0, 1.0);
@@ -97,6 +96,8 @@ void OpenGLViewer::OnRender()
          glutSwapBuffers();
          glutPostRedisplay();
     }
+
+	std::cout << " render end " << std::endl;
 }
 
 

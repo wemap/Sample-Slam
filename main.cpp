@@ -17,6 +17,7 @@
 #include <iostream>
 #include <string>
 #include "constants.h"
+#include "datastructure/Frame.h"
 
 
 #include <ctime>
@@ -89,11 +90,12 @@ void init(){
        PnP->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
        K = camera->getIntrinsicsParameters();
        dist = camera->getDistorsionParameters();
-       camera->start(0);
+      camera->start(0);
 }
 
 
-SRef<Frame> createAndInitFrame(SRef<Image>&img){
+SRef<Frame> createAndInitFrame(SRef<Image>&img)
+{
     std::chrono::time_point<std::chrono::system_clock> now1 = std::chrono::system_clock::now();
     SRef<Frame> resul = xpcf::utils::make_shared<Frame>() ;
 
@@ -120,6 +122,52 @@ void getMatchedKeyPoints( std::vector<SRef<Keypoint>> & keyPoints1,  std::vector
        matchedKeyPoints2.push_back(xpcf::utils::make_shared<Point2Df>(keyPoints2[ matches[i].getIndexInDescriptorB()]->getX(),keyPoints2[ matches[i].getIndexInDescriptorB()]->getY()));
      }
 }
+
+void getPoint2DFromKeyPoint(std::vector<SRef<Keypoint>> & keyPoints, std::vector<SRef<Point2Df>> & to2D)
+{
+	to2D.reserve(keyPoints.size());
+	for (int i = 0; i < keyPoints.size(); i++)
+	{
+		to2D.push_back(xpcf::utils::make_shared<Point2Df>(keyPoints[i]->getX(), keyPoints[i]->getY())); 
+	}
+}
+
+
+void addFrameToMapAsKeyFrame(SRef<Frame> & frame, int newIndex)
+{
+ 
+	SRef<Keyframe> referenceKeyFrame = frame->getReferenceKeyFrame(); 
+	Transform3Df poseFrame = frame->m_pose; 
+	Transform3Df poseKeyFrame = referenceKeyFrame->m_pose;
+
+	std::vector<SRef<Point2Df>> pointsFrame; 
+	std::vector<SRef<Point2Df>> pointsKeyFrame; 
+
+	getMatchedKeyPoints(referenceKeyFrame->getKeyPoints(), frame->getKeyPoints(), frame->getMatchesWithReferenceKeyFrame(), pointsKeyFrame, pointsFrame);
+
+	std::vector<SRef<CloudPoint>> newMapPoints; 
+	std::pair<int, int> corres(referenceKeyFrame->m_idx , newIndex);
+
+	mapper->triangulate(pointsFrame, pointsKeyFrame, frame->getMatchesWithReferenceKeyFrame(), corres, frame->m_pose, referenceKeyFrame->m_pose, K, dist, newMapPoints);
+	//to do : filtrate new points
+	
+	Transform3Df pose_final; 
+	std::cout << " NEW MAP POINTS " << newMapPoints.size() << std::endl;;
+
+	
+	referenceKeyFrame->addVisibleMapPoints(newMapPoints); 
+
+	poseGraph->getMap()->addCloudPoints(newMapPoints);
+
+	SRef<Keyframe> newKeyFrame = xpcf::utils::make_shared<Keyframe>(frame->getDescriptors(), newIndex, frame->m_pose, frame->getKeyPoints());
+	newKeyFrame->addVisibleMapPoints(newMapPoints);
+	
+	std::cout << " add new keyframe  " << std::endl;
+	poseGraph->addNewKeyFrame(newKeyFrame);
+
+
+}
+
 
 bool init_mapping(SRef<Image>&view_1,SRef<Image>&view_2){
  SRef<Frame> frame1 = createAndInitFrame(views[0]);
@@ -180,6 +228,10 @@ bool init_mapping(SRef<Image>&view_1,SRef<Image>&view_2){
      }
 
 }
+
+SRef<Image>currentMatchImage;
+SRef<Image>projected_image;
+
 bool tracking(SRef<Image>&view){
 	nbFrameSinceKeyFrame++ ;
     SRef<Frame> newFrame = createAndInitFrame(view);
@@ -189,44 +241,54 @@ bool tracking(SRef<Image>&view){
 	SRef<Keyframe> referenceKeyFrame = newFrame->getReferenceKeyFrame() ;
     matcher->match(referenceKeyFrame->getDescriptors(), newFrame->getDescriptors(), new_matches);
     matchesFilterGeometric->filter(new_matches,new_matches_filtred, referenceKeyFrame->getKeyPoints(), newFrame->getKeyPoints());
-    std::vector<SRef<Point2Df>>current_kp1;
+    
+	std::vector<SRef<Point2Df>>current_kp1;
     std::vector<SRef<Point2Df>>current_kp2;
-    for( int i = 0; i < new_matches_filtred.size(); i++ ){
-       current_kp1.push_back(xpcf::utils::make_shared<Point2Df>(referenceKeyFrame->getKeyPoints()[new_matches_filtred[i].getIndexInDescriptorA()]->getX(),
-                             referenceKeyFrame->getKeyPoints()[ new_matches_filtred[i].getIndexInDescriptorA()]->getY()));
-       current_kp2.push_back(xpcf::utils::make_shared<Point2Df>(newFrame->getKeyPoints()[new_matches_filtred[i].getIndexInDescriptorB()]->getX()
-                             ,newFrame->getKeyPoints()[ new_matches_filtred[i].getIndexInDescriptorB()]->getY()));
-    }
 
-    SRef<Image>currentMatchImage;
+	getMatchedKeyPoints(referenceKeyFrame->getKeyPoints(), newFrame->getKeyPoints(), new_matches_filtred, current_kp1, current_kp2);
+
+
+   /*
     overlay->drawMatchesLines(referenceKeyFrame->m_view, view, currentMatchImage, current_kp1, current_kp2,current_kp1.size());
-    viewer->display("current matches", currentMatchImage, &escape_key,1280,480);
+    viewer->display("current matches", currentMatchImage, &escape_key,1280,480);*/
 
     std::vector<SRef<Point2Df>>pt2d;
     std::vector<SRef<Point3Df>>pt3d;
     std::vector<SRef<CloudPoint>> foundPoints;
+	std::vector<DescriptorMatch> foundMatches;
     std::vector<DescriptorMatch> remainingMatches;
 
-    corr2D3DFinder->find(referenceKeyFrame->getVisibleMapPoints(),referenceKeyFrame->m_idx,new_matches_filtred, newFrame->getKeyPoints(), foundPoints,  pt3d,pt2d , remainingMatches);
-    SRef<Image>projected_image;
+
+    corr2D3DFinder->find(referenceKeyFrame->getVisibleMapPoints(),referenceKeyFrame->m_idx,new_matches_filtred, newFrame->getKeyPoints(), foundPoints,  pt3d,pt2d , foundMatches , remainingMatches);
+    
     std::vector<SRef<Point2Df>>imagePoints_inliers;
     std::vector<SRef<Point3Df>>worldPoints_inliers;
-    if(PnP->estimate(pt2d,pt3d,imagePoints_inliers, worldPoints_inliers,pose_current, true) == FrameworkReturnCode::_SUCCESS &&
-            worldPoints_inliers.size()> 50){
-        std::cout<<" pnp inliers size: "<<worldPoints_inliers.size()<<" / "<<pt3d.size()<<std::endl;
+
+
+    if(PnP->estimate(pt2d,pt3d,imagePoints_inliers, worldPoints_inliers,pose_current, true) == FrameworkReturnCode::_SUCCESS /*&&
+            worldPoints_inliers.size()> 50*/){
+       // std::cout<<" pnp inliers size: "<<worldPoints_inliers.size()<<" / "<<pt3d.size()<<std::endl;
         newFrame->m_pose = pose_current ;
         viewerGL.SetRealCameraPose(pose_current);
 
         newFrame->addCommonMapPointsWithReferenceKeyFrame(foundPoints);
         newFrame->setMatchesWithReferenceKeyFrame(remainingMatches);
-        if (poseGraph->tryToAddKeyFrame(newFrame)) // try to add key frame if success tracking
+
+		int isKeyFrameCandidate = poseGraph->isKeyFrameCandidate(newFrame); 
+        if (isKeyFrameCandidate != -1) // try to add key frame if success tracking
         {
             nbFrameSinceKeyFrame = 0 ;
-            std::cout << " add new key frame in the map"  << std::endl ;
+			addFrameToMapAsKeyFrame(newFrame, isKeyFrameCandidate);
+			// update visibility of old points in new key frame 
+			for (int i = 0; i < foundPoints.size(); i++)
+			{	
+				foundPoints[i]->m_visibility[isKeyFrameCandidate] = foundMatches[i].getIndexInDescriptorB();// Clean needed : Try to do this somewhere else
+			}
+
         }
         return true;
     }else{
-        std::cout<<"new keyframe creation.."<<std::endl;
+       // std::cout<<"new keyframe creation.."<<std::endl;
         return false;
     }	
 }
@@ -281,18 +343,30 @@ bool mapping(SRef<Image>&view, bool verbose){
     return true;
 }
 
+/*
+SRef<Image>  image1;
+SRef<Image>  image2;
+SRef<Image>  image3; 
+
+
 void my_idle(){
-    if(triangulation_first = true){
-        imageLoader->loadImage(std::string("D:/view_0.png"),view_current);
-        views.push_back(view_current);
-        imageLoader->loadImage(std::string("D:/view_1.png"),view_current);
-        views.push_back(view_current);
+    
+		if(triangulation_first){
+		
+		imageLoader->loadImage(std::string("bview0.jpg"), image1);
+        views.push_back(image1);
+		
+        imageLoader->loadImage(std::string("bview1.jpg"), image2);
+        views.push_back(image2);
         init_mapping(views[0],views[1]);
         triangulation_first = false;
+		std::cout << " allo " << std::endl; 
+		imageLoader->loadImage(std::string("bview2.jpg"), image3);
     }
-    imageLoader->loadImage(std::string("D:/view_2.png"),view_current);
-    tracking(view_current);
+   
+    tracking(image3);
 }
+*/
 
 void idle(){
     camera->getNextImage(view_current);
@@ -315,7 +389,7 @@ void idle(){
 int main (int argc, char* argv[]){
     init();
 //    viewerGL.callBackIdle = idle ;
-    viewerGL.callBackIdle = idle ;
+	viewerGL.callBackIdle =  idle;
 
     viewerGL.callbackKeyBoard = keyBord;
     viewerGL.InitViewer(640 , 480);
