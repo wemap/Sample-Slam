@@ -191,13 +191,13 @@ bool addFrameToMapAsKeyFrame(SRef<Frame> & frame, int newIndex)
 	std::vector<SRef<Point2Df>> pointsFrame; 
 	std::vector<SRef<Point2Df>> pointsKeyFrame; 
 
-	getMatchedKeyPoints(referenceKeyFrame->getKeyPoints(), frame->getKeyPoints(), frame->getMatchesWithReferenceKeyFrame(), pointsKeyFrame, pointsFrame);
+	getMatchedKeyPoints(referenceKeyFrame->getKeyPoints(), frame->getKeyPoints(), frame->getUnknownMatchesWithReferenceKeyFrame(), pointsKeyFrame, pointsFrame);
 
 	std::vector<SRef<CloudPoint>> newMapPoints; 
 	std::pair<int, int> corres(referenceKeyFrame->m_idx , newIndex);
 
 	// Triangulate new points 
-	mapper->triangulate(pointsFrame, pointsKeyFrame, frame->getMatchesWithReferenceKeyFrame(), corres, frame->m_pose, referenceKeyFrame->m_pose, K, dist, newMapPoints);
+	mapper->triangulate(pointsFrame, pointsKeyFrame, frame->getUnknownMatchesWithReferenceKeyFrame(), corres, frame->m_pose, referenceKeyFrame->m_pose, K, dist, newMapPoints);
 	
 
 	// filter new point cloud
@@ -220,7 +220,15 @@ bool addFrameToMapAsKeyFrame(SRef<Frame> & frame, int newIndex)
 	
 	newKeyFrame->addVisibleMapPoints(frame->getCommonMapPointsWithReferenceKeyFrame()); 
 	newKeyFrame->addVisibleMapPoints(filteredPoints);
-	
+
+	// update visibility of common points
+	std::vector<SRef<CloudPoint>> & commonPoints = frame->getCommonMapPointsWithReferenceKeyFrame(); 
+	std::vector<DescriptorMatch> & knownMatches = frame->getKnownMatchesWithReferenceKeyFrame(); 
+	for (int i = 0; i < commonPoints.size(); i++)
+	{
+		commonPoints[i]->m_visibility[newIndex] = knownMatches[i].getIndexInDescriptorB();// Clean needed : Try to do this somewhere else
+
+	}
 	
 	std::cout << " add new keyframe  with " << filteredPoints.size() << "points" << std::endl;
 	poseGraph->addNewKeyFrame(newKeyFrame);
@@ -332,7 +340,8 @@ bool tracking(SRef<Image>&view){
         viewerGL.SetRealCameraPose(pose_current);
 
         newFrame->addCommonMapPointsWithReferenceKeyFrame(foundPoints);
-        newFrame->setMatchesWithReferenceKeyFrame(remainingMatches);
+        newFrame->setUnknownMatchesWithReferenceKeyFrame(remainingMatches);
+		newFrame->setKnownMatchesWithReferenceKeyFrame(foundMatches);
 
 		int isKeyFrameCandidate = poseGraph->isKeyFrameCandidate(newFrame);
 		if (isKeyFrameCandidate != -1) // try to add key frame if success tracking
@@ -341,12 +350,6 @@ bool tracking(SRef<Image>&view){
 			if (addFrameToMapAsKeyFrame(newFrame, isKeyFrameCandidate))
 			{
 				nbFrameSinceKeyFrame = 0;
-				// update visibility of old points in new key frame 
-				for (int i = 0; i < foundPoints.size(); i++)
-				{
-					foundPoints[i]->m_visibility[isKeyFrameCandidate] = foundMatches[i].getIndexInDescriptorB();// Clean needed : Try to do this somewhere else
-
-				}
 			}
 		}
         return true;
