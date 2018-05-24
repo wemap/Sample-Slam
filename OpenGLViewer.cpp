@@ -97,7 +97,6 @@ void OpenGLViewer::OnRender()
          glutPostRedisplay();
     }
 
-	std::cout << " render end " << std::endl;
 }
 
 

@@ -18,8 +18,7 @@
 #include <string>
 #include "constants.h"
 #include "datastructure/Frame.h"
-
-
+#include <boost/log/core.hpp>
 #include <ctime>
 
 
@@ -178,11 +177,12 @@ void getPoint2DFromKeyPoint(std::vector<SRef<Keypoint>> & keyPoints, std::vector
 	}
 }
 
-bool first = true; 
 
 
-void addFrameToMapAsKeyFrame(SRef<Frame> & frame, int newIndex)
+
+bool addFrameToMapAsKeyFrame(SRef<Frame> & frame, int newIndex)
 {
+	
 
 	SRef<Keyframe> referenceKeyFrame = frame->getReferenceKeyFrame(); 
 	Transform3Df poseFrame = frame->m_pose; 
@@ -199,27 +199,33 @@ void addFrameToMapAsKeyFrame(SRef<Frame> & frame, int newIndex)
 	// Triangulate new points 
 	mapper->triangulate(pointsFrame, pointsKeyFrame, frame->getMatchesWithReferenceKeyFrame(), corres, frame->m_pose, referenceKeyFrame->m_pose, K, dist, newMapPoints);
 	
+
 	// filter new point cloud
 	std::vector<bool> tmp_status;
-	mapFilter->checkFrontCameraPoints(newMapPoints, frame->m_pose, tmp_status);
+	if (!mapFilter->checkFrontCameraPoints(newMapPoints, frame->m_pose, tmp_status))
+	{
+		// not good triangulation : do not add key frame
+		std::cout << "not good triangulation : do not add key frame " << std::endl; 
+		return false; 
+	}
 	std::vector<SRef<CloudPoint>> filteredPoints;
 	mapFilter->filterPointCloud(newMapPoints, tmp_status, filteredPoints);
 	
 	Transform3Df pose_final; 
-	std::cout << " NEW MAP POINTS " << filteredPoints.size() << std::endl;;
 
-	
 	referenceKeyFrame->addVisibleMapPoints(filteredPoints);
-
 	poseGraph->getMap()->addCloudPoints(filteredPoints);
-
+	
 	SRef<Keyframe> newKeyFrame = xpcf::utils::make_shared<Keyframe>(frame->getDescriptors(), newIndex, frame->m_pose, frame->getKeyPoints());
+	
+	newKeyFrame->addVisibleMapPoints(frame->getCommonMapPointsWithReferenceKeyFrame()); 
 	newKeyFrame->addVisibleMapPoints(filteredPoints);
 	
-	std::cout << " add new keyframe  " << std::endl;
+	
+	std::cout << " add new keyframe  with " << filteredPoints.size() << "points" << std::endl;
 	poseGraph->addNewKeyFrame(newKeyFrame);
 
-
+	return true; 
 }
 
 
@@ -329,17 +335,20 @@ bool tracking(SRef<Image>&view){
         newFrame->setMatchesWithReferenceKeyFrame(remainingMatches);
 
 		int isKeyFrameCandidate = poseGraph->isKeyFrameCandidate(newFrame);
-        if (isKeyFrameCandidate != -1) // try to add key frame if success tracking
-        {
-            nbFrameSinceKeyFrame = 0 ;
-			addFrameToMapAsKeyFrame(newFrame, isKeyFrameCandidate);
-			// update visibility of old points in new key frame 
-			for (int i = 0; i < foundPoints.size(); i++)
-			{	
-				foundPoints[i]->m_visibility[isKeyFrameCandidate] = foundMatches[i].getIndexInDescriptorB();// Clean needed : Try to do this somewhere else
-			}
+		if (isKeyFrameCandidate != -1) // try to add key frame if success tracking
+		{
+			
+			if (addFrameToMapAsKeyFrame(newFrame, isKeyFrameCandidate))
+			{
+				nbFrameSinceKeyFrame = 0;
+				// update visibility of old points in new key frame 
+				for (int i = 0; i < foundPoints.size(); i++)
+				{
+					foundPoints[i]->m_visibility[isKeyFrameCandidate] = foundMatches[i].getIndexInDescriptorB();// Clean needed : Try to do this somewhere else
 
-        }
+				}
+			}
+		}
         return true;
     }else{
        // std::cout<<"new keyframe creation.."<<std::endl;
@@ -397,10 +406,11 @@ bool mapping(SRef<Image>&view, bool verbose){
     return true;
 }
 
-/*
+
 SRef<Image>  image1;
 SRef<Image>  image2;
 SRef<Image>  image3; 
+SRef<Image>  image4;
 
 
 void my_idle(){
@@ -416,10 +426,14 @@ void my_idle(){
         triangulation_first = false;
 		std::cout << " allo " << std::endl; 
 		imageLoader->loadImage(std::string("bview2.jpg"), image3);
+		imageLoader->loadImage(std::string("bview3.jpg"), image4);
+		
     }
    
-    tracking(image3);
-}*/
+	tracking(image3);
+
+   
+}
 
 
 void idle(){
@@ -441,7 +455,9 @@ void idle(){
     }
 }
 int main (int argc, char* argv[]){
-    init();
+    
+	boost::log::core::get()->set_logging_enabled(false);
+	init();
 	viewerGL.callBackIdle = idle ;
 	//viewerGL.callBackIdle = my_idle;
 
