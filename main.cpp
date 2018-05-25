@@ -200,7 +200,7 @@ bool addFrameToMapAsKeyFrame(SRef<Frame> & frame, int newIndex)
 	mapper->triangulate(pointsFrame, pointsKeyFrame, frame->getUnknownMatchesWithReferenceKeyFrame(), corres, frame->m_pose, referenceKeyFrame->m_pose, K, dist, newMapPoints);
 	
 
-	// filter new point cloud
+	// check point cloud
 	std::vector<bool> tmp_status;
 	if (!mapFilter->checkFrontCameraPoints(newMapPoints, frame->m_pose, tmp_status))
 	{
@@ -208,6 +208,7 @@ bool addFrameToMapAsKeyFrame(SRef<Frame> & frame, int newIndex)
 		std::cout << "not good triangulation : do not add key frame " << std::endl; 
 		return false; 
 	}
+	//filter point cloud
 	std::vector<SRef<CloudPoint>> filteredPoints;
 	mapFilter->filterPointCloud(newMapPoints, tmp_status, filteredPoints);
 	
@@ -232,6 +233,9 @@ bool addFrameToMapAsKeyFrame(SRef<Frame> & frame, int newIndex)
 	
 	std::cout << " add new keyframe  with " << filteredPoints.size() << "points" << std::endl;
 	poseGraph->addNewKeyFrame(newKeyFrame);
+
+	// update viewer
+	viewerGL.AddKeyFrameCameraPose(newKeyFrame->m_pose);
 
 	return true; 
 }
@@ -278,16 +282,24 @@ bool init_mapping(SRef<Image>&view_1,SRef<Image>&view_2){
      if(fullTriangulation(ggmatchedKeypoints1,ggmatchedKeypoints2,ggmatches, working_view,pose_canonique,poses,K,dist,pose_final,tempCloud)){
          SRef<Keyframe> kframe1 = xpcf::utils::make_shared<Keyframe>(view_1,frame1->getDescriptors(),0,pose_canonique, frame1->getKeyPoints());
          SRef<Keyframe> kframe2 = xpcf::utils::make_shared<Keyframe>(view_2,frame2->getDescriptors(),1,pose_final,frame2->getKeyPoints());
-         kframe1->addVisibleMapPoints(tempCloud);
+         
+		 
+		 
+		 kframe1->addVisibleMapPoints(tempCloud);
          kframe2->addVisibleMapPoints(tempCloud) ;
          poseGraph->initMap(kframe1,kframe2,tempCloud,ggmatches);
          Point3Df gravity  ;
          float maxDist ;
          poseGraph->getMap()->computeGravity(gravity , maxDist) ;
-         viewerGL.m_glcamera.resetview(math_vector_3f(gravity.getX(), gravity.getY(), gravity.getZ()), maxDist);
+		 nbFrameSinceKeyFrame = 0;
 
+		 // update viewer 
+         viewerGL.m_glcamera.resetview(math_vector_3f(gravity.getX(), gravity.getY(), gravity.getZ()), maxDist);
          viewerGL.m_glcamera.rotate_180();
-		 nbFrameSinceKeyFrame = 0 ;
+		 viewerGL.AddKeyFrameCameraPose(pose_canonique);
+		 viewerGL.AddKeyFrameCameraPose(pose_final);
+
+		 
          return true;
      }
      else{
@@ -336,7 +348,8 @@ bool tracking(SRef<Image>&view){
     if(PnP->estimate(pt2d,pt3d,imagePoints_inliers, worldPoints_inliers,pose_current, true) == FrameworkReturnCode::_SUCCESS /*&&
             worldPoints_inliers.size()> 50*/){
        // std::cout<<" pnp inliers size: "<<worldPoints_inliers.size()<<" / "<<pt3d.size()<<std::endl;
-        newFrame->m_pose = pose_current ;
+		
+		newFrame->m_pose = pose_current;
         viewerGL.SetRealCameraPose(pose_current);
 
         newFrame->addCommonMapPointsWithReferenceKeyFrame(foundPoints);
@@ -409,7 +422,7 @@ bool mapping(SRef<Image>&view, bool verbose){
     return true;
 }
 
-
+/*
 SRef<Image>  image1;
 SRef<Image>  image2;
 SRef<Image>  image3; 
@@ -436,7 +449,7 @@ void my_idle(){
 	tracking(image3);
 
    
-}
+}*/
 
 
 void idle(){

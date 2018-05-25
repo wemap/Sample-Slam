@@ -41,6 +41,11 @@ void OpenGLViewer::InitViewer(int resolutionX, int resolutionY)
 
 }
 
+void OpenGLViewer::AddKeyFrameCameraPose(const Transform3Df & m)
+{
+	m_keyFramesPoses.push_back(m); 
+}
+
 
 void OpenGLViewer::SetRealCameraPose(Transform3Df & m)
 {
@@ -93,6 +98,14 @@ void OpenGLViewer::OnRender()
          glPushMatrix();
          DrawPhysicalCamera(m_realCameraPose, cv::Vec3f(1.0, 0.0, 0.0), 1, false);
          glPopMatrix();
+
+		 for (int i = 0; i < m_keyFramesPoses.size(); i++)
+		 {
+			 glPushMatrix(); 
+			 DrawPhysicalCamera(m_keyFramesPoses[i], cv::Vec3f(0.0, 1.0, 0.0), 1 , false); 
+			 glPopMatrix(); 
+		 }
+
          glutSwapBuffers();
          glutPostRedisplay();
     }
