@@ -68,48 +68,43 @@ void OpenGLViewer::OnMainLoop()
 
 void OpenGLViewer::OnRender()
 {
+	glEnable(GL_NORMALIZE);
+	glEnable(GL_DEPTH_TEST);
+
+	m_glcamera.set_viewport(0, 0, m_resolutionX, m_resolutionY);
+	m_glcamera.setup();
+	m_glcamera.use_light(false);
+
+	glClearColor(1, 1, 1, 1);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	glDisable(GL_CULL_FACE);
 
     bool drawing = (m_pointCloud != NULL) ;
-    if(drawing){
-         glEnable(GL_NORMALIZE);
-         glEnable(GL_DEPTH_TEST);
-
-         m_glcamera.set_viewport(0, 0, m_resolutionX, m_resolutionY);
-         m_glcamera.setup();
-         m_glcamera.use_light(false);
-
-         glClearColor(1, 1, 1, 1);
-         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-         glDisable(GL_CULL_FACE);
+    if(drawing)
+	{
          glPushMatrix();
      //	glPointSize(3.25f);
-		  
          glBegin(GL_POINTS);
          for (unsigned int i = 0; i < (*m_pointCloud).size(); ++i) {
              glColor3f(0.0, 0.0, 1.0);
              cv::Vec3f v = cv::Vec3f((*m_pointCloud)[i]->getX(), (*m_pointCloud)[i]->getY(), (*m_pointCloud)[i]->getZ());
-     //		v *= sc;
              glVertex3f(v[0], v[1], v[2]);
          }
          glEnd();
 
          // draw  camera pose !
-
          glPushMatrix();
-         DrawPhysicalCamera(m_realCameraPose, cv::Vec3f(1.0, 0.0, 0.0), 1, false);
+         DrawPhysicalCamera(m_realCameraPose, cv::Vec3f(1.0, 0.0, 0.0), 1);
          glPopMatrix();
-
 		 for (int i = 0; i < m_keyFramesPoses.size(); i++)
 		 {
 			 glPushMatrix(); 
-			 DrawPhysicalCamera(m_keyFramesPoses[i], cv::Vec3f(0.0, 1.0, 0.0), 1 , false); 
+			 DrawPhysicalCamera(m_keyFramesPoses[i], cv::Vec3f(0.0, 1.0, 0.0), 1); 
 			 glPopMatrix(); 
-		 }
-
-         glutSwapBuffers();
-         glutPostRedisplay();
+		 } 
     }
-
+	glutSwapBuffers();
+	glutPostRedisplay();
 }
 
 
@@ -160,98 +155,71 @@ void OpenGLViewer::OnMouseState(int button, int state, int x, int y)
 
 
 
-void OpenGLViewer::DrawPhysicalCamera(Transform3Df & m, cv::Vec3f&color, float scale, bool check) {
+void OpenGLViewer::DrawPhysicalCamera(Transform3Df & m, cv::Vec3f&color, float scale) {
 
-    rigid_motion<float> camPose ;
-    camPose.m_rotation(0, 0) = m(0, 0);
-    camPose.m_rotation(0, 1) = m(0, 1);
-    camPose.m_rotation(0, 2) = m(0, 2);
-
-    camPose.m_rotation(1, 0) = m(1, 0);
-    camPose.m_rotation(1, 1) = m(1, 1);
-    camPose.m_rotation(1, 2) = m(1, 2);
-
-    camPose.m_rotation(2, 0) = m(2, 0);
-    camPose.m_rotation(2, 1) = m(2, 1);
-    camPose.m_rotation(2, 2) = m(2, 2);
-
-    camPose.m_translation[0] = m(0, 3) * scale;
-    camPose.m_translation[1] = m(1, 3) * scale;
-    camPose.m_translation[2] = m(2, 3) * scale;
+    rigid_motion<float> camPose = ConvertTransformToRigidMotion(m, scale);
+    
+	// Compute frustum corners according to camera transform
+	math_vector_3f  transformedCorners[5];
+	float offsetCorners = 0.075f *scale;
+	transformedCorners[0] = camPose.apply( math_vector_3f(offsetCorners, offsetCorners, 2.f*offsetCorners));
+	transformedCorners[1] = camPose.apply(math_vector_3f(-offsetCorners, offsetCorners, 2.f*offsetCorners));
+	transformedCorners[2] = camPose.apply(math_vector_3f(-offsetCorners, -offsetCorners, 2.f*offsetCorners));
+	transformedCorners[3] = camPose.apply(math_vector_3f(offsetCorners, -offsetCorners, 2.f*offsetCorners));
+	transformedCorners[4] = camPose.apply(math_vector_3f(0, 0, 0));
 
 
-    double diameter = 0.01f * scale;
-    float offset = 0.075f *scale;
-    GLfloat line_width = 1.f *scale;
-    math_vector_3f origin[4], pos[4];
+	// draw a sphere at each corner of the frustum
+	double cornerDiameter = 0.02f * scale;
+	glColor3f(color[0], color[1], color[2]);
+	for (int i = 0; i < 5; ++i)
+	{
+		glPushMatrix();
+		glTranslatef(transformedCorners[i][0], transformedCorners[i][1], transformedCorners[i][2]);
+		glutSolidSphere(cornerDiameter*0.5, 30, 30);
+		glPopMatrix();
+	}
 
-    if (check) {
-        for (int i = 0; i < 3; ++i) {
-            for (int j = 0; j < 3; ++j) {
-                if (i == j)camPose.m_rotation(i, j) = 1.f;
-                else camPose.m_rotation(i, j) = 0.f;
-            }
-        }
-    }
-
-    origin[0] = math_vector_3f(offset, offset, 2.f*offset);
-    origin[1] = math_vector_3f(-offset, offset, 2.f*offset);
-    origin[2] = math_vector_3f(-offset, -offset, 2.f*offset);
-    origin[3] = math_vector_3f(offset, -offset, 2.f*offset);
-
-    for (int c = 0; c < 4; ++c)
-        pos[c] = camPose.apply(origin[c]);
-
-
-
-    GLUquadric * point = gluNewQuadric();
-    for (int i = 0; i < 4; ++i) {
-        glPopMatrix();
-        glPushMatrix();
-        glColor3f(color[0], color[1], color[2]);
-        glTranslatef(pos[i][0], pos[i][1], pos[i][2]);
-        gluSphere(point, diameter*0.5, 30, 30);
-        glPopMatrix();
-    }
-    gluDeleteQuadric(point);
-
-    for (int i = 0; i < 4; ++i) {
-        glLineWidth(line_width);
-        glColor3f(color[0], color[1], color[2]);
+	// draw frustum lines
+	float line_width = 1.0f *scale;
+	glLineWidth(line_width);
+    for (int i = 0; i < 4; ++i) 
+	{ 
         glBegin(GL_LINES);
         glVertex3f(camPose.m_translation[0], camPose.m_translation[1], camPose.m_translation[2]);
-        glVertex3f(pos[i][0], pos[i][1], pos[i][2]);
+        glVertex3f(transformedCorners[i][0], transformedCorners[i][1], transformedCorners[i][2]);
         glEnd();
     }
 
-
-    glLineWidth(line_width);
-    glColor3f(color[0], color[1], color[2]);
-    glBegin(GL_LINES);
-    glVertex3f(pos[0][0], pos[0][1], pos[0][2]);
-    glVertex3f(pos[1][0], pos[1][1], pos[1][2]);
+    glBegin(GL_LINE_STRIP);
+    glVertex3f(transformedCorners[0][0], transformedCorners[0][1], transformedCorners[0][2]);
+    glVertex3f(transformedCorners[1][0], transformedCorners[1][1], transformedCorners[1][2]);
+	glVertex3f(transformedCorners[2][0], transformedCorners[2][1], transformedCorners[2][2]);
+	glVertex3f(transformedCorners[3][0], transformedCorners[3][1], transformedCorners[3][2]);
+	glVertex3f(transformedCorners[0][0], transformedCorners[0][1], transformedCorners[0][2]);
     glEnd();
+}
 
-    glLineWidth(line_width);
-    glColor3f(color[0], color[1], color[2]);
-    glBegin(GL_LINES);
-    glVertex3f(pos[1][0], pos[1][1], pos[1][2]);
-    glVertex3f(pos[2][0], pos[2][1], pos[2][2]);
-    glEnd();
 
-    glLineWidth(line_width);
-    glColor3f(color[0], color[1], color[2]);
-    glBegin(GL_LINES);
-    glVertex3f(pos[2][0], pos[2][1], pos[2][2]);
-    glVertex3f(pos[3][0], pos[3][1], pos[3][2]);
-    glEnd();
+rigid_motion<float>  OpenGLViewer::ConvertTransformToRigidMotion(Transform3Df & m, float scalePosition)
+{
+	rigid_motion<float> camPose; 
+	camPose.m_rotation(0, 0) = m(0, 0);
+	camPose.m_rotation(0, 1) = m(0, 1);
+	camPose.m_rotation(0, 2) = m(0, 2);
 
-    glLineWidth(line_width);
-    glColor3f(color[0], color[1], color[2]);
-    glBegin(GL_LINES);
-    glVertex3f(pos[3][0], pos[3][1], pos[3][2]);
-    glVertex3f(pos[0][0], pos[0][1], pos[0][2]);
-    glEnd();
+	camPose.m_rotation(1, 0) = m(1, 0);
+	camPose.m_rotation(1, 1) = m(1, 1);
+	camPose.m_rotation(1, 2) = m(1, 2);
+
+	camPose.m_rotation(2, 0) = m(2, 0);
+	camPose.m_rotation(2, 1) = m(2, 1);
+	camPose.m_rotation(2, 2) = m(2, 2);
+
+	camPose.m_translation[0] = m(0, 3) * scalePosition;
+	camPose.m_translation[1] = m(1, 3) * scalePosition;
+	camPose.m_translation[2] = m(2, 3) * scalePosition;
+	return camPose; 
 }
 
 
