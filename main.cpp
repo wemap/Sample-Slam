@@ -20,9 +20,11 @@
 #include "datastructure/Frame.h"
 #include <boost/log/core.hpp>
 #include <ctime>
+#include<fstream>
 
 
-void keyBord(unsigned char key){
+
+void keyBoard(unsigned char key){
     switch (key) {
     case 's': {
         saving_images = !saving_images;
@@ -54,7 +56,49 @@ void keyBord(unsigned char key){
         break;
     }
 }
-void init(){
+
+void ParseConfigFile(std::string filePath)
+{
+	indexCurrentFrame = 0;
+	streamSource = ""; 
+	indexFirstKeyFrame = 0;
+	indexSecondKeyFrame = 0;
+
+	std::string readString;
+	std::ifstream infile;
+	infile.open(filePath);
+	int i = 0; 
+
+	std::cout << ">>>> Read Slam Config File <<<<"  << std::endl;
+	while (infile.good()) // To get you all the lines.
+	{
+		getline(infile, readString); // Saves the line in STRING.
+		if (i == 0)
+		{
+			streamSource = readString; 
+		}
+		if (i == 1)
+		{
+			calibCameraSource = readString;
+		}
+		if (i == 2)
+		{
+			indexFirstKeyFrame = std::stoi(readString); 
+		}
+		if (i == 3)
+		{
+			indexSecondKeyFrame = std::stoi(readString);
+		}
+		std::cout << readString << std::endl;
+		i++; 
+	}
+	infile.close();
+	std::cout << ">>>> End Slam Config File <<<<" << std::endl;
+}
+
+
+void init()
+{
     // component creation
 
        xpcf::ComponentFactory::createComponent<SolARCameraOpencv>(gen(input::devices::ICamera::UUID), camera);
@@ -82,16 +126,28 @@ void init(){
 
        xpcf::ComponentFactory::createComponent<SolAR2D3DCorrespondencesFinderOpencv>(gen(solver::pose::I2D3DCorrespondencesFinder::UUID), corr2D3DFinder);
 
+	   ParseConfigFile("slamConfig.txt");
+
 
        keypointsDetector->setType(features::KeypointDetectorType::SURF);       
        // load camera parameters from yml input file
-        std::string cameraParameters = std::string("calib.yml");
-
-       camera->loadCameraParameters(cameraParameters);
+       camera->loadCameraParameters(calibCameraSource);
        PnP->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
        K = camera->getIntrinsicsParameters();
        dist = camera->getDistorsionParameters();
-      camera->start(0);
+      
+	 
+	   
+	   // Open camera or file
+	   if (streamSource == "camera")
+	   {
+		   camera->start(0);
+	   }
+	   else
+	   {
+		   camera->start(streamSource); 
+	   }
+	   
 }
 
 bool fullTriangulation(const std::vector<SRef<Point2Df>>& pt2d_1,
@@ -212,7 +268,7 @@ bool addFrameToMapAsKeyFrame(SRef<Frame> & frame, int newIndex)
 	std::vector<SRef<CloudPoint>> filteredPoints;
 	mapFilter->filterPointCloud(newMapPoints, tmp_status, filteredPoints);
 	
-	Transform3Df pose_final; 
+	
 
 	referenceKeyFrame->addVisibleMapPoints(filteredPoints);
 	poseGraph->getMap()->addCloudPoints(filteredPoints);
@@ -271,13 +327,16 @@ bool init_mapping(SRef<Image>&view_1,SRef<Image>&view_2){
  int vizPoints2 = int(ggmatches.size());
  overlay->drawMatchesLines(views[0], views[1], viewerImage3, ggmatchedKeypoints1, ggmatchedKeypoints2,vizPoints2);
 
- viewer->display("original matches", viewerImage1, &escape_key,1280,480);
- viewer->display("filtred matches (epipolar)", viewerImage3, &escape_key,1280,480);
+ viewer->display("original matches", viewerImage1,27,1280,480);
+ viewer->display("filtred matches (epipolar)", viewerImage3, 27,1280,480);
 
  fundamentalFinder->find(ggmatchedKeypoints1, ggmatchedKeypoints2,F);
+ std::vector<Transform3Df>  poses;
  fundamentalDecomposer->decompose(F,K,dist,poses);
+ Transform3Df  pose_canonique;
  pose_canonique.setIdentity() ;
  std::pair<int,int>working_view = std::make_pair(0,1);
+ Transform3Df pose_final;
  std::vector<SRef<CloudPoint>> tempCloud ;
      if(fullTriangulation(ggmatchedKeypoints1,ggmatchedKeypoints2,ggmatches, working_view,pose_canonique,poses,K,dist,pose_final,tempCloud)){
          SRef<Keyframe> kframe1 = xpcf::utils::make_shared<Keyframe>(view_1,frame1->getDescriptors(),0,pose_canonique, frame1->getKeyPoints());
@@ -344,7 +403,7 @@ bool tracking(SRef<Image>&view){
     std::vector<SRef<Point2Df>>imagePoints_inliers;
     std::vector<SRef<Point3Df>>worldPoints_inliers;
 
-
+	Transform3Df pose_current;
     if(PnP->estimate(pt2d,pt3d,imagePoints_inliers, worldPoints_inliers,pose_current, true) == FrameworkReturnCode::_SUCCESS /*&&
             worldPoints_inliers.size()> 50*/){
        // std::cout<<" pnp inliers size: "<<worldPoints_inliers.size()<<" / "<<pt3d.size()<<std::endl;
@@ -372,55 +431,6 @@ bool tracking(SRef<Image>&view){
     }	
 }
 
-bool mapping(SRef<Image>&view, bool verbose){
-    /*
-    std::cout<<"--< Descriptors matching: "<<std::endl;
-    matcher->match(frame1->getDescriptors(), frame2->getDescriptors(), matches);
-    std::cout<<"     #original matches: "<<matches.size()<<std::endl;
-    if(verbose){
-        int vizPoints0 = int(matches.size());
-       matchedKeypoints1.clear();
-       matchedKeypoints2.clear();
-       for( int i = 0; i < matches.size(); i++ ){
-        matchedKeypoints1.push_back(xpcf::utils::make_shared<Point2Df>(frame1->getKeyPoints()[ matches[i].getIndexInDescriptorA()]->getX(),frame1->getKeyPoints()[ matches[i].getIndexInDescriptorA()]->getY()));
-        matchedKeypoints2.push_back(xpcf::utils::make_shared<Point2Df>(frame2->getKeyPoints()[ matches[i].getIndexInDescriptorB()]->getX(),frame2->getKeyPoints()[ matches[i].getIndexInDescriptorB()]->getY()));
-        }
-       // Draw the matches in a dedicated image
-        overlay->drawMatchesLines(views[0], views[1], viewerImage1, matchedKeypoints1, matchedKeypoints2, vizPoints0);
-       int vizPoints1 = int(gmatches.size());
-       overlay->drawMatchesLines(views[0],views[1], viewerImage2, gmatchedKeypoints1, gmatchedKeypoints2,vizPoints1);
-    }
-    matchesFilterGeometric->filter(matches,ggmatches,frame1->getKeyPoints(), frame2->getKeyPoints());
-    if(verbose){
-       std::cout<<"    #filtred matches: "<<ggmatches.size()<<std::endl;
-       ggmatchedKeypoints1.clear();
-       ggmatchedKeypoints2.clear();
-       for( int i = 0; i < ggmatches.size(); i++ ){
-          ggmatchedKeypoints1.push_back(xpcf::utils::make_shared<Point2Df>(frame1->getKeyPoints()[ggmatches[i].getIndexInDescriptorA()]->getX(),frame1->getKeyPoints()[ ggmatches[i].getIndexInDescriptorA()]->getY()));
-          ggmatchedKeypoints2.push_back(xpcf::utils::make_shared<Point2Df>(frame2->getKeyPoints()[ggmatches[i].getIndexInDescriptorB()]->getX(),frame2->getKeyPoints()[ ggmatches[i].getIndexInDescriptorB()]->getY()));
-       }
-       int vizPoints2 = int(ggmatches.size());
-       overlay->drawMatchesLines(views[0], views[1], viewerImage3, ggmatchedKeypoints1, ggmatchedKeypoints2,vizPoints2);
-       viewer->display("original matches", viewerImage1, &escape_key,1280,480);
-       viewer->display("filtred matches (epipolar)", viewerImage3, &escape_key,1280,480);
-       }
-      std::cout<<"--<Triangulation: "<<std::endl;
-      std::cout<<"    #Fundamental calculation"<<std::endl;
-      fundamentalFinder->find(ggmatchedKeypoints1, ggmatchedKeypoints2,F);
-      std::cout<<"    #Fundamental decomposition"<<std::endl;
-      fundamentalDecomposer->decompose(F,K,dist,poses);
-      pose_canonique.setIdentity() ;
-
-      std::cout<<"    #Full triangulation"<<std::endl;
-      std::cout<<"    #pt2d1 size: "<<ggmatchedKeypoints1.size()<<std::endl;
-      std::cout<<"    #pt2d2 size: "<<ggmatchedKeypoints2.size()<<std::endl;
-      std::cout<<"    #matches size: "<<ggmatches.size()<<std::endl;
-
-      std::pair<int,int>working_view = std::make_pair(0,1);
-      std::cout<<"   #full triangulation+filtering"<<std::endl;
-*/
-    return true;
-}
 
 /*
 SRef<Image>  image1;
@@ -446,16 +456,35 @@ void my_idle(){
 		
     }
    
-	tracking(image3);
+	//tracking(image3);
 
    
 }*/
 
-
 void idle(){
     camera->getNextImage(view_current);
-    viewer->display("current view",view_current, &escape_key);
-    if(saving_images){
+	frameCount++;
+    viewer->display("current view",view_current, 27);
+
+	// in case of video as input : simulate keyboard input
+	bool tryProcess = false; 
+	if (streamSource != "camera")
+	{
+		if (frameCount == indexFirstKeyFrame)
+		{
+			keyBoard('s'); 
+		}
+		else if (frameCount == indexSecondKeyFrame)
+		{
+			keyBoard('s'); 
+			keyBoard('d');  // display
+			keyBoard('p'); // processing
+		}
+	
+	}
+
+    if(saving_images)
+	{
       views.push_back(view_current);
       saving_images=false;
     }
@@ -466,7 +495,8 @@ void idle(){
             views.clear();
         }
     }
-    if(processing){
+    if(processing && !triangulation_first)
+	{
        tracking(view_current);
     }
 }
@@ -477,7 +507,7 @@ int main (int argc, char* argv[]){
 	viewerGL.callBackIdle = idle ;
 	//viewerGL.callBackIdle = my_idle;
 
-    viewerGL.callbackKeyBoard = keyBord;
+    viewerGL.callbackKeyBoard = keyBoard;
     viewerGL.InitViewer(640 , 480);
     return 0;
 }

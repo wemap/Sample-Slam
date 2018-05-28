@@ -46,6 +46,8 @@ namespace xpcf  = org::bcom::xpcf;
    SRef<features::IKeypointDetector>                    keypointsDetector;
    SRef<features::IDescriptorsExtractor>                descriptorExtractor;
 
+   SRef<features::IMatchesFilter>                      matchesFilterGeometric;
+
    SRef<features::IDescriptorMatcher>                   matcher;
    SRef<display::IImageViewer>                          viewer;
 
@@ -60,8 +62,6 @@ namespace xpcf  = org::bcom::xpcf;
    SRef<display::ISideBySideOverlay>                   overlay;
    SRef<display::I2DOverlay>                           overlay2d;
 
-   SRef<Image>                                         view_1;
-   SRef<Image>                                         view_2;
    SRef<Image>                                         view_current;
    std::vector<SRef<Image>>                            views;
 
@@ -71,29 +71,29 @@ namespace xpcf  = org::bcom::xpcf;
    SRef<Image>                                         viewerImage2;
    SRef<Image>                                         viewerImage3;
 
-   SRef<features::IMatchesFilter>                      matchesFilterGeometric;
+  
 
    CamCalibration                                      K;
    CamDistortion                                       dist;
    Transform2Df                                        F;
-   std::vector<Transform3Df>                           poses;
-   Transform3Df                                        pose_canonique ;
-   Transform3Df                                        pose_final ;
-   Transform3Df                                        pose_current ;
-   // The escape key to exit the sample
-   char escape_key = 27;
-
-    int                                                 nbFrameSinceKeyFrame ;
-
-
+    int												   nbFrameSinceKeyFrame ;
     OpenGLViewer                                       viewerGL ;
+
+
+	std::string											streamSource; // camera or path offline video 
+	std::string											calibCameraSource; // path calibration camera yml
+	// parameters used in case of video as input
+	int													indexFirstKeyFrame; 
+	int													indexSecondKeyFrame; 
+	int													indexCurrentFrame; 
+	int													frameCount; 
 
 
    bool saving_images = false;
    bool triangulation_first = true;
    bool processing = false;
 
-   // constants/ interactive
+
 
 
 #endif // CONSTANTS_H

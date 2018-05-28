@@ -53,6 +53,7 @@ set(FILES_TO_COPY
 	$ENV{BCOMDEVROOT}/thirdParties/opencv/3.2.0/lib/x86_64/shared/${BUILDCONFIG}/${LIBPREFIX}opencv_imgcodecs${OPENCV_VERSION}.${LIBEXTENSION}
 	$ENV{BCOMDEVROOT}/thirdParties/opencv/3.2.0/lib/x86_64/shared/${BUILDCONFIG}/${LIBPREFIX}opencv_imgproc${OPENCV_VERSION}.${LIBEXTENSION}
 	$ENV{BCOMDEVROOT}/thirdParties/opencv/3.2.0/lib/x86_64/shared/${BUILDCONFIG}/${LIBPREFIX}opencv_videoio${OPENCV_VERSION}.${LIBEXTENSION}
+	$ENV{BCOMDEVROOT}/thirdParties/opencv/3.2.0/lib/x86_64/shared/${BUILDCONFIG}/${LIBPREFIX}opencv_ffmpeg${OPENCV_VERSION}_64.${LIBEXTENSION}
 
 
 	$ENV{BCOMDEVROOT}/thirdParties/boost/1.64.0/lib/x86_64/shared/${BUILDCONFIG}/${LIBPREFIX}boost_filesystem.${LIBEXTENSION}
@@ -71,4 +72,7 @@ set(FILES_TO_COPY
 	)
 # define targets (library, install and uninstall)
 defineTargets("executable" "${FILES_TO_COPY}")
+
+set_target_properties(${PROJECT_NAME} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+
 
