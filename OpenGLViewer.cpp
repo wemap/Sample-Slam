@@ -22,6 +22,8 @@ void OpenGLViewer::InitViewer(int resolutionX, int resolutionY)
     m_resolutionX = resolutionX ;
     m_resolutionY = resolutionY ;
 
+	m_glcamera.resetview(math_vector_3f(0, 0, 0), 1.0f);
+
     char *myargv [1];
     int myargc=1;
     myargv [0]=strdup ("OpenGLViewer");
@@ -79,6 +81,8 @@ void OpenGLViewer::OnRender()
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glDisable(GL_CULL_FACE);
 
+	DrawAxis();
+
     bool drawing = (m_pointCloud != NULL) ;
     if(drawing)
 	{
@@ -99,7 +103,15 @@ void OpenGLViewer::OnRender()
 		 for (int i = 0; i < m_keyFramesPoses.size(); i++)
 		 {
 			 glPushMatrix(); 
-			 DrawPhysicalCamera(m_keyFramesPoses[i], cv::Vec3f(0.0, 1.0, 0.0), 1); 
+			 if (i == 0)
+			 {
+				 DrawPhysicalCamera(m_keyFramesPoses[i], cv::Vec3f(0.0, 1.0, 1.0), 1);
+			 }
+			 else
+			 {
+				 DrawPhysicalCamera(m_keyFramesPoses[i], cv::Vec3f(0.0, 1.0, 0.0), 1);
+			 }
+			 
 			 glPopMatrix(); 
 		 } 
     }
@@ -153,6 +165,58 @@ void OpenGLViewer::OnMouseState(int button, int state, int x, int y)
     }
 }
 
+
+void OpenGLViewer::DrawAxis()
+{
+	glPushMatrix(); 
+
+	// 0
+	glColor3f(1, 1, 0);
+	glutSolidSphere(0.05, 10, 10);
+
+	// z 
+	glColor3f(0, 0, 1);
+	glTranslatef(0, 0, 1); 
+	glutSolidSphere(0.05, 10, 10);
+	
+	// x 
+	glPopMatrix(); 
+	glPushMatrix(); 
+	glColor3f(1, 0, 0);
+	glTranslatef(1, 0, 0); 
+	glutSolidSphere(0.05, 10, 10);
+
+	// y 
+	glPopMatrix();
+	glPushMatrix();
+	glColor3f(0, 1, 0);
+	glTranslatef(0, 1, 0);
+	glutSolidSphere(0.05, 10, 10);
+
+
+	// zAxis
+	glPopMatrix();
+	glPushMatrix();
+	glColor3f(0, 0, 1); 
+	glutSolidCone(0.1, 1, 10, 10);
+
+	// x Axis
+	glPopMatrix();
+	glPushMatrix();
+	glRotatef(90, 0, 1 , 0);
+	glColor3f(1, 0, 0);
+	glutSolidCone(0.1, 1, 10, 10);
+
+	// y axis 
+	glPopMatrix();
+	glPushMatrix();
+	glRotatef(-90, 1, 0, 0);
+	glColor3f(0, 1, 0);
+	glutSolidCone(0.1, 1, 10, 10);
+
+
+	glPopMatrix(); 
+}
 
 
 void OpenGLViewer::DrawPhysicalCamera(Transform3Df & m, cv::Vec3f&color, float scale) {

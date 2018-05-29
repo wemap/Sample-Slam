@@ -86,6 +86,8 @@ private :
         m_instance->OnMouseState(button, state, x , y);
     }
 
+	void DrawAxis(); 
+
     void DrawPhysicalCamera(Transform3Df & m, cv::Vec3f&color, float scale) ;
 
 	rigid_motion<float>  ConvertTransformToRigidMotion(Transform3Df & m, float scalePosition);

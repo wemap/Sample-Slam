@@ -136,8 +136,6 @@ void init()
        K = camera->getIntrinsicsParameters();
        dist = camera->getDistorsionParameters();
       
-	 
-	   
 	   // Open camera or file
 	   if (streamSource == "camera")
 	   {
@@ -238,8 +236,6 @@ void getPoint2DFromKeyPoint(std::vector<SRef<Keypoint>> & keyPoints, std::vector
 
 bool addFrameToMapAsKeyFrame(SRef<Frame> & frame, int newIndex)
 {
-	
-
 	SRef<Keyframe> referenceKeyFrame = frame->getReferenceKeyFrame(); 
 	Transform3Df poseFrame = frame->m_pose; 
 	Transform3Df poseKeyFrame = referenceKeyFrame->m_pose;
@@ -255,7 +251,6 @@ bool addFrameToMapAsKeyFrame(SRef<Frame> & frame, int newIndex)
 	// Triangulate new points 
 	mapper->triangulate(pointsFrame, pointsKeyFrame, frame->getUnknownMatchesWithReferenceKeyFrame(), corres, frame->m_pose, referenceKeyFrame->m_pose, K, dist, newMapPoints);
 	
-
 	// check point cloud
 	std::vector<bool> tmp_status;
 	if (!mapFilter->checkFrontCameraPoints(newMapPoints, frame->m_pose, tmp_status))
@@ -339,11 +334,11 @@ bool init_mapping(SRef<Image>&view_1,SRef<Image>&view_2){
  Transform3Df pose_final;
  std::vector<SRef<CloudPoint>> tempCloud ;
      if(fullTriangulation(ggmatchedKeypoints1,ggmatchedKeypoints2,ggmatches, working_view,pose_canonique,poses,K,dist,pose_final,tempCloud)){
-         SRef<Keyframe> kframe1 = xpcf::utils::make_shared<Keyframe>(view_1,frame1->getDescriptors(),0,pose_canonique, frame1->getKeyPoints());
+         
+		 SRef<Keyframe> kframe1 = xpcf::utils::make_shared<Keyframe>(view_1,frame1->getDescriptors(),0,pose_canonique, frame1->getKeyPoints());
          SRef<Keyframe> kframe2 = xpcf::utils::make_shared<Keyframe>(view_2,frame2->getDescriptors(),1,pose_final,frame2->getKeyPoints());
          
-		 
-		 
+
 		 kframe1->addVisibleMapPoints(tempCloud);
          kframe2->addVisibleMapPoints(tempCloud) ;
          poseGraph->initMap(kframe1,kframe2,tempCloud,ggmatches);
@@ -403,11 +398,13 @@ bool tracking(SRef<Image>&view){
     std::vector<SRef<Point2Df>>imagePoints_inliers;
     std::vector<SRef<Point3Df>>worldPoints_inliers;
 
-	Transform3Df pose_current;
-    if(PnP->estimate(pt2d,pt3d,imagePoints_inliers, worldPoints_inliers,pose_current, true) == FrameworkReturnCode::_SUCCESS /*&&
+	Transform3Df relative_pose;
+    if(PnP->estimate(pt2d,pt3d,imagePoints_inliers, worldPoints_inliers, relative_pose, true) == FrameworkReturnCode::_SUCCESS /*&&
             worldPoints_inliers.size()> 50*/){
        // std::cout<<" pnp inliers size: "<<worldPoints_inliers.size()<<" / "<<pt3d.size()<<std::endl;
-		
+		Transform3Df pose_current =  referenceKeyFrame->m_pose * relative_pose;
+
+
 		newFrame->m_pose = pose_current;
         viewerGL.SetRealCameraPose(pose_current);
 
@@ -504,6 +501,7 @@ int main (int argc, char* argv[]){
     
 	boost::log::core::get()->set_logging_enabled(false);
 	init();
+	
 	viewerGL.callBackIdle = idle ;
 	//viewerGL.callBackIdle = my_idle;
 
