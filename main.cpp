@@ -104,13 +104,22 @@ void init()
        xpcf::ComponentFactory::createComponent<SolARCameraOpencv>(gen(input::devices::ICamera::UUID), camera);
        xpcf::ComponentFactory::createComponent<SolARImageLoaderOpencv>(gen(image::IImageLoader::UUID ), imageLoader);
 
+#ifdef USE_FREE
+       xpcf::ComponentFactory::createComponent<SolARKeypointDetectorOpencv>(gen(features::IKeypointDetector::UUID ), keypointsDetector);
+       xpcf::ComponentFactory::createComponent<SolARDescriptorsExtractorORBOpencv>(gen(features::IDescriptorsExtractor::UUID), descriptorExtractor);
+#else
        xpcf::ComponentFactory::createComponent<SolARKeypointDetectorNonFreeOpencv>(gen(features::IKeypointDetector::UUID ), keypointsDetector);
        xpcf::ComponentFactory::createComponent<SolARDescriptorsExtractorSURF64Opencv>(gen(features::IDescriptorsExtractor::UUID ), descriptorExtractor);
+#endif
 
-   //    xpcf::ComponentFactory::createComponent<SolARDescriptorMatcherKNNOpencv>(gen(features::IDescriptorMatcher::UUID), matcher);
+//     xpcf::ComponentFactory::createComponent<SolARDescriptorMatcherKNNOpencv>(gen(features::IDescriptorMatcher::UUID), matcher);
 
+#ifdef USE_FREE
+       xpcf::ComponentFactory::createComponent<SolARDescriptorMatcherKNNOpencv>(gen(features::IDescriptorMatcher::UUID), matcher);
+#else
        xpcf::ComponentFactory::createComponent<SolARDescriptorMatcherRadiusOpencv>(gen(features::IDescriptorMatcher::UUID), matcher);
 
+#endif
        xpcf::ComponentFactory::createComponent<SolARSideBySideOverlayOpencv>(gen(display::ISideBySideOverlay::UUID ), overlay);
        xpcf::ComponentFactory::createComponent<SolAR2DOverlayOpencv>(gen(display::I2DOverlay::UUID ), overlay2d);
 
@@ -129,7 +138,11 @@ void init()
 	   ParseConfigFile("slamConfig.txt");
 
 
-       keypointsDetector->setType(features::KeypointDetectorType::SURF);       
+#ifdef USE_FREE
+       keypointsDetector->setType(features::KeypointDetectorType::ORB);
+#else
+       keypointsDetector->setType(features::KeypointDetectorType::SURF);
+#endif
        // load camera parameters from yml input file
        camera->loadCameraParameters(calibCameraSource);
        PnP->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());

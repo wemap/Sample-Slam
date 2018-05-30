@@ -2,15 +2,24 @@
 #define CONSTANTS_H
 
 #include "SolARImageLoaderOpencv.h"
+#ifdef USE_FREE
+#include "SolARDescriptorsExtractorORBOpencv.h"
+#include "SolARKeypointDetectorOpencv.h"
+#else
 #include "SolARKeypointDetectorNonFreeOpencv.h"
 #include "SolARDescriptorsExtractorSIFTOpencv.h"
 #include "SolARDescriptorsExtractorSURF64Opencv.h"
+#endif
 
 #include "SolARImageViewerOpencv.h"
 #include "SolAR2DOverlayOpencv.h"
 #include "SolARCameraOpencv.h"
 
+#ifdef USE_FREE
+#include "SolARDescriptorMatcherKNNOpencv.h"
+#else
 //#include "SolARDescriptorMatcherKNNOpencv.h"
+#endif
 #include "SolARDescriptorMatcherRadiusOpencv.h"
 #include "SolARImageViewerOpencv.h"
 #include "SolARSideBySideOverlayOpencv.h"
@@ -33,7 +42,12 @@ using namespace SolAR;
 using namespace SolAR::datastructure;
 using namespace SolAR::api;
 using namespace SolAR::MODULES::OPENCV;
+#ifdef USE_FREE
+using namespace SolAR::MODULES::OPENCV;
+#else
 using namespace SolAR::MODULES::NONFREEOPENCV;
+#endif
+
 
 namespace xpcf  = org::bcom::xpcf;
 
