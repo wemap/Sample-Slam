@@ -243,7 +243,11 @@ bool addFrameToMapAsKeyFrame(SRef<Frame> & frame, int newIndex)
 	std::vector<SRef<Point2Df>> pointsFrame; 
 	std::vector<SRef<Point2Df>> pointsKeyFrame; 
 
-	getMatchedKeyPoints(referenceKeyFrame->getKeyPoints(), frame->getKeyPoints(), frame->getUnknownMatchesWithReferenceKeyFrame(), pointsKeyFrame, pointsFrame);
+    std::vector<SRef<Keypoint>> kp1,kp2;
+    kp1=referenceKeyFrame->getKeyPoints();
+    kp2=frame->getKeyPoints();
+
+    getMatchedKeyPoints(kp1, kp2, frame->getUnknownMatchesWithReferenceKeyFrame(), pointsKeyFrame, pointsFrame);
 
 	std::vector<SRef<CloudPoint>> newMapPoints; 
 	std::pair<int, int> corres(referenceKeyFrame->m_idx , newIndex);
@@ -298,13 +302,17 @@ bool init_mapping(SRef<Image>&view_1,SRef<Image>&view_2){
 
   std::vector<DescriptorMatch>  matches;
 
-
- matcher->match(frame1->getDescriptors(), frame2->getDescriptors(), matches); 
+  SRef<DescriptorBuffer> d1=frame1->getDescriptors();
+  SRef<DescriptorBuffer> d2=frame2->getDescriptors();
+  matcher->match(d1, d2, matches);
 
  std::vector<SRef<Point2Df>>    matchedKeypoints1;
  std::vector<SRef<Point2Df>>    matchedKeypoints2;
+ std::vector<SRef<Keypoint>>    kp1,kp2;
+ kp1=frame1->getKeyPoints();
+ kp2=frame2->getKeyPoints();
 
- getMatchedKeyPoints(frame1->getKeyPoints(), frame2->getKeyPoints() , matches, matchedKeypoints1 , matchedKeypoints2);
+ getMatchedKeyPoints(kp1, kp2 , matches, matchedKeypoints1 , matchedKeypoints2);
  int vizPoints0 = matches.size();
 
   // Draw the matches in a dedicated image
@@ -316,8 +324,10 @@ bool init_mapping(SRef<Image>&view_1,SRef<Image>&view_2){
 
  std::vector<SRef<Point2Df>> ggmatchedKeypoints1;
  std::vector<SRef<Point2Df>> ggmatchedKeypoints2;
+ kp1=frame1->getKeyPoints();
+ kp2=frame2->getKeyPoints();
 
- getMatchedKeyPoints(frame1->getKeyPoints(), frame2->getKeyPoints() ,ggmatches, ggmatchedKeypoints1 ,  ggmatchedKeypoints2 );
+ getMatchedKeyPoints(kp1, kp2 ,ggmatches, ggmatchedKeypoints1 ,  ggmatchedKeypoints2 );
 
  int vizPoints2 = int(ggmatches.size());
  overlay->drawMatchesLines(views[0], views[1], viewerImage3, ggmatchedKeypoints1, ggmatchedKeypoints2,vizPoints2);
@@ -373,13 +383,19 @@ bool tracking(SRef<Image>&view){
     newFrame->setNumberOfFramesSinceLastKeyFrame(nbFrameSinceKeyFrame);
     std::vector<DescriptorMatch>new_matches, new_matches_filtred;
 	SRef<Keyframe> referenceKeyFrame = newFrame->getReferenceKeyFrame() ;
-    matcher->match(referenceKeyFrame->getDescriptors(), newFrame->getDescriptors(), new_matches);
+    SRef<DescriptorBuffer> d1=referenceKeyFrame->getDescriptors();
+    SRef<DescriptorBuffer> d2=newFrame->getDescriptors();
+
+    matcher->match(d1,d2, new_matches);
     matchesFilterGeometric->filter(new_matches,new_matches_filtred, referenceKeyFrame->getKeyPoints(), newFrame->getKeyPoints());
     
-	std::vector<SRef<Point2Df>>current_kp1;
+    std::vector<SRef<Keypoint>> kp1,kp2;
+    std::vector<SRef<Point2Df>>current_kp1;
     std::vector<SRef<Point2Df>>current_kp2;
 
-	getMatchedKeyPoints(referenceKeyFrame->getKeyPoints(), newFrame->getKeyPoints(), new_matches_filtred, current_kp1, current_kp2);
+    kp1=referenceKeyFrame->getKeyPoints();
+    kp2=newFrame->getKeyPoints();
+    getMatchedKeyPoints(kp1, kp2, new_matches_filtred, current_kp1, current_kp2);
 
 
    /*

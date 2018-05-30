@@ -98,18 +98,19 @@ void OpenGLViewer::OnRender()
 
          // draw  camera pose !
          glPushMatrix();
-         DrawPhysicalCamera(m_realCameraPose, cv::Vec3f(1.0, 0.0, 0.0), 1);
+         cv::Vec3f tmpVect=cv::Vec3f(0.0, 0.0, 1.0);
+         DrawPhysicalCamera(m_realCameraPose, tmpVect, 1);
          glPopMatrix();
 		 for (int i = 0; i < m_keyFramesPoses.size(); i++)
 		 {
 			 glPushMatrix(); 
 			 if (i == 0)
 			 {
-				 DrawPhysicalCamera(m_keyFramesPoses[i], cv::Vec3f(0.0, 1.0, 1.0), 1);
+                 DrawPhysicalCamera(m_keyFramesPoses[i], tmpVect, 1);
 			 }
 			 else
 			 {
-				 DrawPhysicalCamera(m_keyFramesPoses[i], cv::Vec3f(0.0, 1.0, 0.0), 1);
+                 DrawPhysicalCamera(m_keyFramesPoses[i], tmpVect, 1);
 			 }
 			 
 			 glPopMatrix(); 
