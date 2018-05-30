@@ -97,7 +97,7 @@ void ParseConfigFile(std::string filePath)
 }
 
 
-void init()
+void init(std::string configFile)
 {
     // component creation
 
@@ -135,7 +135,8 @@ void init()
 
        xpcf::ComponentFactory::createComponent<SolAR2D3DCorrespondencesFinderOpencv>(gen(solver::pose::I2D3DCorrespondencesFinder::UUID), corr2D3DFinder);
 
-	   ParseConfigFile("slamConfig.txt");
+
+       ParseConfigFile(configFile.c_str());
 
 
 #ifdef USE_FREE
@@ -529,10 +530,13 @@ void idle(){
 int main (int argc, char* argv[]){
     
 	boost::log::core::get()->set_logging_enabled(false);
-	init();
+    std::string configFile=std::string("slamConfig.txt");
+    if(argc==2)
+        configFile=std::string(argv[1]);
+
+    init(configFile);
 	
 	viewerGL.callBackIdle = idle ;
-	//viewerGL.callBackIdle = my_idle;
 
     viewerGL.callbackKeyBoard = keyBoard;
     viewerGL.InitViewer(640 , 480);
