@@ -23,6 +23,8 @@
 #include<fstream>
 
 
+const char space_key = 32;
+const char escape_key = 27;
 
 void keyBoard(unsigned char key){
     switch (key) {
@@ -50,6 +52,16 @@ void keyBoard(unsigned char key){
     case 'x': {
         std::cout << "views poped: " << processing << std::endl;
         views.pop_back();
+        break;
+    }
+    case space_key: {
+        std::cout << "make pause/!pause " << std::endl;
+        pause=!pause;
+        break;
+    }
+    case escape_key: {
+        std::cout << "exit " << std::endl;
+        exit_=true;
         break;
     }
     default:
@@ -489,6 +501,12 @@ void my_idle(){
 }*/
 
 void idle(){
+    if(exit_){
+        exit(0);
+    }
+    if(pause && streamSource != "camera"){
+        return;
+    }
     camera->getNextImage(view_current);
 	frameCount++;
     viewer->display("current view",view_current, 27);

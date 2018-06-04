@@ -106,6 +106,8 @@ namespace xpcf  = org::bcom::xpcf;
    bool saving_images = false;
    bool triangulation_first = true;
    bool processing = false;
+   bool pause = false;
+   bool exit_ = false;
 
 
 
