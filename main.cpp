@@ -69,6 +69,91 @@ void keyBoard(unsigned char key){
     }
 }
 
+
+void DrawWorld2DPoints(SRef<Keyframe> referenceKeyFrame,Transform3Df relative_pose)
+{
+    std::string window_name = "cloud_points";
+    cv::namedWindow( window_name, 0);cv::resizeWindow(window_name, 640, 480);
+    cv::Mat reprojected(cv::Size(640,480), CV_8UC3);
+    reprojected.setTo(0);
+
+    std::vector<SRef<CloudPoint>>visibleCloud =referenceKeyFrame->getVisibleMapPoints();
+    std::vector<cv::Point3f> worldCVPoints;
+    std::vector<cv::Point2f> projected3D;
+
+    for (int i = 0; i < visibleCloud.size(); ++i) {
+         worldCVPoints.push_back(cv::Point3f(visibleCloud[i]->getX(), visibleCloud[i]->getY(),visibleCloud[i]->getZ()));
+    }
+
+if( worldCVPoints.size()!=0){
+
+    CamCalibration intrinsic_param;
+    CamDistortion distorsion_param;
+
+    intrinsic_param=camera->getIntrinsicsParameters();
+    distorsion_param=camera->getDistorsionParameters();
+
+    cv::Mat m_camMatrix;
+    cv::Mat m_camDistorsion;
+    m_camMatrix.create(3, 3, CV_32FC1);
+    m_camDistorsion.create(5, 1, CV_32FC1);
+
+    m_camDistorsion.at<float>(0, 0)  = dist(0);
+    m_camDistorsion.at<float>(1, 0)  = dist(1);
+    m_camDistorsion.at<float>(2, 0)  = dist(2);
+    m_camDistorsion.at<float>(3, 0)  = dist(3);
+    m_camDistorsion.at<float>(4, 0)  = dist(4);
+
+    m_camMatrix.at<float>(0, 0) = intrinsic_param(0,0);
+    m_camMatrix.at<float>(0, 1) = intrinsic_param(0,1);
+    m_camMatrix.at<float>(0, 2) = intrinsic_param(0,2);
+    m_camMatrix.at<float>(1, 0) = intrinsic_param(1,0);
+    m_camMatrix.at<float>(1, 1) = intrinsic_param(1,1);
+    m_camMatrix.at<float>(1, 2) = intrinsic_param(1,2);
+    m_camMatrix.at<float>(2, 0) = intrinsic_param(2,0);
+    m_camMatrix.at<float>(2, 1) = intrinsic_param(2,1);
+    m_camMatrix.at<float>(2, 2) = intrinsic_param(2,2);
+
+    // Rotation and Translation from input pose
+    cv::Mat Rvec;   Rvec.create(3, 3, CV_32FC1);
+    cv::Mat Tvec;   Tvec.create(3, 1, CV_32FC1);
+
+    Rvec.at<float>(0,0) = relative_pose(0,0);
+    Rvec.at<float>(0,1) = relative_pose(0,1);
+    Rvec.at<float>(0,2) = relative_pose(0,2);
+
+    Rvec.at<float>(1,0) = relative_pose(1,0);
+    Rvec.at<float>(1,1) = relative_pose(1,1);
+    Rvec.at<float>(1,2) = relative_pose(1,2);
+
+    Rvec.at<float>(2,0) = relative_pose(2,0);
+    Rvec.at<float>(2,1) = relative_pose(2,1);
+    Rvec.at<float>(2,2) = relative_pose(2,2);
+
+    Tvec.at<float>(0,0) = relative_pose(0,3);
+    Tvec.at<float>(1,0) = relative_pose(1,3);
+    Tvec.at<float>(2,0) = relative_pose(2,3);
+
+    cv::Mat rodrig;
+    cv::Rodrigues(Rvec,rodrig);
+    std::cout << " rodrig \n";
+    std::cout << rodrig <<std::endl;
+    std::cout << " Tvec \n";
+    std::cout << Tvec <<std::endl;
+
+    cv::projectPoints(worldCVPoints, rodrig, Tvec, m_camMatrix, m_camDistorsion, projected3D);
+
+    std::cout << projected3D.size() << "\n\n";
+
+    for (int i = 0; i<projected3D.size(); i++) {
+        cv::circle(reprojected, projected3D[i], 2.0, cv::Scalar(0, 0, 255), 2.0,8,0);
+    }
+
+    cv::imshow("cloud_points", reprojected);
+    }
+}
+
+
 void ParseConfigFile(std::string filePath)
 {
 	indexCurrentFrame = 0;
