@@ -1,2 +1,2 @@
-# Sample-Triangulation
-A sample of a triangulation of keypoints from two images
+# Sample-Slam
+An ongoing implementation of a slam using SolAR
