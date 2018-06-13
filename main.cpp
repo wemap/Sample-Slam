@@ -620,14 +620,13 @@ bool tracking(SRef<Image>&view){
     std::vector<SRef<Point2Df>>imagePoints_inliers;
     std::vector<SRef<Point3Df>>worldPoints_inliers;
 
-    Transform3Df relative_pose;
-    if(PnP->estimate(pt2d,pt3d,imagePoints_inliers, worldPoints_inliers, relative_pose) == FrameworkReturnCode::_SUCCESS /*&&
+    Transform3Df pose_current;
+    if(PnP->estimate(pt2d,pt3d,imagePoints_inliers, worldPoints_inliers, pose_current) == FrameworkReturnCode::_SUCCESS /*&&
             worldPoints_inliers.size()> 50*/){
        // std::cout<<" pnp inliers size: "<<worldPoints_inliers.size()<<" / "<<pt3d.size()<<std::endl;
-        Transform3Df pose_current =  referenceKeyFrame->m_pose * relative_pose;
 
-        DrawPointCloud(relative_pose);
-        DrawPnpMatches(pt2d,pt3d,relative_pose);
+        DrawPointCloud(pose_current);
+        DrawPnpMatches(pt2d,pt3d,pose_current);
 
 
         newFrame->m_pose = pose_current;
