@@ -22,6 +22,9 @@
 #include <ctime>
 #include<fstream>
 
+#include "opencv2\highgui.hpp"
+
+
 
 const char space_key = 32;
 const char escape_key = 27;
@@ -154,43 +157,37 @@ if( worldCVPoints.size()!=0){
 }
 
 
-void ParseConfigFile(std::string filePath)
-{
+bool ParseConfigFile(const std::string &filePath){
 	indexCurrentFrame = 0;
 	streamSource = ""; 
 	indexFirstKeyFrame = 0;
 	indexSecondKeyFrame = 0;
 
-	std::string readString;
-	std::ifstream infile;
-	infile.open(filePath);
-	int i = 0; 
+	std::string dummy[4];
+	std::ifstream ox;
 
-	std::cout << ">>>> Read Slam Config File <<<<"  << std::endl;
-	while (infile.good()) // To get you all the lines.
-	{
-		getline(infile, readString); // Saves the line in STRING.
-		if (i == 0)
-		{
-			streamSource = readString; 
+	ox.open(filePath);
+	std::cout << "<SLAM config: >" << std::endl;
+	if (ox.is_open()) {
+		for (int i = 0; i < 4; ++i) {
+			ox >> dummy[i];
 		}
-		if (i == 1)
-		{
-			calibCameraSource = readString;
-		}
-		if (i == 2)
-		{
-			indexFirstKeyFrame = std::stoi(readString); 
-		}
-		if (i == 3)
-		{
-			indexSecondKeyFrame = std::stoi(readString);
-		}
-		std::cout << readString << std::endl;
-		i++; 
+		streamSource = dummy[0];
+		calibCameraSource = dummy[1];
+		indexFirstKeyFrame = std::stoi(dummy[2]);
+		indexSecondKeyFrame = std::stoi(dummy[3]);
+		std::cout << "	# stream mode: " << streamSource << std::endl;
+		std::cout << "	# calib file: " << calibCameraSource << std::endl;
+		std::cout << "	# triangulation pair: (" << indexFirstKeyFrame << "," << indexSecondKeyFrame << ")" << std::endl << std::endl;
+		ox.close();
+
+		return true;
 	}
-	infile.close();
-	std::cout << ">>>> End Slam Config File <<<<" << std::endl;
+	else{
+		ox.close();
+		std::cout << " can't read slam config slam file from: " << filePath << std::endl;
+		return false;
+	}
 }
 
 
@@ -255,6 +252,14 @@ void init(std::string configFile)
 	   else
 	   {
 		   camera->start(streamSource); 
+
+		   //std::cout << "	# loading frames: ";
+		   //// this part to load image from video:
+		   //for (int k = 0; k < 30; ++k) {
+			  // camera->getNextImage(view_current);
+			  // views.push_back(view_current);
+		   //}
+		   //std::cout << views.size() << std::endl;
 	   }
 	   
 }
@@ -408,8 +413,8 @@ bool addFrameToMapAsKeyFrame(SRef<Frame> & frame, int newIndex)
 
 
 bool init_mapping(SRef<Image>&view_1,SRef<Image>&view_2){
- SRef<Frame> frame1 = createAndInitFrame(views[0]);
- SRef<Frame> frame2 = createAndInitFrame((views[1])) ;
+ SRef<Frame> frame1 = createAndInitFrame(view_1);
+ SRef<Frame> frame2 = createAndInitFrame(view_2);
 
   std::vector<DescriptorMatch>  matches;
 
@@ -427,7 +432,7 @@ bool init_mapping(SRef<Image>&view_1,SRef<Image>&view_2){
  int vizPoints0 = matches.size();
 
   // Draw the matches in a dedicated image
- overlay->drawMatchesLines(views[0], views[1], viewerImage1, matchedKeypoints1, matchedKeypoints2, vizPoints0);
+ overlay->drawMatchesLines(view_1, view_2, viewerImage1, matchedKeypoints1, matchedKeypoints2, vizPoints0);
 
  std::vector<DescriptorMatch>  ggmatches;
 
@@ -441,7 +446,7 @@ bool init_mapping(SRef<Image>&view_1,SRef<Image>&view_2){
  getMatchedKeyPoints(kp1, kp2 ,ggmatches, ggmatchedKeypoints1 ,  ggmatchedKeypoints2 );
 
  int vizPoints2 = int(ggmatches.size());
- overlay->drawMatchesLines(views[0], views[1], viewerImage3, ggmatchedKeypoints1, ggmatchedKeypoints2,vizPoints2);
+ overlay->drawMatchesLines(view_1 ,view_2, viewerImage3, ggmatchedKeypoints1, ggmatchedKeypoints2,vizPoints2);
 
  viewer->display("original matches", viewerImage1,27,1280,480);
  viewer->display("filtred matches (epipolar)", viewerImage3, 27,1280,480);
@@ -463,6 +468,17 @@ bool init_mapping(SRef<Image>&view_1,SRef<Image>&view_2){
 		 kframe1->addVisibleMapPoints(tempCloud);
          kframe2->addVisibleMapPoints(tempCloud) ;
          poseGraph->initMap(kframe1,kframe2,tempCloud,ggmatches);
+
+		 bool saving_cloud = true;
+		 if (saving_cloud) {
+			 std::ofstream oy("D:/cloud_solar.txt");
+			 oy << tempCloud.size() << std::endl;
+			 for (int j = 0; j < tempCloud.size(); ++j) {
+				 oy << tempCloud[j]->getX() << " " << tempCloud[j]->getY() << " " << tempCloud[j]->getZ() << std::endl;
+			 }
+			 oy.close();
+		 }
+
          Point3Df gravity  ;
          float maxDist ;
          poseGraph->getMap()->computeGravity(gravity , maxDist) ;
@@ -508,10 +524,9 @@ bool tracking(SRef<Image>&view){
     kp2=newFrame->getKeyPoints();
     getMatchedKeyPoints(kp1, kp2, new_matches_filtred, current_kp1, current_kp2);
 
-
-   /*
+   
     overlay->drawMatchesLines(referenceKeyFrame->m_view, view, currentMatchImage, current_kp1, current_kp2,current_kp1.size());
-    viewer->display("current matches", currentMatchImage, &escape_key,1280,480);*/
+    viewer->display("current matches", currentMatchImage, &escape_key,1280,480);
 
     std::vector<SRef<Point2Df>>pt2d;
     std::vector<SRef<Point3Df>>pt3d;
@@ -526,10 +541,17 @@ bool tracking(SRef<Image>&view){
     std::vector<SRef<Point3Df>>worldPoints_inliers;
 
 	Transform3Df pose_current;
-    if(PnP->estimate(pt2d,pt3d,imagePoints_inliers, worldPoints_inliers, pose_current, true) == FrameworkReturnCode::_SUCCESS /*&&
+	SRef<Image>inliers_view;
+    if(PnP->estimate(pt2d,pt3d,imagePoints_inliers, worldPoints_inliers, pose_current) == FrameworkReturnCode::_SUCCESS /*&&
             worldPoints_inliers.size()> 50*/){
        // std::cout<<" pnp inliers size: "<<worldPoints_inliers.size()<<" / "<<pt3d.size()<<std::endl;
 
+
+		std::cout << " number of iniers: " << imagePoints_inliers.size() << std::endl;
+		std::vector<int>color = { 0,0,255 };
+		overlay2d->drawCircles(imagePoints_inliers, 2.0, 2.0, view);
+		viewer->display("inlier image", view);
+		
 		newFrame->m_pose = pose_current;
         viewerGL.SetRealCameraPose(pose_current);
 
@@ -537,10 +559,14 @@ bool tracking(SRef<Image>&view){
         newFrame->setUnknownMatchesWithReferenceKeyFrame(remainingMatches);
 		newFrame->setKnownMatchesWithReferenceKeyFrame(foundMatches);
 
+		// I need to check this function
+
 		int isKeyFrameCandidate = poseGraph->isKeyFrameCandidate(newFrame);
 		if (isKeyFrameCandidate != -1) // try to add key frame if success tracking
 		{
 			
+			std::cout << "/.trying to add keyframe./" << std::endl;
+
 			if (addFrameToMapAsKeyFrame(newFrame, isKeyFrameCandidate))
 			{
 				nbFrameSinceKeyFrame = 0;
@@ -554,34 +580,6 @@ bool tracking(SRef<Image>&view){
 }
 
 
-/*
-SRef<Image>  image1;
-SRef<Image>  image2;
-SRef<Image>  image3; 
-SRef<Image>  image4;
-
-
-void my_idle(){
-    
-		if(triangulation_first){
-		
-		imageLoader->loadImage(std::string("bview0.jpg"), image1);
-        views.push_back(image1);
-		
-        imageLoader->loadImage(std::string("bview1.jpg"), image2);
-        views.push_back(image2);
-        init_mapping(views[0],views[1]);
-        triangulation_first = false;
-		std::cout << " allo " << std::endl; 
-		imageLoader->loadImage(std::string("bview2.jpg"), image3);
-		imageLoader->loadImage(std::string("bview3.jpg"), image4);
-		
-    }
-   
-	//tracking(image3);
-
-   
-}*/
 
 void idle(){
     if(exit_){
@@ -610,7 +608,6 @@ void idle(){
 		}
 	
 	}
-
     if(saving_images)
 	{
       views.push_back(view_current);
@@ -628,39 +625,76 @@ void idle(){
        tracking(view_current);
     }
 }
-int main (int argc, char* argv[]){
-    
-	boost::log::core::get()->set_logging_enabled(false);
-    std::string configFile=std::string("slamConfig.txt");
-    if(argc==2)
-        configFile=std::string(argv[1]);
 
-    init(configFile);
-	
-	viewerGL.callBackIdle = idle ;
 
-    viewerGL.callbackKeyBoard = keyBoard;
-    viewerGL.InitViewer(640 , 480);
-    return 0;
+void run_surf() {
+
+	std::string configPath = "D:/AmineSolar/source/slam/Sample-Slam/slamConfig.txt";
+	std::string imgPath = "D:/AmineSolar/mySLAM/slam_data/castle-P30/images/frame_";
+	init(configPath);
+
+	bool process(true);
+	std::vector< SRef<Keypoint>> keyPoints;
+	SRef<Image>view_copy;
+	keyPoints.clear();
+	while (process) {
+
+		camera->getNextImage(view_current);
+		view_copy = view_current->copy();
+
+//		camera->getNextImage(view_copy);
+		keypointsDetector->detect(view_copy, keyPoints);
+		overlay2d->drawCircles(keyPoints, 2.0, 2.0, view_current);
+		viewer->display("current image", view_current, 640, 480);
+		viewer->display("key points image", view_copy, 640, 480);
+
+		if (cv::waitKey(1) == 27) {
+			process = false;
+		}
+
+	}
 }
 
-/*
+
 int main(){
-    init();
-    if(triangulation_first = true){
-        imageLoader->loadImage(std::string("D:/view_0.png"),view_current);
-        views.push_back(view_current);
-        imageLoader->loadImage(std::string("D:/view_1.png"),view_current);
-        views.push_back(view_current);
-        init_mapping(views[0],views[1], true);
-        triangulation_first = false;
-    }
-    while(true){
-        imageLoader->loadImage(std::string("D:/view_2.png"),view_current);
-        tracking(view_current,1,true);
-    }
+
+
+	run_surf();
+
+
+	//std::string configPath  = "D:/AmineSolar/source/slam/Sample-Slam/slamConfig.txt";
+	//std::string imgPath		= "D:/AmineSolar/mySLAM/slam_data/castle-P30/images/frame_";
+ //   init(configPath);
+
+	//std::pair<int, int>idx = std::make_pair(3, 4);
+ //   if(triangulation_first = true){
+	//	std::stringstream buf0,buf1;
+	//	buf0 << std::setfill('0') << std::setw(5) << idx.first;
+	//	buf1 << std::setfill('0') << std::setw(5) << idx.second;
+
+	//	std::string path_view0 = std::string(imgPath + buf0.str() + ".jpg");
+	//	std::string path_view1 = std::string(imgPath + buf1.str() + ".jpg");
+
+ //       imageLoader->loadImage(path_view0, view_current);
+	//	views.push_back(view_current);
+	//	imageLoader->loadImage(path_view1, view_current);
+	//	views.push_back(view_current);
+ //       init_mapping(views[0],views[1]);
+ //       triangulation_first = false;
+ //   }
+	//for (int i = idx.second + 1; i < 30 - idx.second; ++i) {
+	//	std::stringstream buf2;
+	//	buf2 << std::setfill('0') << std::setw(5) <<i;
+	//	std::string path_current = std::string(imgPath + buf2.str() + ".jpg");
+
+	//	imageLoader->loadImage(path_current, view_current);
+	//	tracking(view_current);
+	//	cv::waitKey(0);
+ //   }
   return 0;
-}*/
+}
+
+
 
 
 
