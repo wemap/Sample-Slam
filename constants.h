@@ -32,6 +32,7 @@
 #include "SolARMapFilterOpencv.h"
 #include "SolARMapperOpencv.h"
 #include "SolARPoseEstimationPnpOpencv.h"
+#include "SolARPoseEstimationPnpEPFL.h"
 #include "freeglut.h"
 #include "gl_camera.h"
 #include "OpenGLViewer.h"
