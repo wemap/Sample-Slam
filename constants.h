@@ -17,6 +17,7 @@
 
 #ifdef USE_FREE
 #include "SolARDescriptorMatcherKNNOpencv.h"
+#include "SolARDescriptorMatcherHammingBruteForceOpencv.h"
 #else
 //#include "SolARDescriptorMatcherKNNOpencv.h"
 #endif
