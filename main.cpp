@@ -446,7 +446,7 @@ void getPoint2DFromKeyPoint(std::vector<SRef<Keypoint>> & keyPoints, std::vector
 
 
 
-bool addFrameToMapAsKeyFrame(SRef<Frame> & frame, int newIndex)
+bool addFrameToMapAsKeyFrame(SRef<Frame> & frame,SRef<Image> &view, int newIndex)
 {
     SRef<Keyframe> referenceKeyFrame = frame->getReferenceKeyFrame();
     Transform3Df poseFrame = frame->m_pose;
@@ -484,7 +484,7 @@ bool addFrameToMapAsKeyFrame(SRef<Frame> & frame, int newIndex)
     referenceKeyFrame->addVisibleMapPoints(filteredPoints);
     poseGraph->getMap()->addCloudPoints(filteredPoints);
 
-    SRef<Keyframe> newKeyFrame = xpcf::utils::make_shared<Keyframe>(frame->getDescriptors(), newIndex, frame->m_pose, frame->getKeyPoints());
+    SRef<Keyframe> newKeyFrame = xpcf::utils::make_shared<Keyframe>(view,frame->getDescriptors(), newIndex, frame->m_pose, frame->getKeyPoints());
 
     newKeyFrame->addVisibleMapPoints(frame->getCommonMapPointsWithReferenceKeyFrame());
     newKeyFrame->addVisibleMapPoints(filteredPoints);
@@ -667,7 +667,7 @@ bool tracking(SRef<Image>&view){
 			
 			std::cout << "/.trying to add keyframe./" << std::endl;
 
-			if (addFrameToMapAsKeyFrame(newFrame, isKeyFrameCandidate))
+            if (addFrameToMapAsKeyFrame(newFrame, view,isKeyFrameCandidate))
 			{
 				nbFrameSinceKeyFrame = 0;
 			}
@@ -678,7 +678,7 @@ bool tracking(SRef<Image>&view){
         if (isKeyFrameCandidate != -1) // try to add key frame if success tracking
         {
 
-            if (addFrameToMapAsKeyFrame(newFrame, isKeyFrameCandidate))
+            if (addFrameToMapAsKeyFrame(newFrame,view, isKeyFrameCandidate))
             {
                 nbFrameSinceKeyFrame = 0;
             }
