@@ -747,6 +747,10 @@ int main (int argc, char* argv[]){
     init(configFile);
 
     viewerGL.callBackIdle = idle ;
+    viewerGL.callbackKeyBoard = keyBoard;
+    viewerGL.InitViewer(640 , 480);
+    return 0;
+
 }
 
 
