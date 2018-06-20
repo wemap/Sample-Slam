@@ -304,7 +304,7 @@ void init(std::string configFile)
 //     xpcf::ComponentFactory::createComponent<SolARDescriptorMatcherKNNOpencv>(gen(features::IDescriptorMatcher::UUID), matcher);
 
 #ifdef USE_FREE
-       xpcf::ComponentFactory::createComponent<SolARDescriptorMatcherKNNOpencv>(gen(features::IDescriptorMatcher::UUID), matcher);
+       xpcf::ComponentFactory::createComponent<SolARDescriptorMatcherHammingBruteForceOpencv>(gen(features::IDescriptorMatcher::UUID), matcher);
 #else
        xpcf::ComponentFactory::createComponent<SolARDescriptorMatcherRadiusOpencv>(gen(features::IDescriptorMatcher::UUID), matcher);
 
@@ -563,10 +563,14 @@ void getPoint2DFromKeyPoint(std::vector<SRef<Keypoint>> & keyPoints, std::vector
         to2D.push_back(xpcf::utils::make_shared<Point2Df>(keyPoints[i]->getX(), keyPoints[i]->getY()));
     }
 }
-bool addFrameToMapAsKeyFrame(SRef<Frame> & frame, int newIndex)
+
+
+
+bool addFrameToMapAsKeyFrame(SRef<Frame> & frame,SRef<Image> &view, int newIndex)
+
 {
 
-    std::cout<<"************inside extension**********"<<std::endl;
+
     SRef<Keyframe> referenceKeyFrame = frame->getReferenceKeyFrame();
     Transform3Df poseFrame = frame->m_pose;
     Transform3Df poseKeyFrame = referenceKeyFrame->m_pose;
@@ -609,7 +613,7 @@ bool addFrameToMapAsKeyFrame(SRef<Frame> & frame, int newIndex)
     referenceKeyFrame->addVisibleMapPoints(filteredPoints);
     poseGraph->getMap()->addCloudPoints(filteredPoints);
 
-    SRef<Keyframe> newKeyFrame = xpcf::utils::make_shared<Keyframe>(frame->getDescriptors(), newIndex, frame->m_pose, frame->getKeyPoints());
+    SRef<Keyframe> newKeyFrame = xpcf::utils::make_shared<Keyframe>(view,frame->getDescriptors(), newIndex, frame->m_pose, frame->getKeyPoints());
 
     newKeyFrame->addVisibleMapPoints(frame->getCommonMapPointsWithReferenceKeyFrame());
     newKeyFrame->addVisibleMapPoints(filteredPoints);
@@ -762,14 +766,10 @@ bool tracking(SRef<Image>&view){
                 nbFrameSinceKeyFrame = 0;
             }
             */
-
-          //  int isKeyFrameCandidate = poseGraph->isKeyFrameCandidate(newFrame);
-
-            // here I need to set inliers as argument for posh graph :)!
-
-
             /*
             if (isKeyFrameCandidate != -1) // try to add key frame if success tracking
+            if (addFrameToMapAsKeyFrame(newFrame,view, isKeyFrameCandidate))
+
             {
 
                 if (addFrameToMapAsKeyFrame(newFrame, isKeyFrameCandidate))
@@ -778,7 +778,6 @@ bool tracking(SRef<Image>&view){
                 }
             }
             */
-
             return true;
         }else{
            // std::cout<<"new keyframe creation.."<<std::endl;
@@ -858,7 +857,7 @@ int main (int argc, char* argv[]){
         configFile=std::string(argv[1]);
 
     init(configFile);
-//    debug_coplanarity();
+ //   debug_coplanarity();
  //   debug_triangulation();
  //   viewerGL.callBackIdle = idle ;
     viewerGL.callBackIdle = idle_static;
@@ -866,6 +865,7 @@ int main (int argc, char* argv[]){
     viewerGL.callbackKeyBoard = keyBoard;
     viewerGL.InitViewer(640 , 480);
     return 0;
+}
 }
 
 
