@@ -1,4 +1,4 @@
 camera
-calib_castle.yml
+D:/AmineSolar/source/slam/Sample-Slam/logitech_01400.yml
 3
 4

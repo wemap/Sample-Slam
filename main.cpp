@@ -24,11 +24,12 @@
 
 #include "opencv2\highgui.hpp"
 
-
-
 const char space_key = 32;
 const char escape_key = 27;
+std::vector<SRef<Image>>static_views;
 
+const int static_views_no = 10;
+int static_views_counter = 4;
 void keyBoard(unsigned char key){
     switch (key) {
     case 's': {
@@ -67,14 +68,20 @@ void keyBoard(unsigned char key){
         exit_=true;
         break;
     }
+    case '+': {
+        ++static_views_counter;
+        std::cout<<" track view: "<<static_views_counter<<std::endl;
+        break;
+    }
+    case '-': {
+        --static_views_counter;
+        std::cout<<" track view: "<<static_views_counter<<std::endl;
+        break;
+    }
     default:
         break;
     }
 }
-
-
-
-
 void DrawPointCloud(Transform3Df relative_pose)
 {
     std::string window_name = "cloud_points";
@@ -158,8 +165,6 @@ void DrawPointCloud(Transform3Df relative_pose)
         cv::imshow("cloud_points", reprojected);
         }
 }
-
-
 void DrawPnpMatches(const std::vector<SRef<Point2Df>> & imagePoints,const std::vector<SRef<Point3Df>> & worldPoints,Transform3Df relative_pose)
 {
 
@@ -249,8 +254,6 @@ if( worldCVPoints.size()!=0){
     cv::imshow("reprojectedPoints", reprojected);
     }
 }
-
-
 bool ParseConfigFile(const std::string &filePath){
 	indexCurrentFrame = 0;
 	streamSource = ""; 
@@ -283,9 +286,6 @@ bool ParseConfigFile(const std::string &filePath){
 		return false;
 	}
 }
-
-
-
 void init(std::string configFile)
 {
     // component creation
@@ -320,7 +320,7 @@ void init(std::string configFile)
        xpcf::ComponentFactory::createComponent<SolARMapFilterOpencv>(gen(solver::map::IMapFilter::UUID), mapFilter);
 
        xpcf::ComponentFactory::createComponent<SolARMapperOpencv>(gen(solver::map::IMapper::UUID), poseGraph);
-       xpcf::ComponentFactory::createComponent<SolARPoseEstimationPnpEPFL>(gen(solver::pose::I3DTransformFinder::UUID), PnP);
+       xpcf::ComponentFactory::createComponent<SolARPoseEstimationPnpOpencv>(gen(solver::pose::I3DTransformFinder::UUID), PnP);
 //       xpcf::ComponentFactory::createComponent<SolARPoseEstimationPnpOpencv>(gen(solver::pose::I3DTransformFinder::UUID), PnP);
 
        xpcf::ComponentFactory::createComponent<SolAR2D3DCorrespondencesFinderOpencv>(gen(solver::pose::I2D3DCorrespondencesFinder::UUID), corr2D3DFinder);
@@ -345,32 +345,154 @@ void init(std::string configFile)
 	   {
 		   camera->start(0);
 	   }
-	   else
-	   {
-		   camera->start(streamSource); 
-
+	   else{
+           camera->start(streamSource);
 		   //std::cout << "	# loading frames: ";
 		   //// this part to load image from video:
-		   //for (int k = 0; k < 30; ++k) {
-			  // camera->getNextImage(view_current);
-			  // views.push_back(view_current);
-		   //}
-		   //std::cout << views.size() << std::endl;
        }
+
+
+       std::cout<<"<loading static view: ";
+       static_views.resize(static_views_no);
+       for(int k = 0; k < static_views_no; ++k){
+           std::stringstream buff;
+           buff<<std::setfill('0')<<std::setw(5)<<k;
+           std::string path_temp = streamSource +   buff.str() + ".png";
+           std::cout<<" temp: "<<path_temp<<std::endl;
+           imageLoader->loadImage(path_temp,static_views[k]);
+           std::cout<<"     ->img size: "<<static_views[k]->getWidth()<<" "<<static_views[k]->getHeight()<<std::endl;
+           viewer->display("__view",static_views[k]);
+       }
+       std::cout<<" done"<<std::endl;
+
 }
+bool debug_coplanarity(){
+
+    std::ifstream pt1_log("D:/debug_triangulation/imgpts1_good.txt");
+    std::ifstream pt2_log("D:/debug_triangulation/imgpts2_good.txt");
+
+    std::ifstream P_log("D:/debug_triangulation/P.txt");
+    std::ifstream P1_log("D:/debug_triangulation/P1.txt");
+    std::ifstream K_log("D:/debug_triangulation/K.txt");
 
 
+    int pt_no1, pt_no2, match_no;
+
+    pt1_log>>pt_no1;
+    pt2_log>>pt_no2;
+
+    std::cout<<" number of points to triangulate"<<pt_no1<<std::endl;
+    std::vector<SRef<Point2Df>>pt2d_1,pt2d_2;
+    std::vector<DescriptorMatch>  matches;
+    CamCalibration cam;
+    CamDistortion dist;
+    Transform3Df corrected_pose, p1;
+    std::pair<int, int>working_views = std::make_pair(0,1);
+    std::vector<bool> tmp_status;
+    std::vector<SRef<CloudPoint>>   pcloud;
+    std::vector<SRef<CloudPoint>>   pcloud1;
+
+
+    pt2d_1.resize(pt_no1);
+    pt2d_2.resize(pt_no2);
+
+
+    for(int i = 0; i <pt_no1; ++i){
+        float x1,y1;
+        pt1_log>>x1; pt1_log>>y1;
+        pt2d_1[i] =   sptrnms::make_shared<Point2Df>(x1,y1);
+
+        float x2,y2;
+        pt2_log>>x2; pt2_log>>y2;
+        pt2d_2[i] =   sptrnms::make_shared<Point2Df>(x2,y2);
+
+        /*
+        std::cout<<"pt1: "<<pt2d_1[i]->getX()<<" "<<pt2d_1[i]->getY()<<std::endl;
+        std::cout<<"pt2: "<<pt2d_2[i]->getX()<<" "<<pt2d_2[i]->getY()<<std::endl;
+       cv::waitKey(0);*/
+
+    }
+
+
+
+    for(int i = 0; i < 3; ++i){
+        for(int j = 0; j<  3; ++j){
+            K_log>>cam(i,j);
+        }
+    }
+
+    for(int i = 0; i < 3; ++i){
+        for(int j = 0; j < 4; ++j){
+            P1_log>>corrected_pose(i,j);
+            P_log>>p1(i,j);
+        }
+    }
+
+    for(int  i = 0; i < 5; ++i){
+        dist(i,0) = 0.f;
+    }
+
+    std::cout<<"----P1: "<<std::endl;
+    for(int i = 0; i < 3; ++i){
+        for(int j = 0; j<  4; ++j){
+            std::cout<<p1(i,j)<<" ";
+        }
+        std::cout<<std::endl;
+    }
+    std::cout<<std::endl;
+
+    std::cout<<"----P2: "<<std::endl;
+    for(int i = 0; i < 3; ++i){
+         for(int j = 0; j<  4; ++j){
+               std::cout<<corrected_pose(i,j)<<" ";
+             }
+          std::cout<<std::endl;
+        }
+    std::cout<<std::endl;
+
+    std::cout<<"----K: "<<std::endl;
+    for(int i = 0; i < 3; ++i){
+         for(int j = 0; j<  3; ++j){
+               std::cout<<cam(i,j)<<" ";
+             }
+          std::cout<<std::endl;
+        }
+    std::cout<<std::endl;
+
+    std::cout<<"----dist: "<<std::endl;
+    for(int i = 0; i < 5; ++i){
+
+        std::cout<<dist(i,0)<<" ";
+        }
+    std::cout<<std::endl;
+
+    double reproj_error1 = mapper->triangulate(pt2d_1, pt2d_2, matches, working_views, p1, corrected_pose, cam, dist, pcloud);
+    double reproj_error2 = mapper->triangulate(pt2d_2, pt2d_1, matches, working_views, corrected_pose, p1, cam, dist, pcloud1);
+
+    std::cout<<"    err1: :"<<reproj_error1<<"   err2: "<<reproj_error2<<std::endl;
+    std::ofstream oxx("D:/solar_cloud_temp.txt");
+    oxx<<pcloud.size()<<std::endl;
+    for(const auto &p: pcloud){
+        oxx<<p->getX()<<" "<<p->getY()<<" "<<p->getZ()<<std::endl;
+    }
+    oxx.close();
+
+    std::cout<<" "<<mapFilter->checkFrontCameraPoints(pcloud, corrected_pose, tmp_status)<<" "
+                   <<mapFilter->checkFrontCameraPoints(pcloud1, p1, tmp_status)<<std::endl;
+
+return true;
+
+}
 bool fullTriangulation(const std::vector<SRef<Point2Df>>& pt2d_1,
-    const std::vector<SRef<Point2Df>>& pt2d_2,
-    const std::vector<DescriptorMatch>&matches,
-    const std::pair<int, int>&working_views,
-    const Transform3Df&p1,
-    const std::vector<Transform3Df>&p2,
-    const CamCalibration&cam,
-    const CamDistortion&dist,
-    Transform3Df&corrected_pose,
-    std::vector<SRef<CloudPoint>>& cloud)
-{
+                        const std::vector<SRef<Point2Df>>& pt2d_2,
+                        const std::vector<DescriptorMatch>&matches,
+                        const std::pair<int, int>&working_views,
+                        const Transform3Df&p1,
+                        const std::vector<Transform3Df>&p2,
+                        const CamCalibration&cam,
+                        const CamDistortion&dist,
+                        Transform3Df&corrected_pose,
+                        std::vector<SRef<CloudPoint>>& cloud){
 
     if (p2.size() != 4) {
         std::cerr << " number of decomposed poses supposed to be 4.." << std::endl;
@@ -381,30 +503,31 @@ bool fullTriangulation(const std::vector<SRef<Point2Df>>& pt2d_1,
     std::vector<bool> tmp_status;
 
     //check if points are triangulated --in front-- of cameras for all 4 ambiguations
-    for (int i = 0; i < 4; i++)
-    {
+    for (int i = 0; i < 4; i++){
         corrected_pose = p2[i];
         pcloud.clear(); pcloud1.clear();
+
         double reproj_error1 = mapper->triangulate(pt2d_1, pt2d_2, matches, working_views, p1, corrected_pose, cam, dist, pcloud);
         double reproj_error2 = mapper->triangulate(pt2d_2, pt2d_1, matches, working_views, corrected_pose, p1, cam, dist, pcloud1);
+
+        /*
+        std::cout<<"    err1: :"<<reproj_error1<<"   err2: "<<reproj_error2<<std::endl;
+        std::cout<<" "<<mapFilter->checkFrontCameraPoints(pcloud, corrected_pose, tmp_status)<<" "
+                       <<mapFilter->checkFrontCameraPoints(pcloud1, p1, tmp_status)<<std::endl;
+        */
         if (mapFilter->checkFrontCameraPoints(pcloud, corrected_pose, tmp_status) && mapFilter->checkFrontCameraPoints(pcloud1, p1, tmp_status) && reproj_error1 < 100.0 && reproj_error2 < 100.0)
         {
             // points are in front of camera and reproj error is acceptable
             break;
         }
-        if (i == 3)
-        {
+        if (i == 3){
             return false;
         }
 
     }
-
     mapFilter->filterPointCloud(pcloud, tmp_status, cloud);
-
     return true;
 }
-
-
 SRef<Frame> createAndInitFrame(SRef<Image>&img)
 {
     std::chrono::time_point<std::chrono::system_clock> now1 = std::chrono::system_clock::now();
@@ -425,7 +548,6 @@ SRef<Frame> createAndInitFrame(SRef<Image>&img)
 
     return resul ;
 }
-
 void getMatchedKeyPoints( std::vector<SRef<Keypoint>> & keyPoints1,  std::vector<SRef<Keypoint>> & keyPoints2,  std::vector<DescriptorMatch> & matches, std::vector<SRef<Point2Df>> & matchedKeyPoints1, std::vector<SRef<Point2Df>> & matchedKeyPoints2){
   matchedKeyPoints1.reserve(matches.size()); // allocate memory
   for( int i = 0; i < matches.size(); i++ ){
@@ -433,7 +555,6 @@ void getMatchedKeyPoints( std::vector<SRef<Keypoint>> & keyPoints1,  std::vector
        matchedKeyPoints2.push_back(xpcf::utils::make_shared<Point2Df>(keyPoints2[ matches[i].getIndexInDescriptorB()]->getX(),keyPoints2[ matches[i].getIndexInDescriptorB()]->getY()));
      }
 }
-
 void getPoint2DFromKeyPoint(std::vector<SRef<Keypoint>> & keyPoints, std::vector<SRef<Point2Df>> & to2D)
 {
     to2D.reserve(keyPoints.size());
@@ -442,12 +563,10 @@ void getPoint2DFromKeyPoint(std::vector<SRef<Keypoint>> & keyPoints, std::vector
         to2D.push_back(xpcf::utils::make_shared<Point2Df>(keyPoints[i]->getX(), keyPoints[i]->getY()));
     }
 }
-
-
-
-
 bool addFrameToMapAsKeyFrame(SRef<Frame> & frame, int newIndex)
 {
+
+    std::cout<<"************inside extension**********"<<std::endl;
     SRef<Keyframe> referenceKeyFrame = frame->getReferenceKeyFrame();
     Transform3Df poseFrame = frame->m_pose;
     Transform3Df poseKeyFrame = referenceKeyFrame->m_pose;
@@ -459,7 +578,10 @@ bool addFrameToMapAsKeyFrame(SRef<Frame> & frame, int newIndex)
     kp1=referenceKeyFrame->getKeyPoints();
     kp2=frame->getKeyPoints();
 
+    // triangulate all points from keyFrame?
     getMatchedKeyPoints(kp1, kp2, frame->getUnknownMatchesWithReferenceKeyFrame(), pointsKeyFrame, pointsFrame);
+
+    std::cout<<"    ->match points: "<<pointsFrame.size()<<std::endl;
 
     std::vector<SRef<CloudPoint>> newMapPoints;
     std::pair<int, int> corres(referenceKeyFrame->m_idx , newIndex);
@@ -467,10 +589,11 @@ bool addFrameToMapAsKeyFrame(SRef<Frame> & frame, int newIndex)
     // Triangulate new points
     mapper->triangulate(pointsFrame, pointsKeyFrame, frame->getUnknownMatchesWithReferenceKeyFrame(), corres, frame->m_pose, referenceKeyFrame->m_pose, K, dist, newMapPoints);
 
+    std::cout<<"    ->new 3d points: "<<newMapPoints.size()<<std::endl;
+
     // check point cloud
     std::vector<bool> tmp_status;
-    if (!mapFilter->checkFrontCameraPoints(newMapPoints, frame->m_pose, tmp_status))
-    {
+    if (!mapFilter->checkFrontCameraPoints(newMapPoints, frame->m_pose, tmp_status)){
         // not good triangulation : do not add key frame
         std::cout << "not good triangulation : do not add key frame " << std::endl;
         return false;
@@ -479,6 +602,8 @@ bool addFrameToMapAsKeyFrame(SRef<Frame> & frame, int newIndex)
     std::vector<SRef<CloudPoint>> filteredPoints;
     mapFilter->filterPointCloud(newMapPoints, tmp_status, filteredPoints);
 
+
+    std::cout<<"  filtred point size: "<<filteredPoints.size()<<std::endl;
 
 
     referenceKeyFrame->addVisibleMapPoints(filteredPoints);
@@ -506,9 +631,7 @@ bool addFrameToMapAsKeyFrame(SRef<Frame> & frame, int newIndex)
 
     return true;
 }
-
-
-bool init_mapping(SRef<Image>&view_1,SRef<Image>&view_2){
+bool init_mapping(SRef<Image>&view_1,SRef<Image>&view_2, const std::string& path_cloud = std::string()){
  SRef<Frame> frame1 = createAndInitFrame(view_1);
  SRef<Frame> frame2 = createAndInitFrame(view_2);
 
@@ -564,17 +687,6 @@ bool init_mapping(SRef<Image>&view_1,SRef<Image>&view_2){
          kframe1->addVisibleMapPoints(tempCloud);
          kframe2->addVisibleMapPoints(tempCloud) ;
          poseGraph->initMap(kframe1,kframe2,tempCloud,ggmatches);
-
-		 bool saving_cloud = true;
-		 if (saving_cloud) {
-			 std::ofstream oy("D:/cloud_solar.txt");
-			 oy << tempCloud.size() << std::endl;
-			 for (int j = 0; j < tempCloud.size(); ++j) {
-				 oy << tempCloud[j]->getX() << " " << tempCloud[j]->getY() << " " << tempCloud[j]->getZ() << std::endl;
-			 }
-			 oy.close();
-		 }
-
          Point3Df gravity  ;
          float maxDist ;
          poseGraph->getMap()->computeGravity(gravity , maxDist) ;
@@ -586,7 +698,6 @@ bool init_mapping(SRef<Image>&view_1,SRef<Image>&view_2){
          viewerGL.AddKeyFrameCameraPose(pose_canonique);
          viewerGL.AddKeyFrameCameraPose(pose_final);
 
-
          return true;
      }
      else{
@@ -595,10 +706,8 @@ bool init_mapping(SRef<Image>&view_1,SRef<Image>&view_2){
      }
 
 }
-
 SRef<Image>currentMatchImage;
 SRef<Image>projected_image;
-
 bool tracking(SRef<Image>&view){
     nbFrameSinceKeyFrame++ ;
     SRef<Frame> newFrame = createAndInitFrame(view);
@@ -630,68 +739,52 @@ bool tracking(SRef<Image>&view){
     std::vector<DescriptorMatch> foundMatches;
     std::vector<DescriptorMatch> remainingMatches;
 
-
     corr2D3DFinder->find(referenceKeyFrame->getVisibleMapPoints(),referenceKeyFrame->m_idx,new_matches_filtred, newFrame->getKeyPoints(), foundPoints,  pt3d,pt2d , foundMatches , remainingMatches);
 
     std::vector<SRef<Point2Df>>imagePoints_inliers;
     std::vector<SRef<Point3Df>>worldPoints_inliers;
 
     Transform3Df pose_current;
+
     if(PnP->estimate(pt2d,pt3d,imagePoints_inliers, worldPoints_inliers, pose_current) == FrameworkReturnCode::_SUCCESS /*&&
-            worldPoints_inliers.size()> 50*/){
-       // std::cout<<" pnp inliers size: "<<worldPoints_inliers.size()<<" / "<<pt3d.size()<<std::endl;
+                worldPoints_inliers.size()> 50*/){
+            std::cout<<" pnp inliers size: "<<worldPoints_inliers.size()<<" / "<<pt3d.size()<<std::endl;
 
+            newFrame->m_pose = pose_current.inverse();
+            viewerGL.SetRealCameraPose(pose_current.inverse());
 
-		std::cout << " number of iniers: " << imagePoints_inliers.size() << std::endl;
-		std::vector<int>color = { 0,0,255 };
-		overlay2d->drawCircles(imagePoints_inliers, 2.0, 2.0, view);
-		viewer->display("inlier image", view);
-		
-		newFrame->m_pose = pose_current;
-        DrawPointCloud(pose_current);
-        DrawPnpMatches(pt2d,pt3d,pose_current);
+            newFrame->addCommonMapPointsWithReferenceKeyFrame(foundPoints);
+            newFrame->setUnknownMatchesWithReferenceKeyFrame(remainingMatches);
+            newFrame->setKnownMatchesWithReferenceKeyFrame(foundMatches);
 
-
-        newFrame->m_pose = pose_current;
-        viewerGL.SetRealCameraPose(pose_current);
-
-        newFrame->addCommonMapPointsWithReferenceKeyFrame(foundPoints);
-        newFrame->setUnknownMatchesWithReferenceKeyFrame(remainingMatches);
-		newFrame->setKnownMatchesWithReferenceKeyFrame(foundMatches);
-
-		// I need to check this function
-
-		int isKeyFrameCandidate = poseGraph->isKeyFrameCandidate(newFrame);
-		if (isKeyFrameCandidate != -1) // try to add key frame if success tracking
-		{
-			
-			std::cout << "/.trying to add keyframe./" << std::endl;
-
-			if (addFrameToMapAsKeyFrame(newFrame, isKeyFrameCandidate))
-			{
-				nbFrameSinceKeyFrame = 0;
-			}
-		}
-
-        newFrame->setKnownMatchesWithReferenceKeyFrame(foundMatches);
-
-        if (isKeyFrameCandidate != -1) // try to add key frame if success tracking
-        {
-
-            if (addFrameToMapAsKeyFrame(newFrame, isKeyFrameCandidate))
-            {
+         /*
+            if (addFrameToMapAsKeyFrame(newFrame, 2)) {
                 nbFrameSinceKeyFrame = 0;
             }
-        }
-        return true;
-    }else{
-       // std::cout<<"new keyframe creation.."<<std::endl;
-        return false;
+            */
+
+          //  int isKeyFrameCandidate = poseGraph->isKeyFrameCandidate(newFrame);
+
+            // here I need to set inliers as argument for posh graph :)!
+
+
+            /*
+            if (isKeyFrameCandidate != -1) // try to add key frame if success tracking
+            {
+
+                if (addFrameToMapAsKeyFrame(newFrame, isKeyFrameCandidate))
+                {
+                    nbFrameSinceKeyFrame = 0;
+                }
+            }
+            */
+
+            return true;
+        }else{
+           // std::cout<<"new keyframe creation.."<<std::endl;
+            return false;
     }
 }
-
-
-
 void idle(){
     if(exit_){
         exit(0);
@@ -736,20 +829,44 @@ void idle(){
        tracking(view_current);
     }
 }
-
+void idle_static(){
+    if(exit_){
+        exit(0);
+    }
+    if(triangulation_first){
+        std::string path_cloud = "";
+        if(init_mapping(static_views[2],static_views[3], path_cloud)){
+             triangulation_first = false;
+             std::cout<<" done"<<std::endl;
+        }
+    }
+    if(processing && !triangulation_first)
+    {
+        std::cout<<" frame to track.."<<std::endl;
+        viewer->display("fram to track",static_views[static_views_counter]);
+       tracking(static_views[static_views_counter]);
+            //   ++static_views_counter;
+    }
+}
 int main (int argc, char* argv[]){
 
     boost::log::core::get()->set_logging_enabled(false);
-    std::string configFile=std::string("slamConfig.txt");
+    std::string configFile=std::string("D:/AmineSolar/source/slam/Sample-Slam/slamStaticConfig.txt");
+//    std::string configFile=std::string("D:/AmineSolar/source/slam/Sample-Slam/slamConfig.txt");
+
     if(argc==2)
         configFile=std::string(argv[1]);
 
     init(configFile);
+//    debug_coplanarity();
+ //   debug_triangulation();
+ //   viewerGL.callBackIdle = idle ;
+    viewerGL.callBackIdle = idle_static;
 
-    viewerGL.callBackIdle = idle ;
+    viewerGL.callbackKeyBoard = keyBoard;
+    viewerGL.InitViewer(640 , 480);
+    return 0;
 }
-
-
 
 
 

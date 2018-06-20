@@ -81,13 +81,13 @@ void OpenGLViewer::OnRender()
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 	glDisable(GL_CULL_FACE);
 
-	DrawAxis();
+//	DrawAxis();
 
     bool drawing = (m_pointCloud != NULL) ;
     if(drawing)
 	{
          glPushMatrix();
-     //	glPointSize(3.25f);
+        glPointSize(2.25f);
          glBegin(GL_POINTS);
          for (unsigned int i = 0; i < (*m_pointCloud).size(); ++i) {
              glColor3f(0.0, 0.0, 1.0);
@@ -98,7 +98,7 @@ void OpenGLViewer::OnRender()
 
          // draw  camera pose !
          glPushMatrix();
-         cv::Vec3f tmpVect=cv::Vec3f(0.0, 0.0, 1.0);
+         cv::Vec3f tmpVect=cv::Vec3f(1.0, 0.0, 0.0);
          DrawPhysicalCamera(m_realCameraPose, tmpVect, 1);
          glPopMatrix();
 		 for (int i = 0; i < m_keyFramesPoses.size(); i++)
