@@ -755,7 +755,7 @@ bool tracking(SRef<Image>&view){
             std::cout<<" pnp inliers size: "<<worldPoints_inliers.size()<<" / "<<pt3d.size()<<std::endl;
 
             newFrame->m_pose = pose_current.inverse();
-            viewerGL.SetRealCameraPose(pose_current.inverse());
+            viewerGL.SetRealCameraPose(newFrame->m_pose);
 
             newFrame->addCommonMapPointsWithReferenceKeyFrame(foundPoints);
             newFrame->setUnknownMatchesWithReferenceKeyFrame(remainingMatches);
