@@ -866,7 +866,6 @@ int main (int argc, char* argv[]){
     viewerGL.InitViewer(640 , 480);
     return 0;
 }
-}
 
 
 
