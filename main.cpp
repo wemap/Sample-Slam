@@ -27,7 +27,7 @@
 const char space_key = 32;
 const char escape_key = 27;
 std::vector<SRef<Image>>static_views;
-
+bool adding_once = true;
 const int static_views_no = 10;
 int static_views_counter = 4;
 void keyBoard(unsigned char key){
@@ -566,14 +566,30 @@ void getPoint2DFromKeyPoint(std::vector<SRef<Keypoint>> & keyPoints, std::vector
 
 
 
-bool addFrameToMapAsKeyFrame(SRef<Frame> & frame,SRef<Image> &view, int newIndex)
-
-{
-
-
+bool addFrameToMapAsKeyFrame(SRef<Frame> & frame,SRef<Image> &view, int newIndex){
+    std::cout<<"    #debug adding keyframes: "<<std::endl;
     SRef<Keyframe> referenceKeyFrame = frame->getReferenceKeyFrame();
+
+    viewer->display("reference keyFrame",referenceKeyFrame->m_view);
+    cv::waitKey(0);
     Transform3Df poseFrame = frame->m_pose;
     Transform3Df poseKeyFrame = referenceKeyFrame->m_pose;
+
+    std::cout<<"        #pose frame: "<<std::endl;
+    for(int ii = 0; ii < 3; ++ii){
+        for(int jj = 0; jj < 3; ++jj){
+            std::cout<<"        "<<poseFrame(ii,jj)<<" ";
+        }
+        std::cout<<std::endl;
+    }
+    std::cout<<"        #pose kframe: "<<std::endl;
+
+    for(int ii = 0; ii < 3; ++ii){
+        for(int jj = 0; jj < 3; ++jj){
+            std::cout<<"        "<<poseKeyFrame(ii,jj)<<" ";
+        }
+        std::cout<<std::endl;
+    }
 
     std::vector<SRef<Point2Df>> pointsFrame;
     std::vector<SRef<Point2Df>> pointsKeyFrame;
@@ -594,6 +610,13 @@ bool addFrameToMapAsKeyFrame(SRef<Frame> & frame,SRef<Image> &view, int newIndex
     mapper->triangulate(pointsFrame, pointsKeyFrame, frame->getUnknownMatchesWithReferenceKeyFrame(), corres, frame->m_pose, referenceKeyFrame->m_pose, K, dist, newMapPoints);
 
     std::cout<<"    ->new 3d points: "<<newMapPoints.size()<<std::endl;
+
+    std::ofstream oxx("D:/new_points.txt");
+    oxx<<newMapPoints.size()<<std::endl;
+    for(auto &pp: newMapPoints){
+        oxx<<pp->getX()<<" "<<pp->getY()<<" "<<pp->getZ()<<std::endl;
+    }
+    oxx.close();
 
     // check point cloud
     std::vector<bool> tmp_status;
@@ -702,6 +725,12 @@ bool init_mapping(SRef<Image>&view_1,SRef<Image>&view_2, const std::string& path
          viewerGL.AddKeyFrameCameraPose(pose_canonique);
          viewerGL.AddKeyFrameCameraPose(pose_final);
 
+         std::ofstream oxx(path_cloud);
+         oxx<<tempCloud.size()<<std::endl;
+         for(auto &pp: tempCloud){
+             oxx<<pp->getX()<<" "<<pp->getY()<<" "<<pp->getZ()<<std::endl;
+         }
+         oxx.close();
          return true;
      }
      else{
@@ -761,23 +790,13 @@ bool tracking(SRef<Image>&view){
             newFrame->setUnknownMatchesWithReferenceKeyFrame(remainingMatches);
             newFrame->setKnownMatchesWithReferenceKeyFrame(foundMatches);
 
-         /*
-            if (addFrameToMapAsKeyFrame(newFrame, 2)) {
-                nbFrameSinceKeyFrame = 0;
-            }
-            */
-            /*
-            if (isKeyFrameCandidate != -1) // try to add key frame if success tracking
-            if (addFrameToMapAsKeyFrame(newFrame,view, isKeyFrameCandidate))
-
-            {
-
-                if (addFrameToMapAsKeyFrame(newFrame, isKeyFrameCandidate))
-                {
-                    nbFrameSinceKeyFrame = 0;
+            if(worldPoints_inliers.size()<= 5000 && adding_once){
+                if (addFrameToMapAsKeyFrame(newFrame, view,2)) {
+                    std::cout<<" adding new keyframes.."<<std::endl;
+                     nbFrameSinceKeyFrame = 0;
+                     adding_once = false;
                 }
             }
-            */
             return true;
         }else{
            // std::cout<<"new keyframe creation.."<<std::endl;
@@ -833,17 +852,15 @@ void idle_static(){
         exit(0);
     }
     if(triangulation_first){
-        std::string path_cloud = "";
+        std::string path_cloud = "D:/old_points.txt";
         if(init_mapping(static_views[2],static_views[3], path_cloud)){
              triangulation_first = false;
              std::cout<<" done"<<std::endl;
         }
     }
-    if(processing && !triangulation_first)
-    {
-        std::cout<<" frame to track.."<<std::endl;
+    if(processing && !triangulation_first){
         viewer->display("fram to track",static_views[static_views_counter]);
-       tracking(static_views[static_views_counter]);
+        tracking(static_views[static_views_counter]);
             //   ++static_views_counter;
     }
 }
@@ -851,17 +868,13 @@ int main (int argc, char* argv[]){
 
     boost::log::core::get()->set_logging_enabled(false);
     std::string configFile=std::string("D:/AmineSolar/source/slam/Sample-Slam/slamStaticConfig.txt");
-//    std::string configFile=std::string("D:/AmineSolar/source/slam/Sample-Slam/slamConfig.txt");
-
     if(argc==2)
         configFile=std::string(argv[1]);
-
     init(configFile);
  //   debug_coplanarity();
  //   debug_triangulation();
  //   viewerGL.callBackIdle = idle ;
     viewerGL.callBackIdle = idle_static;
-
     viewerGL.callbackKeyBoard = keyBoard;
     viewerGL.InitViewer(640 , 480);
     return 0;
