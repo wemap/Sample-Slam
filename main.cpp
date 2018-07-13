@@ -24,6 +24,28 @@
 
 #include "opencv2\highgui.hpp"
 
+#include <boost/filesystem.hpp>
+
+namespace xpcf  = org::bcom::xpcf;
+using namespace org::bcom::xpcf;
+
+
+struct path_leaf_string
+{
+    std::string operator()(const boost::filesystem::directory_entry& entry) const
+    {
+        return entry.path().leaf().string();
+    }
+};
+
+void read_directory(const std::string& name, std::vector<std::string>& v)
+{
+    boost::filesystem::path p(name);
+    boost::filesystem::directory_iterator start(p);
+    boost::filesystem::directory_iterator end;
+    std::transform(start, end, std::back_inserter(v), path_leaf_string());
+}
+
 const char space_key = 32;
 const char escape_key = 27;
 std::vector<SRef<Image>>static_views;
@@ -290,40 +312,42 @@ void init(std::string configFile)
 {
     // component creation
 
-       xpcf::ComponentFactory::createComponent<SolARCameraOpencv>(gen(input::devices::ICamera::UUID), camera);
-       xpcf::ComponentFactory::createComponent<SolARImageLoaderOpencv>(gen(image::IImageLoader::UUID ), imageLoader);
+       camera =xpcf::ComponentFactory::createInstance<SolARCameraOpencv>()->bindTo<input::devices::ICamera>();
+       imageLoader =xpcf::ComponentFactory::createInstance<SolARImageLoaderOpencv>()->bindTo<image::IImageLoader>();
 
 #ifdef USE_FREE
-       xpcf::ComponentFactory::createComponent<SolARKeypointDetectorOpencv>(gen(features::IKeypointDetector::UUID ), keypointsDetector);
-       xpcf::ComponentFactory::createComponent<SolARDescriptorsExtractorORBOpencv>(gen(features::IDescriptorsExtractor::UUID), descriptorExtractor);
+       keypointsDetector =xpcf::ComponentFactory::createInstance<SolARKeypointDetectorOpencv>()->bindTo<features::IKeypointDetector>();
+       descriptorExtractor =xpcf::ComponentFactory::createInstance<SolARDescriptorsExtractorORBOpencv>()->bindTo<features::IDescriptorsExtractor>();
 #else
-       xpcf::ComponentFactory::createComponent<SolARKeypointDetectorNonFreeOpencv>(gen(features::IKeypointDetector::UUID ), keypointsDetector);
-       xpcf::ComponentFactory::createComponent<SolARDescriptorsExtractorSURF64Opencv>(gen(features::IDescriptorsExtractor::UUID ), descriptorExtractor);
+       keypointsDetector =xpcf::ComponentFactory::createInstance<SolARKeypointDetectorNonFreeOpencv>()->bindTo<features::IKeypointDetector>();
+       descriptorExtractor =xpcf::ComponentFactory::createInstance<SolARDescriptorsExtractorSURF64Opencv>()->bindTo<features::IDescriptorsExtractor>();
 #endif
 
-//     xpcf::ComponentFactory::createComponent<SolARDescriptorMatcherKNNOpencv>(gen(features::IDescriptorMatcher::UUID), matcher);
 
 #ifdef USE_FREE
-       xpcf::ComponentFactory::createComponent<SolARDescriptorMatcherHammingBruteForceOpencv>(gen(features::IDescriptorMatcher::UUID), matcher);
+       matcher =xpcf::ComponentFactory::createInstance<SolARDescriptorMatcherHammingBruteForceOpencv>()->bindTo<features::IDescriptorMatcher>();
 #else
-       xpcf::ComponentFactory::createComponent<SolARDescriptorMatcherRadiusOpencv>(gen(features::IDescriptorMatcher::UUID), matcher);
+       matcher =xpcf::ComponentFactory::createInstance<SolARDescriptorMatcherRadiusOpencv>()->bindTo<features::IDescriptorMatcher>();
 
 #endif
-       xpcf::ComponentFactory::createComponent<SolARSideBySideOverlayOpencv>(gen(display::ISideBySideOverlay::UUID ), overlay);
-       xpcf::ComponentFactory::createComponent<SolAR2DOverlayOpencv>(gen(display::I2DOverlay::UUID ), overlay2d);
 
-       xpcf::ComponentFactory::createComponent<SolARImageViewerOpencv>(gen(display::IImageViewer::UUID ), viewer);
-       xpcf::ComponentFactory::createComponent<SolARGeometricMatchesFilterOpencv>(gen(features::IMatchesFilter::UUID ), matchesFilterGeometric);
-       xpcf::ComponentFactory::createComponent<SolARFundamentalMatrixEstimationOpencv>(gen(solver::pose::I2DTransformFinder::UUID ), fundamentalFinder);
-       xpcf::ComponentFactory::createComponent<SolARSVDFundamentalMatrixDecomposerOpencv>(gen(solver::pose::I2DTO3DTransformDecomposer::UUID ), fundamentalDecomposer);
-       xpcf::ComponentFactory::createComponent<SolARSVDTriangulationOpencv>(gen(solver::map::ITriangulator::UUID ), mapper);
-       xpcf::ComponentFactory::createComponent<SolARMapFilterOpencv>(gen(solver::map::IMapFilter::UUID), mapFilter);
 
-       xpcf::ComponentFactory::createComponent<SolARMapperOpencv>(gen(solver::map::IMapper::UUID), poseGraph);
-       xpcf::ComponentFactory::createComponent<SolARPoseEstimationPnpOpencv>(gen(solver::pose::I3DTransformFinder::UUID), PnP);
-//       xpcf::ComponentFactory::createComponent<SolARPoseEstimationPnpOpencv>(gen(solver::pose::I3DTransformFinder::UUID), PnP);
 
-       xpcf::ComponentFactory::createComponent<SolAR2D3DCorrespondencesFinderOpencv>(gen(solver::pose::I2D3DCorrespondencesFinder::UUID), corr2D3DFinder);
+
+       overlay =xpcf::ComponentFactory::createInstance<SolARSideBySideOverlayOpencv>()->bindTo<display::ISideBySideOverlay>();
+       overlay2d =xpcf::ComponentFactory::createInstance<SolAR2DOverlayOpencv>()->bindTo<display::I2DOverlay>();
+
+       viewer =xpcf::ComponentFactory::createInstance<SolARImageViewerOpencv>()->bindTo<display::IImageViewer>();
+       matchesFilterGeometric =xpcf::ComponentFactory::createInstance<SolARGeometricMatchesFilterOpencv>()->bindTo<features::IMatchesFilter>();
+       fundamentalFinder =xpcf::ComponentFactory::createInstance<SolARFundamentalMatrixEstimationOpencv>()->bindTo<solver::pose::I2DTransformFinder>();
+       fundamentalDecomposer =xpcf::ComponentFactory::createInstance<SolARSVDFundamentalMatrixDecomposerOpencv>()->bindTo<solver::pose::I2DTO3DTransformDecomposer>();
+       mapper =xpcf::ComponentFactory::createInstance<SolARSVDTriangulationOpencv>()->bindTo<solver::map::ITriangulator>();
+       mapFilter =xpcf::ComponentFactory::createInstance<SolARMapFilterOpencv>()->bindTo<solver::map::IMapFilter>();
+
+       poseGraph =xpcf::ComponentFactory::createInstance<SolARMapperOpencv>()->bindTo<solver::map::IMapper>();
+       PnP =xpcf::ComponentFactory::createInstance<SolARPoseEstimationPnpOpencv>()->bindTo<solver::pose::I3DTransformFinder>();
+
+       corr2D3DFinder =xpcf::ComponentFactory::createInstance<SolAR2D3DCorrespondencesFinderOpencv>()->bindTo<solver::pose::I2D3DCorrespondencesFinder>();
 
 
        ParseConfigFile(configFile.c_str());
@@ -351,9 +375,24 @@ void init(std::string configFile)
 		   //// this part to load image from video:
        }
 
-
        std::cout<<"<loading static view: ";
        static_views.resize(static_views_no);
+#if 1
+       std::vector<std::string> v;
+       int k=0;
+       read_directory(std::string(streamSource),v);
+
+       for (auto s:v){
+           s=std::string(streamSource)+s;
+           std::cout << s.c_str() << "\n";
+           imageLoader->loadImage(s.c_str(),static_views[k]);
+           std::cout<<"     ->img size: "<<static_views[k]->getWidth()<<" "<<static_views[k]->getHeight()<<std::endl;
+           viewer->display("__view",static_views[k]);
+           if(++k>=static_views_no)
+               break;
+       }
+
+#else
        for(int k = 0; k < static_views_no; ++k){
            std::stringstream buff;
            buff<<std::setfill('0')<<std::setw(5)<<k;
@@ -364,7 +403,7 @@ void init(std::string configFile)
            viewer->display("__view",static_views[k]);
        }
        std::cout<<" done"<<std::endl;
-
+#endif
 }
 bool debug_coplanarity(){
 
@@ -400,11 +439,12 @@ bool debug_coplanarity(){
     for(int i = 0; i <pt_no1; ++i){
         float x1,y1;
         pt1_log>>x1; pt1_log>>y1;
-        pt2d_1[i] =   sptrnms::make_shared<Point2Df>(x1,y1);
+        SRef<Point2Df> tmp;
+        pt2d_1[i] =   xpcf::utils::make_shared<Point2Df>(x1,y1);
 
         float x2,y2;
         pt2_log>>x2; pt2_log>>y2;
-        pt2d_2[i] =   sptrnms::make_shared<Point2Df>(x2,y2);
+        pt2d_2[i] =   xpcf::utils::make_shared<Point2Df>(x2,y2);
 
         /*
         std::cout<<"pt1: "<<pt2d_1[i]->getX()<<" "<<pt2d_1[i]->getY()<<std::endl;
@@ -847,6 +887,8 @@ void idle_static(){
             //   ++static_views_counter;
     }
 }
+
+
 int main (int argc, char* argv[]){
 
     boost::log::core::get()->set_logging_enabled(false);
