@@ -91,6 +91,8 @@ namespace xpcf  = org::bcom::xpcf;
    SRef<Image>                                         viewerImage3;
 
   
+   SRef<std::vector<SRef<CloudPoint>>>                 cloud_current;
+
 
    CamCalibration                                      K;
    CamDistortion                                       dist;
@@ -116,6 +118,14 @@ namespace xpcf  = org::bcom::xpcf;
    bool exit_ = false;
 
 
+    //output folder for debug information
+    std::string output_debug_folder_path;
+
+    bool is_file_exist(const char *fileName)
+    {
+        std::ifstream infile(fileName);
+        return infile.good();
+    }
 
 
 #endif // CONSTANTS_H
