@@ -1,6 +1,9 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 
+//#define USE_FREE
+
+
 #include "SolARImageLoaderOpencv.h"
 #ifdef USE_FREE
 #include "SolARDescriptorsExtractorORBOpencv.h"
@@ -80,8 +83,8 @@ namespace xpcf  = org::bcom::xpcf;
 
    SRef<Image>                                         view_current;
    std::vector<SRef<Image>>                            views;
-
-
+   SRef<Image>                                         currentMatchImage;
+   SRef<Image>                                         projected_image;
 
    SRef<Image>                                         viewerImage1;
    SRef<Image>                                         viewerImage2;
@@ -94,6 +97,7 @@ namespace xpcf  = org::bcom::xpcf;
    Transform2Df                                        F;
     int												   nbFrameSinceKeyFrame ;
     OpenGLViewer                                       viewerGL ;
+    gl_camera                                          viewer3D;
 
 
 	std::string											streamSource; // camera or path offline video 
@@ -103,7 +107,8 @@ namespace xpcf  = org::bcom::xpcf;
 	int													indexSecondKeyFrame; 
 	int													indexCurrentFrame; 
 	int													frameCount; 
-
+    int                                                 w;
+    int                                                 h;
 
    bool saving_images = false;
    bool triangulation_first = true;
