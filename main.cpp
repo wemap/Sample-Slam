@@ -658,6 +658,7 @@ bool tracking(SRef<Image> &view)
     poseGraph->associateReferenceKeyFrameToFrame(newFrame);
     newFrame->setNumberOfFramesSinceLastKeyFrame(nbFrameSinceKeyFrame);
     std::vector<DescriptorMatch> new_matches, new_matches_filtred;
+
     SRef<Keyframe> referenceKeyFrame = newFrame->getReferenceKeyFrame();
     SRef<DescriptorBuffer> d1 = referenceKeyFrame->getDescriptors();
     SRef<DescriptorBuffer> d2 = newFrame->getDescriptors();
@@ -693,16 +694,14 @@ bool tracking(SRef<Image> &view)
         std::cout << " pnp inliers size: " << worldPoints_inliers.size() << " / " << pt3d.size() << std::endl;
         newFrame->m_pose = pose_current.inverse();
         frame_poses.push_back(newFrame->m_pose);
-        /*
-            if(worldPoints_inliers.size()<= 5000 && adding_once){
-                if (addFrameToMapAsKeyFrame(newFrame, view,2)) {
-                    std::cout<<" adding new keyframes.."<<std::endl;
-                     nbFrameSinceKeyFrame = 0;
-                     adding_once = false;
-                }
-            }
-            */
-            return true;
+        // triangulate with the first keyframe !
+        std::vector<SRef<CloudPoint>>cloud_current;
+
+        double reproj_error = mapper->triangulate(current_kp1, current_kp2, new_matches_filtred,std::make_pair<int,int>(0,2),
+                                                  referenceKeyFrame->m_pose, pose_current, K, dist, cloud_current);
+
+        std::cout<<" cloud current size: "<<cloud_current.size()<<std::endl;
+             return true;
         }else{
            // std::cout<<"new keyframe creation.."<<std::endl;
             return false;
