@@ -456,18 +456,13 @@ bool fullTriangulation(const std::vector<SRef<Point2Df>> &pt2d_1,
 
     std::cout << " pcloud basic: " << pcloud.size() << std::endl;
 
-    for (auto &pp : pcloud)
-    {
-        cloud.push_back(pp);
-    }
-
-
+    /*
     for(auto &pp: pcloud){
         cloud.push_back(pp);
     }
+    */
 
-
-//    mapFilter->filterPointCloud(pcloud, tmp_status, cloud);
+    mapFilter->filterPointCloud(pcloud, tmp_status, cloud);
     std::cout<<" pcloud filtred: "<<cloud.size()<<std::endl;
     return true;
 }
