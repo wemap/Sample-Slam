@@ -42,6 +42,10 @@ SOURCES += \
     OpenGLViewer.cpp
 
 unix {
+
+      QMAKE_CXX =clang
+      LIBS += -lGL -lGLU
+     # DEFINES += USE_FREE
 }
 
 macx {
