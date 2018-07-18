@@ -29,6 +29,9 @@
 namespace xpcf = org::bcom::xpcf;
 using namespace org::bcom::xpcf;
 
+std::vector<Transform3Df>keyframe_poses;
+std::vector<Transform3Df>frame_poses;
+
 struct path_leaf_string
 {
     std::string operator()(const boost::filesystem::directory_entry &entry) const
@@ -49,9 +52,10 @@ const char space_key = 32;
 const char escape_key = 27;
 std::vector<SRef<Image>> static_views;
 bool adding_once = true;
-const int static_views_no = 10;
-int static_views_counter = 4;
-void keyBoard(unsigned char key)
+const int static_views_no = 8;
+int frame_counter;
+int frame_begin = 4;
+void keyBoard(unsigned char key, int x, int y)
 {
     switch (key)
     {
@@ -95,18 +99,6 @@ void keyBoard(unsigned char key)
     {
         std::cout << "exit " << std::endl;
         exit_ = true;
-        break;
-    }
-    case '+':
-    {
-        ++static_views_counter;
-        std::cout << " track view: " << static_views_counter << std::endl;
-        break;
-    }
-    case '-':
-    {
-        --static_views_counter;
-        std::cout << " track view: " << static_views_counter << std::endl;
         break;
     }
     default:
@@ -404,6 +396,7 @@ void init(std::string configFile)
            std::cout<<"     ->img size: "<<static_views[k]->getWidth()<<" "<<static_views[k]->getHeight()<<std::endl;
            viewer->display("__view",static_views[k]);
        }
+       frame_counter  = frame_begin;
        std::cout<<" done"<<std::endl;
 }
 
@@ -416,8 +409,7 @@ bool fullTriangulation(const std::vector<SRef<Point2Df>> &pt2d_1,
                        const CamCalibration &cam,
                        const CamDistortion &dist,
                        Transform3Df &corrected_pose,
-                       std::vector<SRef<CloudPoint>> &cloud)
-{
+                       std::vector<SRef<CloudPoint>> &cloud){
 
     if (p2.size() != 4)
     {
@@ -429,20 +421,13 @@ bool fullTriangulation(const std::vector<SRef<Point2Df>> &pt2d_1,
     std::vector<bool> tmp_status;
 
     //check if points are triangulated --in front-- of cameras for all 4 ambiguations
-    for (int i = 0; i < 4; i++)
-    {
+    for (int i = 0; i < 4; i++){
         corrected_pose = p2[i];
         pcloud.clear();
         pcloud1.clear();
 
         double reproj_error1 = mapper->triangulate(pt2d_1, pt2d_2, matches, working_views, p1, corrected_pose, cam, dist, pcloud);
         double reproj_error2 = mapper->triangulate(pt2d_2, pt2d_1, matches, working_views, corrected_pose, p1, cam, dist, pcloud1);
-
-        /*
-        std::cout<<"    err1: :"<<reproj_error1<<"   err2: "<<reproj_error2<<std::endl;
-        std::cout<<" "<<mapFilter->checkFrontCameraPoints(pcloud, corrected_pose, tmp_status)<<" "
-                       <<mapFilter->checkFrontCameraPoints(pcloud1, p1, tmp_status)<<std::endl;
-        */
         if (mapFilter->checkFrontCameraPoints(pcloud, corrected_pose, tmp_status) && mapFilter->checkFrontCameraPoints(pcloud1, p1, tmp_status) && reproj_error1 < 100.0 && reproj_error2 < 100.0)
         {
             // points are in front of camera and reproj error is acceptable
@@ -453,15 +438,7 @@ bool fullTriangulation(const std::vector<SRef<Point2Df>> &pt2d_1,
             return false;
         }
     }
-
     std::cout << " pcloud basic: " << pcloud.size() << std::endl;
-
-    /*
-    for(auto &pp: pcloud){
-        cloud.push_back(pp);
-    }
-    */
-
     mapFilter->filterPointCloud(pcloud, tmp_status, cloud);
     std::cout<<" pcloud filtred: "<<cloud.size()<<std::endl;
     return true;
@@ -640,8 +617,12 @@ bool init_mapping(SRef<Image> &view_1, SRef<Image> &view_2, const std::string &p
     std::pair<int, int> working_view = std::make_pair(0, 1);
     Transform3Df pose_final;
     std::vector<SRef<CloudPoint>> tempCloud;
-    if (fullTriangulation(ggmatchedKeypoints1, ggmatchedKeypoints2, ggmatches, working_view, pose_canonique, poses, K, dist, pose_final, tempCloud))
-    {
+    if (fullTriangulation(ggmatchedKeypoints1, ggmatchedKeypoints2, ggmatches, working_view, pose_canonique, poses,
+                          K, dist, pose_final, tempCloud)) {
+
+
+        keyframe_poses.push_back(pose_canonique);
+        keyframe_poses.push_back(pose_final);
 
         SRef<Keyframe> kframe1 = xpcf::utils::make_shared<Keyframe>(view_1, frame1->getDescriptors(), 0, pose_canonique, frame1->getKeyPoints());
         SRef<Keyframe> kframe2 = xpcf::utils::make_shared<Keyframe>(view_2, frame2->getDescriptors(), 1, pose_final, frame2->getKeyPoints());
@@ -708,15 +689,11 @@ bool tracking(SRef<Image> &view)
 
     Transform3Df pose_current;
 
-    if (PnP->estimate(pt2d, pt3d, imagePoints_inliers, worldPoints_inliers, pose_current) == FrameworkReturnCode::_SUCCESS /*&&
-                worldPoints_inliers.size()> 50*/
-    )
-    {
+    if (PnP->estimate(pt2d, pt3d, imagePoints_inliers, worldPoints_inliers, pose_current) == FrameworkReturnCode::_SUCCESS){
         std::cout << " pnp inliers size: " << worldPoints_inliers.size() << " / " << pt3d.size() << std::endl;
-
         newFrame->m_pose = pose_current.inverse();
-        viewerGL.SetRealCameraPose(newFrame->m_pose);
-
+        frame_poses.push_back(newFrame->m_pose);
+        /*
             if(worldPoints_inliers.size()<= 5000 && adding_once){
                 if (addFrameToMapAsKeyFrame(newFrame, view,2)) {
                     std::cout<<" adding new keyframes.."<<std::endl;
@@ -724,66 +701,15 @@ bool tracking(SRef<Image> &view)
                      adding_once = false;
                 }
             }
+            */
             return true;
         }else{
            // std::cout<<"new keyframe creation.."<<std::endl;
             return false;
     }
 }
-void idle()
-{
-    if (exit_)
-    {
-        exit(0);
-    }
-    if (pause_exec && streamSource != "camera")
-    {
-        return;
-    }
-    camera->getNextImage(view_current);
-    frameCount++;
-    viewer->display("current view", view_current, 27);
-
-    // in case of video as input : simulate keyboard input
-    bool tryProcess = false;
-    if (streamSource != "camera")
-    {
-        if (frameCount == indexFirstKeyFrame)
-        {
-            keyBoard('s');
-        }
-        else if (frameCount == indexSecondKeyFrame)
-        {
-            keyBoard('s');
-        }
-    }
-    if (saving_images)
-    {
-        views.push_back(view_current);
-        saving_images = false;
-    }
-    if (triangulation_first && views.size() > 1)
-    {
-        if (init_mapping(views[0], views[1]))
-        {
-            triangulation_first = false;
-            keyBoard('d'); // display
-            keyBoard('p'); // processing
-        }
-        else
-        {
-            views.clear();
-        }
-    }
-    if (processing && !triangulation_first)
-    {
-        tracking(view_current);
-    }
-}
-void idle_static()
-{
-    if (exit_)
-    {
+void idle_static(){
+    if (exit_){
         exit(0);
     }    
     if(triangulation_first){
@@ -794,11 +720,14 @@ void idle_static()
              std::cout<<" done"<<std::endl;
         }
     }
-
     if(processing && !triangulation_first){
-        viewer->display("fram to track",static_views[static_views_counter]);
-        tracking(static_views[static_views_counter]);
-            //   ++static_views_counter;
+        viewer->display("fram to track",static_views[frame_counter]);
+        tracking(static_views[frame_counter]);
+               ++frame_counter;
+        if(frame_counter >= static_views.size()-1){
+            frame_counter = frame_begin;
+            frame_poses.clear();
+        }
     }
 }
 
@@ -839,6 +768,93 @@ void mb(int button, int state, int x, int y)
     }
 }
 
+rigid_motion<float>  converting_rigidMotion(Transform3Df & m, float scalePosition)
+{
+    rigid_motion<float> camPose;
+    camPose.m_rotation(0, 0) = m(0, 0);
+    camPose.m_rotation(0, 1) = m(0, 1);
+    camPose.m_rotation(0, 2) = m(0, 2);
+
+    camPose.m_rotation(1, 0) = m(1, 0);
+    camPose.m_rotation(1, 1) = m(1, 1);
+    camPose.m_rotation(1, 2) = m(1, 2);
+
+    camPose.m_rotation(2, 0) = m(2, 0);
+    camPose.m_rotation(2, 1) = m(2, 1);
+    camPose.m_rotation(2, 2) = m(2, 2);
+
+    camPose.m_translation[0] = m(0, 3) * scalePosition;
+    camPose.m_translation[1] = m(1, 3) * scalePosition;
+    camPose.m_translation[2] = m(2, 3) * scalePosition;
+    return camPose;
+}
+
+void drawing_pose(Transform3Df & m, float radius, float* color) {
+
+    rigid_motion<float> camPose = converting_rigidMotion(m, radius);
+
+    // Compute frustum corners according to camera transform
+    math_vector_3f  transformedCorners[5];
+    float offsetCorners = 0.075f *radius;
+    transformedCorners[0] = camPose.apply( math_vector_3f(offsetCorners, offsetCorners, 2.f*offsetCorners));
+    transformedCorners[1] = camPose.apply(math_vector_3f(-offsetCorners, offsetCorners, 2.f*offsetCorners));
+    transformedCorners[2] = camPose.apply(math_vector_3f(-offsetCorners, -offsetCorners, 2.f*offsetCorners));
+    transformedCorners[3] = camPose.apply(math_vector_3f(offsetCorners, -offsetCorners, 2.f*offsetCorners));
+    transformedCorners[4] = camPose.apply(math_vector_3f(0, 0, 0));
+
+
+    // draw a sphere at each corner of the frustum
+    double cornerDiameter = 0.02f * radius;
+    glColor3f(color[0], color[1], color[2]);
+    for (int i = 0; i < 5; ++i)
+    {
+        glPushMatrix();
+        glTranslatef(transformedCorners[i][0], transformedCorners[i][1], transformedCorners[i][2]);
+        glutSolidSphere(cornerDiameter*0.5, 30, 30);
+        glPopMatrix();
+    }
+
+    // draw frustum lines
+    float line_width = 1.0f *radius;
+    glLineWidth(line_width);
+    for (int i = 0; i < 4; ++i)
+    {
+        glBegin(GL_LINES);
+        glVertex3f(camPose.m_translation[0], camPose.m_translation[1], camPose.m_translation[2]);
+        glVertex3f(transformedCorners[i][0], transformedCorners[i][1], transformedCorners[i][2]);
+        glEnd();
+    }
+
+    glBegin(GL_LINE_STRIP);
+    glVertex3f(transformedCorners[0][0], transformedCorners[0][1], transformedCorners[0][2]);
+    glVertex3f(transformedCorners[1][0], transformedCorners[1][1], transformedCorners[1][2]);
+    glVertex3f(transformedCorners[2][0], transformedCorners[2][1], transformedCorners[2][2]);
+    glVertex3f(transformedCorners[3][0], transformedCorners[3][1], transformedCorners[3][2]);
+    glVertex3f(transformedCorners[0][0], transformedCorners[0][1], transformedCorners[0][2]);
+    glEnd();
+}
+void drawing_cameras(std::vector<Transform3Df>&poses,float radius,  float * color){
+    for(unsigned int  k = 0; k < poses.size(); ++k){
+        drawing_pose(poses[k],radius, color);
+    }
+}
+void drawing_cloud(SRef<std::vector<SRef<CloudPoint>>>&cloud_temp, float radius, float* color){
+    GLUquadric *quad = gluNewQuadric();
+    glPushMatrix();
+    glBegin(GL_POINTS);
+    glPointSize(radius);
+    Point3Df  vr_temp(0, 0, 0);
+    for (unsigned int i = 0; i < cloud_temp->size(); ++i) {
+        vr_temp = Point3Df((*cloud_temp)[i]->getX(), (*cloud_temp)[i]->getY(),(*cloud_temp)[i]->getZ());
+        glColor3f(color[0], color[1],color[2]);
+        glVertex3f(vr_temp.getX(),vr_temp.getY() , vr_temp.getZ());
+    }
+    glEnd();
+    glPopMatrix();
+    gluDeleteQuadric(quad);
+
+}
+
 void draw(){
     if(poseGraph->getMap()->getPointCloud()->size() > 0){
         glEnable(GL_NORMALIZE);
@@ -852,23 +868,17 @@ void draw(){
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glDisable(GL_CULL_FACE);
 
+        float color_cloud[3] = {1.0,0.0,0.0};
+        float color_keyframe[3] = {0.0,0.0,1.0};
+        float color_frame[3] = {0.0,1.0,0.0};
 
-        GLUquadric *quad = gluNewQuadric();
-        glPushMatrix();
-  //    glPointSize(3.f);
-        glBegin(GL_POINTS);
+        float radius_cloud  = 1.25;
+        float radius_camera = 1.0;
 
-         Point3Df  vr_temp(0, 0, 0);
-        for (unsigned int i = 0; i < poseGraph->getMap()->getPointCloud()->size(); ++i) {
-            vr_temp = Point3Df((*poseGraph->getMap()->getPointCloud())[i]->getX(), (*poseGraph->getMap()->getPointCloud())[i]->getY(),
-                               (*poseGraph->getMap()->getPointCloud())[i]->getZ());
+        drawing_cloud(poseGraph->getMap()->getPointCloud(), radius_cloud, color_cloud);
+        drawing_cameras(keyframe_poses, radius_camera, color_keyframe);
+        drawing_cameras(frame_poses, radius_camera, color_frame);
 
-            glColor3f(1.0, 0.0, 0.0);
-            glVertex3f(vr_temp.getX(),vr_temp.getY() , vr_temp.getZ());
-        }
-        glEnd();
-        glPopMatrix();
-        gluDeleteQuadric(quad);
         glutSwapBuffers();
         glutPostRedisplay();
     }
@@ -884,6 +894,7 @@ int main(int argc, char* argv[]){
     glutInitWindowSize(640, 480);
     glutCreateWindow("window");
     glutDisplayFunc(draw);
+    glutKeyboardFunc(keyBoard);
     glutMouseFunc(mb);
     glutMotionFunc(mm);
     glutReshapeFunc(resize);

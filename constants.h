@@ -106,7 +106,6 @@ namespace xpcf  = org::bcom::xpcf;
 	int													indexFirstKeyFrame; 
 	int													indexSecondKeyFrame; 
 	int													indexCurrentFrame; 
-	int													frameCount; 
     int                                                 w;
     int                                                 h;
 
