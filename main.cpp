@@ -52,7 +52,7 @@ const char space_key = 32;
 const char escape_key = 27;
 std::vector<SRef<Image>> static_views;
 bool adding_once = true;
-const int static_views_no = 8;
+const int static_views_no = 9;
 int frame_counter;
 int frame_begin = 4;
 void keyBoard(unsigned char key, int x, int y)
@@ -695,12 +695,22 @@ bool tracking(SRef<Image> &view)
         newFrame->m_pose = pose_current.inverse();
         frame_poses.push_back(newFrame->m_pose);
         // triangulate with the first keyframe !
-        std::vector<SRef<CloudPoint>>cloud_current;
 
+        std::vector<SRef<CloudPoint>>cloud_t;
         double reproj_error = mapper->triangulate(current_kp1, current_kp2, new_matches_filtred,std::make_pair<int,int>(0,2),
-                                                  referenceKeyFrame->m_pose, pose_current, K, dist, cloud_current);
+                                                  referenceKeyFrame->m_pose, pose_current, K, dist, cloud_t);
 
-        std::cout<<" cloud current size: "<<cloud_current.size()<<std::endl;
+        cloud_current = xpcf::utils::make_shared<std::vector<SRef<CloudPoint>>>() ;
+        cloud_current->insert(cloud_current->end(), cloud_t.begin()  , cloud_t.end()) ;
+        /*
+        cloud_current->resize(cloud_t.size());
+        for(int k = 0; k < cloud_t.size(); ++k){
+            std::vector<int>visibility = std::vector<int>(50, -1);
+           (*cloud_current)[k] = xpcf::utils::make_shared<CloudPoint>(cloud_t[k]->getX(),cloud_t[k]->getY(),cloud_t[k]->getZ(),
+                                                                      0,0,0,0.0,visibility);
+        }*/
+
+        std::cout<<" cloud current size: "<<cloud_current->size()<<std::endl;
              return true;
         }else{
            // std::cout<<"new keyframe creation.."<<std::endl;
@@ -867,17 +877,21 @@ void draw(){
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glDisable(GL_CULL_FACE);
 
-        float color_cloud[3] = {1.0,0.0,0.0};
+        float color_cloud0[3] = {1.0,0.0,0.0};
+        float color_cloud1[3] = {0.0,0.0,1.0};
+
         float color_keyframe[3] = {0.0,0.0,1.0};
         float color_frame[3] = {0.0,1.0,0.0};
 
         float radius_cloud  = 1.25;
         float radius_camera = 1.0;
-
-        drawing_cloud(poseGraph->getMap()->getPointCloud(), radius_cloud, color_cloud);
+        drawing_cloud(poseGraph->getMap()->getPointCloud(), radius_cloud, color_cloud0);
         drawing_cameras(keyframe_poses, radius_camera, color_keyframe);
-        drawing_cameras(frame_poses, radius_camera, color_frame);
 
+        if(frame_poses.size()>0){
+            drawing_cameras(frame_poses, radius_camera, color_frame);
+            drawing_cloud(cloud_current, radius_cloud, color_cloud1);
+        }
         glutSwapBuffers();
         glutPostRedisplay();
     }

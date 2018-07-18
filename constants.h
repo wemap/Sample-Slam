@@ -91,6 +91,8 @@ namespace xpcf  = org::bcom::xpcf;
    SRef<Image>                                         viewerImage3;
 
   
+   SRef<std::vector<SRef<CloudPoint>>>                 cloud_current;
+
 
    CamCalibration                                      K;
    CamDistortion                                       dist;
