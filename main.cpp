@@ -29,8 +29,8 @@
 namespace xpcf = org::bcom::xpcf;
 using namespace org::bcom::xpcf;
 
-std::vector<Transform3Df>keyframe_poses;
-std::vector<Transform3Df>frame_poses;
+std::vector<Transform3Df> keyframe_poses;
+std::vector<Transform3Df> frame_poses;
 
 struct path_leaf_string
 {
@@ -335,7 +335,7 @@ void init(std::string configFile)
     keypointsDetector = xpcf::ComponentFactory::createInstance<SolARKeypointDetectorOpencv>()->bindTo<features::IKeypointDetector>();
     descriptorExtractor = xpcf::ComponentFactory::createInstance<SolARDescriptorsExtractorORBOpencv>()->bindTo<features::IDescriptorsExtractor>();
 #else
-    std::cout<<"USE non Free "<<std::endl;
+    std::cout << "USE non Free " << std::endl;
 
     keypointsDetector = xpcf::ComponentFactory::createInstance<SolARKeypointDetectorNonFreeOpencv>()->bindTo<features::IKeypointDetector>();
     descriptorExtractor = xpcf::ComponentFactory::createInstance<SolARDescriptorsExtractorSURF64Opencv>()->bindTo<features::IDescriptorsExtractor>();
@@ -363,6 +363,7 @@ void init(std::string configFile)
 
     corr2D3DFinder = xpcf::ComponentFactory::createInstance<SolAR2D3DCorrespondencesFinderOpencv>()->bindTo<solver::pose::I2D3DCorrespondencesFinder>();
 
+    std::cout << "Parse file" << std::endl;
     ParseConfigFile(configFile.c_str());
 
 #ifdef USE_FREE
@@ -370,34 +371,36 @@ void init(std::string configFile)
 #else
     keypointsDetector->setType(features::KeypointDetectorType::SURF);
 #endif
-       // load camera parameters from yml input file
-       camera->loadCameraParameters(calibCameraSource);
-       PnP->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
-       K = camera->getIntrinsicsParameters();
-       dist = camera->getDistorsionParameters();      
-	   // Open camera or file
-	   if (streamSource == "camera")
-	   {
-		   camera->start(0);
-	   }
-	   else{
-           camera->start(streamSource);
-		   //std::cout << "	# loading frames: ";
-		   //// this part to load image from video:
-       }
-       std::cout<<"<loading static view: ";
-       static_views.resize(static_views_no);
-       for(int k = 0; k < static_views_no; ++k){
-           std::stringstream buff;
-           buff<<std::setfill('0')<<std::setw(5)<<k;
-           std::string path_temp = streamSource +   buff.str() + ".png";
-           std::cout<<" temp: "<<path_temp<<std::endl;
-           imageLoader->loadImage(path_temp,static_views[k]);
-           std::cout<<"     ->img size: "<<static_views[k]->getWidth()<<" "<<static_views[k]->getHeight()<<std::endl;
-           viewer->display("__view",static_views[k]);
-       }
-       frame_counter  = frame_begin;
-       std::cout<<" done"<<std::endl;
+    // load camera parameters from yml input file
+    camera->loadCameraParameters(calibCameraSource);
+    PnP->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
+    K = camera->getIntrinsicsParameters();
+    dist = camera->getDistorsionParameters();
+    // Open camera or file
+    if (streamSource == "camera")
+    {
+        camera->start(0);
+    }
+    else
+    {
+        camera->start(streamSource);
+        //std::cout << "	# loading frames: ";
+        //// this part to load image from video:
+    }
+    std::cout << "<loading static view: ";
+    static_views.resize(static_views_no);
+    for (int k = 0; k < static_views_no; ++k)
+    {
+        std::stringstream buff;
+        buff << std::setfill('0') << std::setw(5) << k;
+        std::string path_temp = streamSource + buff.str() + ".png";
+        std::cout << " temp: " << path_temp << std::endl;
+        imageLoader->loadImage(path_temp, static_views[k]);
+        std::cout << "     ->img size: " << static_views[k]->getWidth() << " " << static_views[k]->getHeight() << std::endl;
+        viewer->display("__view", static_views[k]);
+    }
+    frame_counter = frame_begin;
+    std::cout << " done" << std::endl;
 }
 
 bool fullTriangulation(const std::vector<SRef<Point2Df>> &pt2d_1,
@@ -409,7 +412,8 @@ bool fullTriangulation(const std::vector<SRef<Point2Df>> &pt2d_1,
                        const CamCalibration &cam,
                        const CamDistortion &dist,
                        Transform3Df &corrected_pose,
-                       std::vector<SRef<CloudPoint>> &cloud){
+                       std::vector<SRef<CloudPoint>> &cloud)
+{
 
     if (p2.size() != 4)
     {
@@ -421,7 +425,8 @@ bool fullTriangulation(const std::vector<SRef<Point2Df>> &pt2d_1,
     std::vector<bool> tmp_status;
 
     //check if points are triangulated --in front-- of cameras for all 4 ambiguations
-    for (int i = 0; i < 4; i++){
+    for (int i = 0; i < 4; i++)
+    {
         corrected_pose = p2[i];
         pcloud.clear();
         pcloud1.clear();
@@ -439,12 +444,20 @@ bool fullTriangulation(const std::vector<SRef<Point2Df>> &pt2d_1,
         }
     }
     std::cout << " pcloud basic: " << pcloud.size() << std::endl;
+    cloud.reserve(pcloud.size());
+
+    for (unsigned int k = 0; k < pcloud.size(); k++)
+    {
+        cloud.push_back(pcloud[k]);
+    }
+
     mapFilter->filterPointCloud(pcloud, tmp_status, cloud);
-    std::cout<<" pcloud filtred: "<<cloud.size()<<std::endl;
+    std::cout << " pcloud filtred: " << cloud.size() << std::endl;
     return true;
 }
 
-SRef<Frame> createAndInitFrame(SRef<Image> &img){
+SRef<Frame> createAndInitFrame(SRef<Image> &img)
+{
     std::chrono::time_point<std::chrono::system_clock> now1 = std::chrono::system_clock::now();
     SRef<Frame> resul = xpcf::utils::make_shared<Frame>();
 
@@ -453,12 +466,12 @@ SRef<Frame> createAndInitFrame(SRef<Image> &img){
 
     keypointsDetector->detect(img, keyPoints);
     descriptorExtractor->extract(img, keyPoints, descriptors);
-    resul->InitKeyPointsAndDescriptors(keyPoints , descriptors);
+    resul->InitKeyPointsAndDescriptors(keyPoints, descriptors);
 
     std::chrono::time_point<std::chrono::system_clock> now2 = std::chrono::system_clock::now();
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count() ;
-//    std::cout << " create frame " << ms << std::endl ;
-    return resul ;
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count();
+    //    std::cout << " create frame " << ms << std::endl ;
+    return resul;
 }
 void getMatchedKeyPoints(std::vector<SRef<Keypoint>> &keyPoints1, std::vector<SRef<Keypoint>> &keyPoints2, std::vector<DescriptorMatch> &matches, std::vector<SRef<Point2Df>> &matchedKeyPoints1, std::vector<SRef<Point2Df>> &matchedKeyPoints2)
 {
@@ -478,31 +491,35 @@ void getPoint2DFromKeyPoint(std::vector<SRef<Keypoint>> &keyPoints, std::vector<
     }
 }
 
-
-bool addFrameToMapAsKeyFrame(SRef<Frame> & frame,SRef<Image> &view, int newIndex){
-    std::cout<<"    #debug adding keyframes: "<<std::endl;
+bool addFrameToMapAsKeyFrame(SRef<Frame> &frame, SRef<Image> &view, int newIndex)
+{
+    std::cout << "    #debug adding keyframes: " << std::endl;
     SRef<Keyframe> referenceKeyFrame = frame->getReferenceKeyFrame();
 
-    viewer->display("reference keyFrame",referenceKeyFrame->m_view);
+    viewer->display("reference keyFrame", referenceKeyFrame->m_view);
     cv::waitKey(0);
 
     Transform3Df poseFrame = frame->m_pose;
     Transform3Df poseKeyFrame = referenceKeyFrame->m_pose;
 
-    std::cout<<"        #pose frame: "<<std::endl;
-    for(int ii = 0; ii < 3; ++ii){
-        for(int jj = 0; jj < 3; ++jj){
-            std::cout<<"        "<<poseFrame(ii,jj)<<" ";
+    std::cout << "        #pose frame: " << std::endl;
+    for (int ii = 0; ii < 3; ++ii)
+    {
+        for (int jj = 0; jj < 3; ++jj)
+        {
+            std::cout << "        " << poseFrame(ii, jj) << " ";
         }
-        std::cout<<std::endl;
+        std::cout << std::endl;
     }
-    std::cout<<"        #pose kframe: "<<std::endl;
+    std::cout << "        #pose kframe: " << std::endl;
 
-    for(int ii = 0; ii < 3; ++ii){
-        for(int jj = 0; jj < 3; ++jj){
-            std::cout<<"        "<<poseKeyFrame(ii,jj)<<" ";
+    for (int ii = 0; ii < 3; ++ii)
+    {
+        for (int jj = 0; jj < 3; ++jj)
+        {
+            std::cout << "        " << poseKeyFrame(ii, jj) << " ";
         }
-        std::cout<<std::endl;
+        std::cout << std::endl;
     }
 
     std::vector<SRef<Point2Df>> pointsFrame;
@@ -593,13 +610,12 @@ bool init_mapping(SRef<Image> &view_1, SRef<Image> &view_2, const std::string &p
 
     matchesFilterGeometric->filter(matches, ggmatches, frame1->getKeyPoints(), frame2->getKeyPoints());
 
-    std::cout<<"Output geometric matches : "<<ggmatches.size()<<std::endl;
+    std::cout << "Output geometric matches : " << ggmatches.size() << std::endl;
 
     std::vector<SRef<Point2Df>> ggmatchedKeypoints1;
     std::vector<SRef<Point2Df>> ggmatchedKeypoints2;
     kp1 = frame1->getKeyPoints();
     kp2 = frame2->getKeyPoints();
-
 
     getMatchedKeyPoints(kp1, kp2, ggmatches, ggmatchedKeypoints1, ggmatchedKeypoints2);
 
@@ -618,8 +634,8 @@ bool init_mapping(SRef<Image> &view_1, SRef<Image> &view_2, const std::string &p
     Transform3Df pose_final;
     std::vector<SRef<CloudPoint>> tempCloud;
     if (fullTriangulation(ggmatchedKeypoints1, ggmatchedKeypoints2, ggmatches, working_view, pose_canonique, poses,
-                          K, dist, pose_final, tempCloud)) {
-
+                          K, dist, pose_final, tempCloud))
+    {
 
         keyframe_poses.push_back(pose_canonique);
         keyframe_poses.push_back(pose_final);
@@ -640,8 +656,8 @@ bool init_mapping(SRef<Image> &view_1, SRef<Image> &view_2, const std::string &p
         viewer3D.resetview(math_vector_3f(gravity.getX(), gravity.getY(), gravity.getZ()), maxDist);
         viewer3D.rotate_180();
 
-   //     viewerGL.AddKeyFrameCameraPose(pose_canonique);
-    //    viewerGL.AddKeyFrameCameraPose(pose_final);
+        //     viewerGL.AddKeyFrameCameraPose(pose_canonique);
+        //    viewerGL.AddKeyFrameCameraPose(pose_final);
         return true;
     }
     else
@@ -689,7 +705,8 @@ bool tracking(SRef<Image> &view)
 
     Transform3Df pose_current;
 
-    if (PnP->estimate(pt2d, pt3d, imagePoints_inliers, worldPoints_inliers, pose_current) == FrameworkReturnCode::_SUCCESS){
+    if (PnP->estimate(pt2d, pt3d, imagePoints_inliers, worldPoints_inliers, pose_current) == FrameworkReturnCode::_SUCCESS)
+    {
         std::cout << " pnp inliers size: " << worldPoints_inliers.size() << " / " << pt3d.size() << std::endl;
         newFrame->m_pose = pose_current.inverse();
         frame_poses.push_back(newFrame->m_pose);
@@ -702,36 +719,45 @@ bool tracking(SRef<Image> &view)
                 }
             }
             */
-            return true;
-        }else{
-           // std::cout<<"new keyframe creation.."<<std::endl;
-            return false;
+        return true;
+    }
+    else
+    {
+        // std::cout<<"new keyframe creation.."<<std::endl;
+        return false;
     }
 }
-void idle_static(){
-    if (exit_){
+void idle_static()
+{
+    if (exit_)
+    {
         exit(0);
-    }    
-    if(triangulation_first){
+    }
+    if (triangulation_first)
+    {
         std::string path_cloud = "D:/old_points.txt";
-        if(init_mapping(static_views[3],static_views[4], path_cloud)){
-        std::string path_cloud = "D:/old_points.txt";
-             triangulation_first = false;
-             std::cout<<" done"<<std::endl;
+        if (init_mapping(static_views[3], static_views[4], path_cloud))
+        {
+            std::string path_cloud = "D:/old_points.txt";
+            triangulation_first = false;
+            std::cout << " done" << std::endl;
         }
     }
-    if(processing && !triangulation_first){
-        viewer->display("fram to track",static_views[frame_counter]);
+    if (processing && !triangulation_first)
+    {
+        viewer->display("fram to track", static_views[frame_counter]);
         tracking(static_views[frame_counter]);
-               ++frame_counter;
-        if(frame_counter >= static_views.size()-1){
+        ++frame_counter;
+        if (frame_counter >= static_views.size() - 1)
+        {
             frame_counter = frame_begin;
             frame_poses.clear();
         }
     }
 }
 
-void resize(int _w, int _h) {
+void resize(int _w, int _h)
+{
     w = _w;
     h = _h;
 }
@@ -739,7 +765,6 @@ void mm(int x, int y)
 {
     y = h - y;
     viewer3D.mouse_move(x, y);
-
 }
 void mb(int button, int state, int x, int y)
 {
@@ -747,28 +772,31 @@ void mb(int button, int state, int x, int y)
     int zoom = 10;
     Mouse::button b = Mouse::NONE;
 
-    if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
+    if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)
+    {
 
         b = Mouse::ROTATE;
         viewer3D.mouse(x, y, b);
-
     }
-    else if (button == GLUT_RIGHT_BUTTON && state == GLUT_DOWN) {
+    else if (button == GLUT_RIGHT_BUTTON && state == GLUT_DOWN)
+    {
 
         b = Mouse::MOVEXY;
         viewer3D.mouse(x, y, b);
     }
-    else if ((button & 3) == 3) {
+    else if ((button & 3) == 3)
+    {
 
         viewer3D.mouse_wheel(zoom);
     }
-    else if ((button & 4) == 4) {
+    else if ((button & 4) == 4)
+    {
 
         viewer3D.mouse_wheel(-zoom);
     }
 }
 
-rigid_motion<float>  converting_rigidMotion(Transform3Df & m, float scalePosition)
+rigid_motion<float> converting_rigidMotion(Transform3Df &m, float scalePosition)
 {
     rigid_motion<float> camPose;
     camPose.m_rotation(0, 0) = m(0, 0);
@@ -789,19 +817,19 @@ rigid_motion<float>  converting_rigidMotion(Transform3Df & m, float scalePositio
     return camPose;
 }
 
-void drawing_pose(Transform3Df & m, float radius, float* color) {
+void drawing_pose(Transform3Df &m, float radius, float *color)
+{
 
     rigid_motion<float> camPose = converting_rigidMotion(m, radius);
 
     // Compute frustum corners according to camera transform
-    math_vector_3f  transformedCorners[5];
-    float offsetCorners = 0.075f *radius;
-    transformedCorners[0] = camPose.apply( math_vector_3f(offsetCorners, offsetCorners, 2.f*offsetCorners));
-    transformedCorners[1] = camPose.apply(math_vector_3f(-offsetCorners, offsetCorners, 2.f*offsetCorners));
-    transformedCorners[2] = camPose.apply(math_vector_3f(-offsetCorners, -offsetCorners, 2.f*offsetCorners));
-    transformedCorners[3] = camPose.apply(math_vector_3f(offsetCorners, -offsetCorners, 2.f*offsetCorners));
+    math_vector_3f transformedCorners[5];
+    float offsetCorners = 0.075f * radius;
+    transformedCorners[0] = camPose.apply(math_vector_3f(offsetCorners, offsetCorners, 2.f * offsetCorners));
+    transformedCorners[1] = camPose.apply(math_vector_3f(-offsetCorners, offsetCorners, 2.f * offsetCorners));
+    transformedCorners[2] = camPose.apply(math_vector_3f(-offsetCorners, -offsetCorners, 2.f * offsetCorners));
+    transformedCorners[3] = camPose.apply(math_vector_3f(offsetCorners, -offsetCorners, 2.f * offsetCorners));
     transformedCorners[4] = camPose.apply(math_vector_3f(0, 0, 0));
-
 
     // draw a sphere at each corner of the frustum
     double cornerDiameter = 0.02f * radius;
@@ -810,12 +838,12 @@ void drawing_pose(Transform3Df & m, float radius, float* color) {
     {
         glPushMatrix();
         glTranslatef(transformedCorners[i][0], transformedCorners[i][1], transformedCorners[i][2]);
-        glutSolidSphere(cornerDiameter*0.5, 30, 30);
+        glutSolidSphere(cornerDiameter * 0.5, 30, 30);
         glPopMatrix();
     }
 
     // draw frustum lines
-    float line_width = 1.0f *radius;
+    float line_width = 1.0f * radius;
     glLineWidth(line_width);
     for (int i = 0; i < 4; ++i)
     {
@@ -833,30 +861,35 @@ void drawing_pose(Transform3Df & m, float radius, float* color) {
     glVertex3f(transformedCorners[0][0], transformedCorners[0][1], transformedCorners[0][2]);
     glEnd();
 }
-void drawing_cameras(std::vector<Transform3Df>&poses,float radius,  float * color){
-    for(unsigned int  k = 0; k < poses.size(); ++k){
-        drawing_pose(poses[k],radius, color);
+void drawing_cameras(std::vector<Transform3Df> &poses, float radius, float *color)
+{
+    for (unsigned int k = 0; k < poses.size(); ++k)
+    {
+        drawing_pose(poses[k], radius, color);
     }
 }
-void drawing_cloud(SRef<std::vector<SRef<CloudPoint>>>&cloud_temp, float radius, float* color){
+void drawing_cloud(SRef<std::vector<SRef<CloudPoint>>> &cloud_temp, float radius, float *color)
+{
     GLUquadric *quad = gluNewQuadric();
     glPushMatrix();
     glBegin(GL_POINTS);
     glPointSize(radius);
-    Point3Df  vr_temp(0, 0, 0);
-    for (unsigned int i = 0; i < cloud_temp->size(); ++i) {
-        vr_temp = Point3Df((*cloud_temp)[i]->getX(), (*cloud_temp)[i]->getY(),(*cloud_temp)[i]->getZ());
-        glColor3f(color[0], color[1],color[2]);
-        glVertex3f(vr_temp.getX(),vr_temp.getY() , vr_temp.getZ());
+    Point3Df vr_temp(0, 0, 0);
+    for (unsigned int i = 0; i < cloud_temp->size(); ++i)
+    {
+        vr_temp = Point3Df((*cloud_temp)[i]->getX(), (*cloud_temp)[i]->getY(), (*cloud_temp)[i]->getZ());
+        glColor3f(color[0], color[1], color[2]);
+        glVertex3f(vr_temp.getX(), vr_temp.getY(), vr_temp.getZ());
     }
     glEnd();
     glPopMatrix();
     gluDeleteQuadric(quad);
-
 }
 
-void draw(){
-    if(poseGraph->getMap()->getPointCloud()->size() > 0){
+void draw()
+{
+    if (poseGraph->getMap()->getPointCloud()->size() > 0)
+    {
         glEnable(GL_NORMALIZE);
         glEnable(GL_DEPTH_TEST);
 
@@ -868,14 +901,16 @@ void draw(){
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glDisable(GL_CULL_FACE);
 
-        float color_cloud[3] = {1.0,0.0,0.0};
-        float color_keyframe[3] = {0.0,0.0,1.0};
-        float color_frame[3] = {0.0,1.0,0.0};
+        float color_cloud[3] = {1.0, 0.0, 0.0};
+        float color_keyframe[3] = {0.0, 0.0, 1.0};
+        float color_frame[3] = {0.0, 1.0, 0.0};
 
-        float radius_cloud  = 1.25;
+        float radius_cloud = 1.25;
         float radius_camera = 1.0;
 
-        drawing_cloud(poseGraph->getMap()->getPointCloud(), radius_cloud, color_cloud);
+        SRef<std::vector<SRef<CloudPoint>>> cloud_temp = poseGraph->getMap()->getPointCloud();
+
+        drawing_cloud(cloud_temp, radius_cloud, color_cloud);
         drawing_cameras(keyframe_poses, radius_camera, color_keyframe);
         drawing_cameras(frame_poses, radius_camera, color_frame);
 
@@ -884,10 +919,46 @@ void draw(){
     }
 }
 
-int main(int argc, char* argv[]){
+int printHelp()
+{
+    /* 
+    LOG_INFO("Missing parameters");
+    const char *filename = "readme.adoc";
+    std::ifstream ifs(filename);
+    if(!ifs){
+        LOG_ERROR("File {} does not exist", filename)
+        return 1;
+    }
+    std::string line;
+    while(std::getline(ifs,line))
+        LOG_INFO("{}", line)
+    ifs.close();*/
+    std::cout << "You should add a SlamConfig.txt file such as: " << std::endl;
+    std::cout << "        > SolARSample slamConfig.txt  " << std::endl;
+
+    return 1;
+}
+
+int main(int argc, char *argv[])
+{
+
+    std::string configFile;
+    
+    //Test input parameters
+    if (argc >= 2)
+    {
+        configFile = std::string(argv[1]);
+        std::cout<<" "<<is_file_exist(configFile.c_str())<<std::endl;
+    }
+
+    if(!is_file_exist(configFile.c_str())){
+        printHelp();
+        return -1;
+    }
+
 
     glutInit(&argc, argv);
-    std::string configFile=std::string("D:/AmineSolar/source/slam/Sample-Slam/slamStaticConfig.txt");
+    //configFile=std::string("slamConfig.txt");
 
     init(configFile);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
@@ -901,5 +972,4 @@ int main(int argc, char* argv[]){
     glutIdleFunc(idle_static);
     glutMainLoop();
     return 0;
-
 }
