@@ -93,7 +93,6 @@ namespace xpcf  = org::bcom::xpcf;
   
    SRef<std::vector<SRef<CloudPoint>>>                 cloud_current;
 
-
    CamCalibration                                      K;
    CamDistortion                                       dist;
    Transform2Df                                        F;
@@ -116,7 +115,6 @@ namespace xpcf  = org::bcom::xpcf;
    bool processing = false;
    bool pause_exec = false;
    bool exit_ = false;
-
 
     //output folder for debug information
     std::string output_debug_folder_path;

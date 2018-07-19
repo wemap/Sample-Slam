@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+
 #include <iostream>
 #include <string>
 #include "constants.h"
@@ -55,6 +56,7 @@ bool adding_once = true;
 const int static_views_no = 9;
 int frame_counter;
 int frame_begin = 4;
+
 void keyBoard(unsigned char key, int x, int y)
 {
     switch (key)
@@ -62,42 +64,44 @@ void keyBoard(unsigned char key, int x, int y)
     case 's':
     {
         saving_images = !saving_images;
-        std::cout << "image saved: " << views.size() << std::endl;
+        LOG_INFO(" image saved: {}", views.size());
+
         break;
     }
     case 't':
     {
         triangulation_first = !triangulation_first;
-        std::cout << "tringulaiton started: " << triangulation_first << std::endl;
+           LOG_INFO(" triangulation started: {} ", triangulation_first);
         break;
     }
     case 'd':
     {
         viewerGL.SetPointCloudToDisplay(poseGraph->getMap()->getPointCloud());
-        std::cout << "drawing started " << std::endl;
+          LOG_INFO(" drawing started ");
         break;
     }
     case 'p':
     {
         processing = !processing;
-        std::cout << "processing started: " << processing << std::endl;
+          LOG_INFO("processing started: {} ", processing);
         break;
     }
     case 'x':
     {
-        std::cout << "views poped: " << processing << std::endl;
+        LOG_INFO("views poped: {} ", processing );
+
         views.pop_back();
         break;
     }
     case space_key:
     {
-        std::cout << "make pause/!pause " << std::endl;
+        LOG_INFO("make pause/!pause ");
         pause_exec = !pause_exec;
         break;
     }
     case escape_key:
     {
-        std::cout << "exit " << std::endl;
+        LOG_INFO("Exit");
         exit_ = true;
         break;
     }
@@ -105,6 +109,8 @@ void keyBoard(unsigned char key, int x, int y)
         break;
     }
 }
+
+
 void DrawPointCloud(Transform3Df relative_pose)
 {
     std::string window_name = "cloud_points";
@@ -118,10 +124,12 @@ void DrawPointCloud(Transform3Df relative_pose)
     std::vector<cv::Point2f> projected3D;
 
     std::vector<SRef<CloudPoint>> Map = *(poseGraph->getMap()->getPointCloud());
+
     for (auto point : Map)
     {
         worldCVPoints.push_back(cv::Point3f(point->getX(), point->getY(), point->getZ()));
     }
+
     if (worldCVPoints.size() != 0)
     {
 
@@ -176,14 +184,8 @@ void DrawPointCloud(Transform3Df relative_pose)
 
         cv::Mat rodrig;
         cv::Rodrigues(Rvec, rodrig);
-        //        std::cout << " rodrig \n";
-        //        std::cout << rodrig <<std::endl;
-        //        std::cout << " Tvec \n";
-        //        std::cout << Tvec <<std::endl;
-
+   
         cv::projectPoints(worldCVPoints, rodrig, Tvec, m_camMatrix, m_camDistorsion, projected3D);
-
-        //        std::cout << projected3D.size() << "\n\n";
 
         for (int i = 0; i < projected3D.size(); i++)
         {
@@ -298,7 +300,7 @@ bool ParseConfigFile(const std::string &filePath)
     std::ifstream ox;
 
     ox.open(filePath);
-    std::cout << "<SLAM config: >" << std::endl;
+    LOG_INFO("<SLAM config: >");
     if (ox.is_open())
     {
         for (int i = 0; i < 4; ++i)
@@ -309,10 +311,11 @@ bool ParseConfigFile(const std::string &filePath)
         calibCameraSource = dummy[1];
         indexFirstKeyFrame = std::stoi(dummy[2]);
         indexSecondKeyFrame = std::stoi(dummy[3]);
-        std::cout << "	# stream mode: " << streamSource << std::endl;
-        std::cout << "	# calib file: " << calibCameraSource << std::endl;
-        std::cout << "	# triangulation pair: (" << indexFirstKeyFrame << "," << indexSecondKeyFrame << ")" << std::endl
-                  << std::endl;
+
+        LOG_INFO("	# stream mode: {} " ,streamSource);
+        LOG_INFO("	# calib file: {} ", calibCameraSource);
+        LOG_INFO("	# triangulation pair: {}, {}",  indexFirstKeyFrame , indexSecondKeyFrame);
+
         ox.close();
 
         return true;
@@ -320,7 +323,8 @@ bool ParseConfigFile(const std::string &filePath)
     else
     {
         ox.close();
-        std::cout << " can't read slam config slam file from: " << filePath << std::endl;
+        LOG_INFO("	 can't read slam config slam file from: {} " ,filePath);
+
         return false;
     }
 }
@@ -335,7 +339,7 @@ void init(std::string configFile)
     keypointsDetector = xpcf::ComponentFactory::createInstance<SolARKeypointDetectorOpencv>()->bindTo<features::IKeypointDetector>();
     descriptorExtractor = xpcf::ComponentFactory::createInstance<SolARDescriptorsExtractorORBOpencv>()->bindTo<features::IDescriptorsExtractor>();
 #else
-    std::cout << "USE non Free " << std::endl;
+    LOG_INFO("USE non Free descriptors");
 
     keypointsDetector = xpcf::ComponentFactory::createInstance<SolARKeypointDetectorNonFreeOpencv>()->bindTo<features::IKeypointDetector>();
     descriptorExtractor = xpcf::ComponentFactory::createInstance<SolARDescriptorsExtractorSURF64Opencv>()->bindTo<features::IDescriptorsExtractor>();
@@ -363,7 +367,7 @@ void init(std::string configFile)
 
     corr2D3DFinder = xpcf::ComponentFactory::createInstance<SolAR2D3DCorrespondencesFinderOpencv>()->bindTo<solver::pose::I2D3DCorrespondencesFinder>();
 
-    std::cout << "Parse file" << std::endl;
+    LOG_INFO(" Parse file");
     ParseConfigFile(configFile.c_str());
 
 #ifdef USE_FREE
@@ -387,20 +391,27 @@ void init(std::string configFile)
         //std::cout << "	# loading frames: ";
         //// this part to load image from video:
     }
-    std::cout << "<loading static view: ";
+    
+    LOG_INFO(" Loading static view:");
+    
     static_views.resize(static_views_no);
+    
     for (int k = 0; k < static_views_no; ++k)
     {
         std::stringstream buff;
         buff << std::setfill('0') << std::setw(5) << k;
         std::string path_temp = streamSource + buff.str() + ".png";
-        std::cout << " temp: " << path_temp << std::endl;
+        
+        LOG_INFO(" temp: {}",path_temp);
+        
         imageLoader->loadImage(path_temp, static_views[k]);
-        std::cout << "     ->img size: " << static_views[k]->getWidth() << " " << static_views[k]->getHeight() << std::endl;
+
+        LOG_INFO("     ->img size: {}, {}" ,static_views[k]->getWidth(), static_views[k]->getHeight());
+
         viewer->display("__view", static_views[k]);
     }
     frame_counter = frame_begin;
-    std::cout << " done" << std::endl;
+        LOG_INFO(" Loading static view:........done");
 }
 
 bool fullTriangulation(const std::vector<SRef<Point2Df>> &pt2d_1,
@@ -417,7 +428,8 @@ bool fullTriangulation(const std::vector<SRef<Point2Df>> &pt2d_1,
 
     if (p2.size() != 4)
     {
-        std::cerr << " number of decomposed poses supposed to be 4.." << std::endl;
+        LOG_ERROR(" number of decomposed poses supposed to be 4.." );
+
         return false;
     }
     std::vector<SRef<CloudPoint>> pcloud;
@@ -443,7 +455,7 @@ bool fullTriangulation(const std::vector<SRef<Point2Df>> &pt2d_1,
             return false;
         }
     }
-    std::cout << " pcloud basic: " << pcloud.size() << std::endl;
+    LOG_INFO("pcloud basic: {}" , pcloud.size());
     cloud.reserve(pcloud.size());
 
     for (unsigned int k = 0; k < pcloud.size(); k++)
@@ -452,7 +464,7 @@ bool fullTriangulation(const std::vector<SRef<Point2Df>> &pt2d_1,
     }
 
     mapFilter->filterPointCloud(pcloud, tmp_status, cloud);
-    std::cout << " pcloud filtred: " << cloud.size() << std::endl;
+    LOG_INFO("cloud filtred: {}" , cloud.size());
     return true;
 }
 
@@ -491,9 +503,10 @@ void getPoint2DFromKeyPoint(std::vector<SRef<Keypoint>> &keyPoints, std::vector<
     }
 }
 
+
 bool addFrameToMapAsKeyFrame(SRef<Frame> &frame, SRef<Image> &view, int newIndex)
 {
-    std::cout << "    #debug adding keyframes: " << std::endl;
+    LOG_INFO( "    #debug adding keyframes: ");
     SRef<Keyframe> referenceKeyFrame = frame->getReferenceKeyFrame();
 
     viewer->display("reference keyFrame", referenceKeyFrame->m_view);
@@ -502,24 +515,22 @@ bool addFrameToMapAsKeyFrame(SRef<Frame> &frame, SRef<Image> &view, int newIndex
     Transform3Df poseFrame = frame->m_pose;
     Transform3Df poseKeyFrame = referenceKeyFrame->m_pose;
 
-    std::cout << "        #pose frame: " << std::endl;
+    LOG_INFO("        #pose frame: " );
     for (int ii = 0; ii < 3; ++ii)
     {
         for (int jj = 0; jj < 3; ++jj)
         {
-            std::cout << "        " << poseFrame(ii, jj) << " ";
+              LOG_INFO("        {}",poseFrame(ii, jj)  );
         }
-        std::cout << std::endl;
     }
-    std::cout << "        #pose kframe: " << std::endl;
+    LOG_INFO("        #pose kframe: " );
 
     for (int ii = 0; ii < 3; ++ii)
     {
         for (int jj = 0; jj < 3; ++jj)
         {
-            std::cout << "        " << poseKeyFrame(ii, jj) << " ";
+            LOG_INFO("        {}",poseKeyFrame(ii, jj));
         }
-        std::cout << std::endl;
     }
 
     std::vector<SRef<Point2Df>> pointsFrame;
@@ -532,7 +543,7 @@ bool addFrameToMapAsKeyFrame(SRef<Frame> &frame, SRef<Image> &view, int newIndex
     // triangulate all points from keyFrame?
     getMatchedKeyPoints(kp1, kp2, frame->getUnknownMatchesWithReferenceKeyFrame(), pointsKeyFrame, pointsFrame);
 
-    std::cout << "    ->match points: " << pointsFrame.size() << std::endl;
+    LOG_INFO("    ->match points: {}",pointsFrame.size());
 
     std::vector<SRef<CloudPoint>> newMapPoints;
     std::pair<int, int> corres(referenceKeyFrame->m_idx, newIndex);
@@ -540,21 +551,21 @@ bool addFrameToMapAsKeyFrame(SRef<Frame> &frame, SRef<Image> &view, int newIndex
     // Triangulate new points
     mapper->triangulate(pointsFrame, pointsKeyFrame, frame->getUnknownMatchesWithReferenceKeyFrame(), corres, frame->m_pose, referenceKeyFrame->m_pose,
                         K, dist, newMapPoints);
-    std::cout << "    ->new 3d points: " << newMapPoints.size() << std::endl;
+    LOG_INFO("     ->new 3d points: {}",newMapPoints.size());                
 
     // check point cloud
     std::vector<bool> tmp_status;
     if (!mapFilter->checkFrontCameraPoints(newMapPoints, frame->m_pose, tmp_status))
     {
         // not good triangulation : do not add key frame
-        std::cout << "not good triangulation : do not add key frame " << std::endl;
+        LOG_INFO(" not good triangulation : do not add key frame ");
         return false;
     }
     //filter point cloud
     std::vector<SRef<CloudPoint>> filteredPoints;
     mapFilter->filterPointCloud(newMapPoints, tmp_status, filteredPoints);
 
-    std::cout << "  filtred point size: " << filteredPoints.size() << std::endl;
+    LOG_INFO("  filtered point size: {}" ,filteredPoints.size());
 
     referenceKeyFrame->addVisibleMapPoints(filteredPoints);
     poseGraph->getMap()->addCloudPoints(filteredPoints);
@@ -571,8 +582,7 @@ bool addFrameToMapAsKeyFrame(SRef<Frame> &frame, SRef<Image> &view, int newIndex
     {
         commonPoints[i]->m_visibility[newIndex] = knownMatches[i].getIndexInDescriptorB(); // Clean needed : Try to do this somewhere else
     }
-
-    std::cout << " add new keyframe  with " << filteredPoints.size() << "points" << std::endl;
+    LOG_INFO("  add new keyframe  with : {} points" ,filteredPoints.size());
     poseGraph->addNewKeyFrame(newKeyFrame);
 
     // update viewer
@@ -586,8 +596,8 @@ bool init_mapping(SRef<Image> &view_1, SRef<Image> &view_2, const std::string &p
     SRef<Frame> frame1 = createAndInitFrame(view_1);
     SRef<Frame> frame2 = createAndInitFrame(view_2);
 
-    std::cout << "   frame 1: " << frame1->getKeyPoints().size() << std::endl;
-    std::cout << "   frame 2: " << frame2->getKeyPoints().size() << std::endl;
+    LOG_INFO("   frame 1: {} ", frame1->getKeyPoints().size());
+    LOG_INFO("   frame 2: {} " , frame2->getKeyPoints().size()); 
 
     std::vector<DescriptorMatch> matches;
 
@@ -609,8 +619,9 @@ bool init_mapping(SRef<Image> &view_1, SRef<Image> &view_2, const std::string &p
     std::vector<DescriptorMatch> ggmatches;
 
     matchesFilterGeometric->filter(matches, ggmatches, frame1->getKeyPoints(), frame2->getKeyPoints());
+    
 
-    std::cout << "Output geometric matches : " << ggmatches.size() << std::endl;
+    LOG_INFO("Output geometric matches: {} ", ggmatches.size());
 
     std::vector<SRef<Point2Df>> ggmatchedKeypoints1;
     std::vector<SRef<Point2Df>> ggmatchedKeypoints2;
@@ -662,7 +673,8 @@ bool init_mapping(SRef<Image> &view_1, SRef<Image> &view_2, const std::string &p
     }
     else
     {
-        std::cerr << "can't find good baseline, select another pair of images for triangulation.." << std::endl;
+        LOG_ERROR("can't find good baseline, select another pair of images for triangulation..");
+
         return false;
     }
 }
@@ -708,7 +720,8 @@ bool tracking(SRef<Image> &view)
 
     if (PnP->estimate(pt2d, pt3d, imagePoints_inliers, worldPoints_inliers, pose_current) == FrameworkReturnCode::_SUCCESS)
     {
-        std::cout << " pnp inliers size: " << worldPoints_inliers.size() << " / " << pt3d.size() << std::endl;
+        LOG_INFO(" pnp inliers size: {} / {}",worldPoints_inliers.size(), pt3d.size());
+
         newFrame->m_pose = pose_current.inverse();
         frame_poses.push_back(newFrame->m_pose);
         // triangulate with the first keyframe !
@@ -727,8 +740,10 @@ bool tracking(SRef<Image> &view)
                                                                       0,0,0,0.0,visibility);
         }*/
 
-        std::cout<<" cloud current size: "<<cloud_current->size()<<std::endl;
-             return true;
+        LOG_INFO(" cloud current size: {}", cloud_current->size());
+        
+        return true;
+        
         }else{
            // std::cout<<"new keyframe creation.."<<std::endl;
             return false;
@@ -742,19 +757,21 @@ void idle_static()
     }
     if (triangulation_first)
     {
-        std::string path_cloud = "D:/old_points.txt";
+        std::string path_cloud = output_debug_folder_path+"old_points.txt";
+
         if (init_mapping(static_views[3], static_views[4], path_cloud))
         {
-            std::string path_cloud = "D:/old_points.txt";
+
             triangulation_first = false;
-            std::cout << " done" << std::endl;
+            LOG_INFO("Init Mapping done");
         }
     }
     if (processing && !triangulation_first)
     {
-        viewer->display("fram to track", static_views[frame_counter]);
+        viewer->display("Frame to track", static_views[frame_counter]);
         tracking(static_views[frame_counter]);
         ++frame_counter;
+
         if (frame_counter >= static_views.size() - 1)
         {
             frame_counter = frame_begin;
@@ -768,11 +785,13 @@ void resize(int _w, int _h)
     w = _w;
     h = _h;
 }
+
 void mm(int x, int y)
 {
     y = h - y;
     viewer3D.mouse_move(x, y);
 }
+
 void mb(int button, int state, int x, int y)
 {
     y = h - y;
@@ -868,6 +887,7 @@ void drawing_pose(Transform3Df &m, float radius, float *color)
     glVertex3f(transformedCorners[0][0], transformedCorners[0][1], transformedCorners[0][2]);
     glEnd();
 }
+
 void drawing_cameras(std::vector<Transform3Df> &poses, float radius, float *color)
 {
     for (unsigned int k = 0; k < poses.size(); ++k)
@@ -875,6 +895,7 @@ void drawing_cameras(std::vector<Transform3Df> &poses, float radius, float *colo
         drawing_pose(poses[k], radius, color);
     }
 }
+
 void drawing_cloud(SRef<std::vector<SRef<CloudPoint>>> &cloud_temp, float radius, float *color)
 {
     GLUquadric *quad = gluNewQuadric();
@@ -917,7 +938,7 @@ void draw()
         float radius_cloud = 1.25;
         float radius_camera = 1.0;
 
-          SRef<std::vector<SRef<CloudPoint>>> cloud_temp = poseGraph->getMap()->getPointCloud();
+        SRef<std::vector<SRef<CloudPoint>>> cloud_temp = poseGraph->getMap()->getPointCloud();
 
         drawing_cloud(cloud_temp, radius_cloud, color_cloud0);
         drawing_cameras(keyframe_poses, radius_camera, color_keyframe);
@@ -926,6 +947,7 @@ void draw()
             drawing_cameras(frame_poses, radius_camera, color_frame);
             drawing_cloud(cloud_current, radius_cloud, color_cloud1);
         }
+
         glutSwapBuffers();
         glutPostRedisplay();
     }
@@ -933,18 +955,6 @@ void draw()
 
 int printHelp()
 {
-    /* 
-    LOG_INFO("Missing parameters");
-    const char *filename = "readme.adoc";
-    std::ifstream ifs(filename);
-    if(!ifs){
-        LOG_ERROR("File {} does not exist", filename)
-        return 1;
-    }
-    std::string line;
-    while(std::getline(ifs,line))
-        LOG_INFO("{}", line)
-    ifs.close();*/
     std::cout << "You should add a SlamConfig.txt file such as: " << std::endl;
     std::cout << "        > SolARSample slamConfig.txt  " << std::endl;
 
@@ -954,13 +964,15 @@ int printHelp()
 int main(int argc, char *argv[])
 {
 
-    std::string configFile;
+    LOG_ADD_LOG_TO_CONSOLE();
 
+    std::string configFile;
+    output_debug_folder_path = ""; //default debug folder path
+    
     //Test input parameters
     if (argc >= 2)
     {
         configFile = std::string(argv[1]);
-        std::cout<<" "<<is_file_exist(configFile.c_str())<<std::endl;
     }
 
     if(!is_file_exist(configFile.c_str())){
@@ -968,20 +980,25 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-
-    glutInit(&argc, argv);
-    //configFile=std::string("slamConfig.txt");
-
     init(configFile);
+
+    output
+    
+    //opengl initialization and run
+    glutInit(&argc, argv);
     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
-    glutInitWindowSize(640, 480);
-    glutCreateWindow("window");
+    glutInitWindowSize(1280,1024);
+    glutCreateWindow("Sample-Slam");
+
+    //glut callback function to overide behavior
     glutDisplayFunc(draw);
     glutKeyboardFunc(keyBoard);
     glutMouseFunc(mb);
     glutMotionFunc(mm);
     glutReshapeFunc(resize);
     glutIdleFunc(idle_static);
+
     glutMainLoop();
+
     return 0;
 }
