@@ -33,6 +33,7 @@ HEADERS += constant.h \
     constants.h \
     utilities.h \
     gl_camera.h \
+    drawingUtils.h \
     OpenGLViewer.h
 
 SOURCES += \

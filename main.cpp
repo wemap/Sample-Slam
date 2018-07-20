@@ -27,6 +27,9 @@
 
 #include <boost/filesystem.hpp>
 
+#include "drawingUtils.h"
+
+
 namespace xpcf = org::bcom::xpcf;
 using namespace org::bcom::xpcf;
 
@@ -57,7 +60,7 @@ const int static_views_no = 9;
 int frame_counter;
 int frame_begin = 4;
 
-void keyBoard(unsigned char key, int x, int y)
+void ogl_callback_keyBoard(unsigned char key, int x, int y)
 {
     switch (key)
     {
@@ -110,185 +113,6 @@ void keyBoard(unsigned char key, int x, int y)
     }
 }
 
-
-void DrawPointCloud(Transform3Df relative_pose)
-{
-    std::string window_name = "cloud_points";
-    cv::namedWindow(window_name, 0);
-    cv::resizeWindow(window_name, 640, 480);
-    cv::Mat reprojected(cv::Size(640, 480), CV_8UC3);
-    reprojected.setTo(0);
-
-    std::vector<cv::Point3f> worldCVPoints;
-    std::set<cv::Point3f> worldCVPointsSet;
-    std::vector<cv::Point2f> projected3D;
-
-    std::vector<SRef<CloudPoint>> Map = *(poseGraph->getMap()->getPointCloud());
-
-    for (auto point : Map)
-    {
-        worldCVPoints.push_back(cv::Point3f(point->getX(), point->getY(), point->getZ()));
-    }
-
-    if (worldCVPoints.size() != 0)
-    {
-
-        CamCalibration intrinsic_param;
-        CamDistortion distorsion_param;
-
-        intrinsic_param = camera->getIntrinsicsParameters();
-        distorsion_param = camera->getDistorsionParameters();
-
-        cv::Mat m_camMatrix;
-        cv::Mat m_camDistorsion;
-        m_camMatrix.create(3, 3, CV_32FC1);
-        m_camDistorsion.create(5, 1, CV_32FC1);
-
-        m_camDistorsion.at<float>(0, 0) = dist(0);
-        m_camDistorsion.at<float>(1, 0) = dist(1);
-        m_camDistorsion.at<float>(2, 0) = dist(2);
-        m_camDistorsion.at<float>(3, 0) = dist(3);
-        m_camDistorsion.at<float>(4, 0) = dist(4);
-
-        m_camMatrix.at<float>(0, 0) = intrinsic_param(0, 0);
-        m_camMatrix.at<float>(0, 1) = intrinsic_param(0, 1);
-        m_camMatrix.at<float>(0, 2) = intrinsic_param(0, 2);
-        m_camMatrix.at<float>(1, 0) = intrinsic_param(1, 0);
-        m_camMatrix.at<float>(1, 1) = intrinsic_param(1, 1);
-        m_camMatrix.at<float>(1, 2) = intrinsic_param(1, 2);
-        m_camMatrix.at<float>(2, 0) = intrinsic_param(2, 0);
-        m_camMatrix.at<float>(2, 1) = intrinsic_param(2, 1);
-        m_camMatrix.at<float>(2, 2) = intrinsic_param(2, 2);
-
-        // Rotation and Translation from input pose
-        cv::Mat Rvec;
-        Rvec.create(3, 3, CV_32FC1);
-        cv::Mat Tvec;
-        Tvec.create(3, 1, CV_32FC1);
-
-        Rvec.at<float>(0, 0) = relative_pose(0, 0);
-        Rvec.at<float>(0, 1) = relative_pose(0, 1);
-        Rvec.at<float>(0, 2) = relative_pose(0, 2);
-
-        Rvec.at<float>(1, 0) = relative_pose(1, 0);
-        Rvec.at<float>(1, 1) = relative_pose(1, 1);
-        Rvec.at<float>(1, 2) = relative_pose(1, 2);
-
-        Rvec.at<float>(2, 0) = relative_pose(2, 0);
-        Rvec.at<float>(2, 1) = relative_pose(2, 1);
-        Rvec.at<float>(2, 2) = relative_pose(2, 2);
-
-        Tvec.at<float>(0, 0) = relative_pose(0, 3);
-        Tvec.at<float>(1, 0) = relative_pose(1, 3);
-        Tvec.at<float>(2, 0) = relative_pose(2, 3);
-
-        cv::Mat rodrig;
-        cv::Rodrigues(Rvec, rodrig);
-   
-        cv::projectPoints(worldCVPoints, rodrig, Tvec, m_camMatrix, m_camDistorsion, projected3D);
-
-        for (int i = 0; i < projected3D.size(); i++)
-        {
-            cv::circle(reprojected, projected3D[i], 2.0, cv::Scalar(0, 0, 255), 2.0, 8, 0);
-        }
-
-        cv::imshow("cloud_points", reprojected);
-    }
-}
-void DrawPnpMatches(const std::vector<SRef<Point2Df>> &imagePoints, const std::vector<SRef<Point3Df>> &worldPoints, Transform3Df relative_pose)
-{
-
-    std::vector<cv::Point2f> imageCVPoints;
-    std::vector<cv::Point3f> worldCVPoints;
-
-    for (int i = 0; i < imagePoints.size(); ++i)
-    {
-        Point2Df point2D = *(imagePoints.at(i));
-        Point3Df point3D = *(worldPoints.at(i));
-        imageCVPoints.push_back(cv::Point2f(point2D.getX(), point2D.getY()));
-        worldCVPoints.push_back(cv::Point3f(point3D.getX(), point3D.getY(), point3D.getZ()));
-    }
-
-    std::string window_name = "reprojectedPoints";
-    cv::namedWindow(window_name, 0);
-    cv::resizeWindow(window_name, 640, 480);
-    cv::Mat reprojected(cv::Size(640, 480), CV_8UC3);
-    reprojected.setTo(0);
-
-    std::vector<cv::Point2f> projected3D;
-
-    if (worldCVPoints.size() != 0)
-    {
-
-        CamCalibration intrinsic_param;
-        CamDistortion distorsion_param;
-
-        intrinsic_param = camera->getIntrinsicsParameters();
-        distorsion_param = camera->getDistorsionParameters();
-
-        cv::Mat m_camMatrix;
-        cv::Mat m_camDistorsion;
-        m_camMatrix.create(3, 3, CV_32FC1);
-        m_camDistorsion.create(5, 1, CV_32FC1);
-
-        m_camDistorsion.at<float>(0, 0) = dist(0);
-        m_camDistorsion.at<float>(1, 0) = dist(1);
-        m_camDistorsion.at<float>(2, 0) = dist(2);
-        m_camDistorsion.at<float>(3, 0) = dist(3);
-        m_camDistorsion.at<float>(4, 0) = dist(4);
-
-        m_camMatrix.at<float>(0, 0) = intrinsic_param(0, 0);
-        m_camMatrix.at<float>(0, 1) = intrinsic_param(0, 1);
-        m_camMatrix.at<float>(0, 2) = intrinsic_param(0, 2);
-        m_camMatrix.at<float>(1, 0) = intrinsic_param(1, 0);
-        m_camMatrix.at<float>(1, 1) = intrinsic_param(1, 1);
-        m_camMatrix.at<float>(1, 2) = intrinsic_param(1, 2);
-        m_camMatrix.at<float>(2, 0) = intrinsic_param(2, 0);
-        m_camMatrix.at<float>(2, 1) = intrinsic_param(2, 1);
-        m_camMatrix.at<float>(2, 2) = intrinsic_param(2, 2);
-
-        // Rotation and Translation from input pose
-        cv::Mat Rvec;
-        Rvec.create(3, 3, CV_32FC1);
-        cv::Mat Tvec;
-        Tvec.create(3, 1, CV_32FC1);
-
-        Rvec.at<float>(0, 0) = relative_pose(0, 0);
-        Rvec.at<float>(0, 1) = relative_pose(0, 1);
-        Rvec.at<float>(0, 2) = relative_pose(0, 2);
-
-        Rvec.at<float>(1, 0) = relative_pose(1, 0);
-        Rvec.at<float>(1, 1) = relative_pose(1, 1);
-        Rvec.at<float>(1, 2) = relative_pose(1, 2);
-
-        Rvec.at<float>(2, 0) = relative_pose(2, 0);
-        Rvec.at<float>(2, 1) = relative_pose(2, 1);
-        Rvec.at<float>(2, 2) = relative_pose(2, 2);
-
-        Tvec.at<float>(0, 0) = relative_pose(0, 3);
-        Tvec.at<float>(1, 0) = relative_pose(1, 3);
-        Tvec.at<float>(2, 0) = relative_pose(2, 3);
-
-        cv::Mat rodrig;
-        cv::Rodrigues(Rvec, rodrig);
-        //    std::cout << " rodrig \n";
-        //    std::cout << rodrig <<std::endl;
-        //    std::cout << " Tvec \n";
-        //    std::cout << Tvec <<std::endl;
-
-        cv::projectPoints(worldCVPoints, rodrig, Tvec, m_camMatrix, m_camDistorsion, projected3D);
-
-        //    std::cout << projected3D.size() << "\n\n";
-
-        for (int i = 0; i < projected3D.size(); i++)
-        {
-            cv::circle(reprojected, imageCVPoints[i], 2.0, cv::Scalar(0, 255, 0), 2.0, 8, 0);
-            cv::circle(reprojected, projected3D[i], 2.0, cv::Scalar(0, 0, 255), 2.0, 8, 0);
-        }
-
-        cv::imshow("reprojectedPoints", reprojected);
-    }
-}
 bool ParseConfigFile(const std::string &filePath)
 {
     indexCurrentFrame = 0;
@@ -328,6 +152,7 @@ bool ParseConfigFile(const std::string &filePath)
         return false;
     }
 }
+
 void init(std::string configFile)
 {
     // component creation
@@ -410,7 +235,8 @@ void init(std::string configFile)
 
         viewer->display("__view", static_views[k]);
     }
-    frame_counter = frame_begin;
+
+        frame_counter = frame_begin;
         LOG_INFO(" Loading static view:........done");
 }
 
@@ -432,6 +258,7 @@ bool fullTriangulation(const std::vector<SRef<Point2Df>> &pt2d_1,
 
         return false;
     }
+
     std::vector<SRef<CloudPoint>> pcloud;
     std::vector<SRef<CloudPoint>> pcloud1;
     std::vector<bool> tmp_status;
@@ -465,35 +292,36 @@ bool fullTriangulation(const std::vector<SRef<Point2Df>> &pt2d_1,
 
     mapFilter->filterPointCloud(pcloud, tmp_status, cloud);
     LOG_INFO("cloud filtred: {}" , cloud.size());
+
     return true;
 }
 
 SRef<Frame> createAndInitFrame(SRef<Image> &img)
 {
-    std::chrono::time_point<std::chrono::system_clock> now1 = std::chrono::system_clock::now();
-    SRef<Frame> resul = xpcf::utils::make_shared<Frame>();
+    SRef<Frame> output_frame = xpcf::utils::make_shared<Frame>();
 
     std::vector<SRef<Keypoint>> keyPoints;
     SRef<DescriptorBuffer> descriptors;
 
     keypointsDetector->detect(img, keyPoints);
     descriptorExtractor->extract(img, keyPoints, descriptors);
-    resul->InitKeyPointsAndDescriptors(keyPoints, descriptors);
 
-    std::chrono::time_point<std::chrono::system_clock> now2 = std::chrono::system_clock::now();
-    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now2 - now1).count();
-    //    std::cout << " create frame " << ms << std::endl ;
-    return resul;
+    output_frame->InitKeyPointsAndDescriptors(keyPoints, descriptors);
+
+    return output_frame;
 }
+
 void getMatchedKeyPoints(std::vector<SRef<Keypoint>> &keyPoints1, std::vector<SRef<Keypoint>> &keyPoints2, std::vector<DescriptorMatch> &matches, std::vector<SRef<Point2Df>> &matchedKeyPoints1, std::vector<SRef<Point2Df>> &matchedKeyPoints2)
 {
     matchedKeyPoints1.reserve(matches.size()); // allocate memory
+
     for (int i = 0; i < matches.size(); i++)
     {
         matchedKeyPoints1.push_back(xpcf::utils::make_shared<Point2Df>(keyPoints1[matches[i].getIndexInDescriptorA()]->getX(), keyPoints1[matches[i].getIndexInDescriptorA()]->getY()));
         matchedKeyPoints2.push_back(xpcf::utils::make_shared<Point2Df>(keyPoints2[matches[i].getIndexInDescriptorB()]->getX(), keyPoints2[matches[i].getIndexInDescriptorB()]->getY()));
     }
 }
+
 void getPoint2DFromKeyPoint(std::vector<SRef<Keypoint>> &keyPoints, std::vector<SRef<Point2Df>> &to2D)
 {
     to2D.reserve(keyPoints.size());
@@ -523,8 +351,8 @@ bool addFrameToMapAsKeyFrame(SRef<Frame> &frame, SRef<Image> &view, int newIndex
               LOG_INFO("        {}",poseFrame(ii, jj)  );
         }
     }
-    LOG_INFO("        #pose kframe: " );
 
+    LOG_INFO("        #pose kframe: " );
     for (int ii = 0; ii < 3; ++ii)
     {
         for (int jj = 0; jj < 3; ++jj)
@@ -551,21 +379,24 @@ bool addFrameToMapAsKeyFrame(SRef<Frame> &frame, SRef<Image> &view, int newIndex
     // Triangulate new points
     mapper->triangulate(pointsFrame, pointsKeyFrame, frame->getUnknownMatchesWithReferenceKeyFrame(), corres, frame->m_pose, referenceKeyFrame->m_pose,
                         K, dist, newMapPoints);
+
     LOG_INFO("     ->new 3d points: {}",newMapPoints.size());                
 
     // check point cloud
     std::vector<bool> tmp_status;
+
     if (!mapFilter->checkFrontCameraPoints(newMapPoints, frame->m_pose, tmp_status))
     {
         // not good triangulation : do not add key frame
         LOG_INFO(" not good triangulation : do not add key frame ");
         return false;
     }
+
     //filter point cloud
     std::vector<SRef<CloudPoint>> filteredPoints;
     mapFilter->filterPointCloud(newMapPoints, tmp_status, filteredPoints);
 
-    LOG_INFO("  filtered point size: {}" ,filteredPoints.size());
+    LOG_INFO(" filtered point size: {}" ,filteredPoints.size());
 
     referenceKeyFrame->addVisibleMapPoints(filteredPoints);
     poseGraph->getMap()->addCloudPoints(filteredPoints);
@@ -578,11 +409,14 @@ bool addFrameToMapAsKeyFrame(SRef<Frame> &frame, SRef<Image> &view, int newIndex
     // update visibility of common points
     std::vector<SRef<CloudPoint>> &commonPoints = frame->getCommonMapPointsWithReferenceKeyFrame();
     std::vector<DescriptorMatch> &knownMatches = frame->getKnownMatchesWithReferenceKeyFrame();
+
     for (int i = 0; i < commonPoints.size(); i++)
     {
         commonPoints[i]->m_visibility[newIndex] = knownMatches[i].getIndexInDescriptorB(); // Clean needed : Try to do this somewhere else
     }
-    LOG_INFO("  add new keyframe  with : {} points" ,filteredPoints.size());
+
+    LOG_INFO(" add new keyframe  with : {} points" ,filteredPoints.size());
+    
     poseGraph->addNewKeyFrame(newKeyFrame);
 
     // update viewer
@@ -593,57 +427,64 @@ bool addFrameToMapAsKeyFrame(SRef<Frame> &frame, SRef<Image> &view, int newIndex
 
 bool init_mapping(SRef<Image> &view_1, SRef<Image> &view_2, const std::string &path_cloud = std::string())
 {
+
     SRef<Frame> frame1 = createAndInitFrame(view_1);
     SRef<Frame> frame2 = createAndInitFrame(view_2);
 
     LOG_INFO("   frame 1: {} ", frame1->getKeyPoints().size());
     LOG_INFO("   frame 2: {} " , frame2->getKeyPoints().size()); 
 
-    std::vector<DescriptorMatch> matches;
+    std::vector<DescriptorMatch> matches;    
+    std::vector<SRef<Point2Df>> matched_Keypoints1,matched_Keypoints2;
+    std::vector<SRef<Keypoint>> kp1, kp2;
 
     SRef<DescriptorBuffer> d1 = frame1->getDescriptors();
-
     SRef<DescriptorBuffer> d2 = frame2->getDescriptors();
+
     matcher->match(d1, d2, matches);
 
-    std::vector<SRef<Point2Df>> matchedKeypoints1;
-    std::vector<SRef<Point2Df>> matchedKeypoints2;
-    std::vector<SRef<Keypoint>> kp1, kp2;
     kp1 = frame1->getKeyPoints();
     kp2 = frame2->getKeyPoints();
-    getMatchedKeyPoints(kp1, kp2, matches, matchedKeypoints1, matchedKeypoints2);
+
+    getMatchedKeyPoints(kp1, kp2, matches, matched_Keypoints1,matched_Keypoints2);
     int vizPoints0 = matches.size();
 
     // Draw the matches in a dedicated image
-    overlay->drawMatchesLines(view_1, view_2, viewerImage1, matchedKeypoints1, matchedKeypoints2, vizPoints0);
+    overlay->drawMatchesLines(view_1, view_2, viewerImage1, matched_Keypoints1, matched_Keypoints2, vizPoints0);
     std::vector<DescriptorMatch> ggmatches;
 
     matchesFilterGeometric->filter(matches, ggmatches, frame1->getKeyPoints(), frame2->getKeyPoints());
     
-
     LOG_INFO("Output geometric matches: {} ", ggmatches.size());
 
     std::vector<SRef<Point2Df>> ggmatchedKeypoints1;
     std::vector<SRef<Point2Df>> ggmatchedKeypoints2;
+
     kp1 = frame1->getKeyPoints();
     kp2 = frame2->getKeyPoints();
 
     getMatchedKeyPoints(kp1, kp2, ggmatches, ggmatchedKeypoints1, ggmatchedKeypoints2);
 
     int vizPoints2 = int(ggmatches.size());
+
     overlay->drawMatchesLines(view_1, view_2, viewerImage3, ggmatchedKeypoints1, ggmatchedKeypoints2, vizPoints2);
 
     viewer->display("original matches", viewerImage1, 27, 1280, 480);
     viewer->display("filtred matches (epipolar)", viewerImage3, 27, 1280, 480);
 
     fundamentalFinder->find(ggmatchedKeypoints1, ggmatchedKeypoints2, F);
+
     std::vector<Transform3Df> poses;
+
     fundamentalDecomposer->decompose(F, K, dist, poses);
-    Transform3Df pose_canonique;
-    pose_canonique.setIdentity();
+
+    Transform3Df pose_canonique;  pose_canonique.setIdentity();
+
     std::pair<int, int> working_view = std::make_pair(0, 1);
+
     Transform3Df pose_final;
     std::vector<SRef<CloudPoint>> tempCloud;
+    
     if (fullTriangulation(ggmatchedKeypoints1, ggmatchedKeypoints2, ggmatches, working_view, pose_canonique, poses,
                           K, dist, pose_final, tempCloud))
     {
@@ -749,12 +590,14 @@ bool tracking(SRef<Image> &view)
             return false;
     }
 }
-void idle_static()
+
+void ogl_callback_idle_static()
 {
     if (exit_)
     {
         exit(0);
     }
+
     if (triangulation_first)
     {
         std::string path_cloud = output_debug_folder_path+"old_points.txt";
@@ -766,6 +609,7 @@ void idle_static()
             LOG_INFO("Init Mapping done");
         }
     }
+
     if (processing && !triangulation_first)
     {
         viewer->display("Frame to track", static_views[frame_counter]);
@@ -780,19 +624,19 @@ void idle_static()
     }
 }
 
-void resize(int _w, int _h)
+void ogl_callback_resize(int _w, int _h)
 {
     w = _w;
     h = _h;
 }
 
-void mm(int x, int y)
+void ogl_callback_mouse_motion(int x, int y)
 {
     y = h - y;
     viewer3D.mouse_move(x, y);
 }
 
-void mb(int button, int state, int x, int y)
+void ogl_callback_mouse_function(int button, int state, int x, int y)
 {
     y = h - y;
     int zoom = 10;
@@ -800,121 +644,26 @@ void mb(int button, int state, int x, int y)
 
     if (button == GLUT_LEFT_BUTTON && state == GLUT_DOWN)
     {
-
         b = Mouse::ROTATE;
         viewer3D.mouse(x, y, b);
     }
     else if (button == GLUT_RIGHT_BUTTON && state == GLUT_DOWN)
     {
-
         b = Mouse::MOVEXY;
         viewer3D.mouse(x, y, b);
     }
     else if ((button & 3) == 3)
     {
-
         viewer3D.mouse_wheel(zoom);
     }
     else if ((button & 4) == 4)
     {
-
         viewer3D.mouse_wheel(-zoom);
     }
 }
 
-rigid_motion<float> converting_rigidMotion(Transform3Df &m, float scalePosition)
-{
-    rigid_motion<float> camPose;
-    camPose.m_rotation(0, 0) = m(0, 0);
-    camPose.m_rotation(0, 1) = m(0, 1);
-    camPose.m_rotation(0, 2) = m(0, 2);
 
-    camPose.m_rotation(1, 0) = m(1, 0);
-    camPose.m_rotation(1, 1) = m(1, 1);
-    camPose.m_rotation(1, 2) = m(1, 2);
-
-    camPose.m_rotation(2, 0) = m(2, 0);
-    camPose.m_rotation(2, 1) = m(2, 1);
-    camPose.m_rotation(2, 2) = m(2, 2);
-
-    camPose.m_translation[0] = m(0, 3) * scalePosition;
-    camPose.m_translation[1] = m(1, 3) * scalePosition;
-    camPose.m_translation[2] = m(2, 3) * scalePosition;
-    return camPose;
-}
-
-void drawing_pose(Transform3Df &m, float radius, float *color)
-{
-
-    rigid_motion<float> camPose = converting_rigidMotion(m, radius);
-
-    // Compute frustum corners according to camera transform
-    math_vector_3f transformedCorners[5];
-    float offsetCorners = 0.075f * radius;
-    transformedCorners[0] = camPose.apply(math_vector_3f(offsetCorners, offsetCorners, 2.f * offsetCorners));
-    transformedCorners[1] = camPose.apply(math_vector_3f(-offsetCorners, offsetCorners, 2.f * offsetCorners));
-    transformedCorners[2] = camPose.apply(math_vector_3f(-offsetCorners, -offsetCorners, 2.f * offsetCorners));
-    transformedCorners[3] = camPose.apply(math_vector_3f(offsetCorners, -offsetCorners, 2.f * offsetCorners));
-    transformedCorners[4] = camPose.apply(math_vector_3f(0, 0, 0));
-
-    // draw a sphere at each corner of the frustum
-    double cornerDiameter = 0.02f * radius;
-    glColor3f(color[0], color[1], color[2]);
-    for (int i = 0; i < 5; ++i)
-    {
-        glPushMatrix();
-        glTranslatef(transformedCorners[i][0], transformedCorners[i][1], transformedCorners[i][2]);
-        glutSolidSphere(cornerDiameter * 0.5, 30, 30);
-        glPopMatrix();
-    }
-
-    // draw frustum lines
-    float line_width = 1.0f * radius;
-    glLineWidth(line_width);
-    for (int i = 0; i < 4; ++i)
-    {
-        glBegin(GL_LINES);
-        glVertex3f(camPose.m_translation[0], camPose.m_translation[1], camPose.m_translation[2]);
-        glVertex3f(transformedCorners[i][0], transformedCorners[i][1], transformedCorners[i][2]);
-        glEnd();
-    }
-
-    glBegin(GL_LINE_STRIP);
-    glVertex3f(transformedCorners[0][0], transformedCorners[0][1], transformedCorners[0][2]);
-    glVertex3f(transformedCorners[1][0], transformedCorners[1][1], transformedCorners[1][2]);
-    glVertex3f(transformedCorners[2][0], transformedCorners[2][1], transformedCorners[2][2]);
-    glVertex3f(transformedCorners[3][0], transformedCorners[3][1], transformedCorners[3][2]);
-    glVertex3f(transformedCorners[0][0], transformedCorners[0][1], transformedCorners[0][2]);
-    glEnd();
-}
-
-void drawing_cameras(std::vector<Transform3Df> &poses, float radius, float *color)
-{
-    for (unsigned int k = 0; k < poses.size(); ++k)
-    {
-        drawing_pose(poses[k], radius, color);
-    }
-}
-
-void drawing_cloud(SRef<std::vector<SRef<CloudPoint>>> &cloud_temp, float radius, float *color)
-{
-    GLUquadric *quad = gluNewQuadric();
-    glPushMatrix();
-    glBegin(GL_POINTS);
-    glPointSize(radius);
-    Point3Df vr_temp(0, 0, 0);
-    for (unsigned int i = 0; i < cloud_temp->size(); ++i)
-    {
-        vr_temp = Point3Df((*cloud_temp)[i]->getX(), (*cloud_temp)[i]->getY(), (*cloud_temp)[i]->getZ());
-        glColor3f(color[0], color[1], color[2]);
-        glVertex3f(vr_temp.getX(), vr_temp.getY(), vr_temp.getZ());
-    }
-    glEnd();
-    glPopMatrix();
-    gluDeleteQuadric(quad);
-}
-
-void draw()
+void ogl_callback_draw()
 {
     if (poseGraph->getMap()->getPointCloud()->size() > 0)
     {
@@ -981,8 +730,6 @@ int main(int argc, char *argv[])
     }
 
     init(configFile);
-
-    output
     
     //opengl initialization and run
     glutInit(&argc, argv);
@@ -991,12 +738,12 @@ int main(int argc, char *argv[])
     glutCreateWindow("Sample-Slam");
 
     //glut callback function to overide behavior
-    glutDisplayFunc(draw);
-    glutKeyboardFunc(keyBoard);
-    glutMouseFunc(mb);
-    glutMotionFunc(mm);
-    glutReshapeFunc(resize);
-    glutIdleFunc(idle_static);
+    glutDisplayFunc(ogl_callback_draw);
+    glutKeyboardFunc(ogl_callback_keyBoard);
+    glutMouseFunc(ogl_callback_mouse_function);
+    glutMotionFunc(ogl_callback_mouse_motion);
+    glutReshapeFunc(ogl_callback_resize);
+    glutIdleFunc(ogl_callback_idle_static);
 
     glutMainLoop();
 
