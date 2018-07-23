@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-
+#include <utility>
 #include <iostream>
 #include <string>
 #include "constants.h"
@@ -282,14 +282,15 @@ bool fullTriangulation(const std::vector<SRef<Point2Df>> &pt2d_1,
             return false;
         }
     }
+
     LOG_INFO("pcloud basic: {}" , pcloud.size());
     cloud.reserve(pcloud.size());
-
+    
     for (unsigned int k = 0; k < pcloud.size(); k++)
     {
         cloud.push_back(pcloud[k]);
     }
-
+    
     mapFilter->filterPointCloud(pcloud, tmp_status, cloud);
     LOG_INFO("cloud filtred: {}" , cloud.size());
 
@@ -311,23 +312,24 @@ SRef<Frame> createAndInitFrame(SRef<Image> &img)
     return output_frame;
 }
 
-void getMatchedKeyPoints(std::vector<SRef<Keypoint>> &keyPoints1, std::vector<SRef<Keypoint>> &keyPoints2, std::vector<DescriptorMatch> &matches, std::vector<SRef<Point2Df>> &matchedKeyPoints1, std::vector<SRef<Point2Df>> &matchedKeyPoints2)
+void getMatchedKeyPoints(const std::vector<SRef<Keypoint>> &keyPoints1, const  std::vector<SRef<Keypoint>> &keyPoints2, std::vector<DescriptorMatch> &matches, std::vector<SRef<Point2Df>> &matchedKeyPoints1, std::vector<SRef<Point2Df>> &matchedKeyPoints2)
 {
-    matchedKeyPoints1.reserve(matches.size()); // allocate memory
+    matchedKeyPoints1.resize(matches.size()); // allocate memory
+    matchedKeyPoints2.resize(matches.size()); 
 
     for (int i = 0; i < matches.size(); i++)
     {
-        matchedKeyPoints1.push_back(xpcf::utils::make_shared<Point2Df>(keyPoints1[matches[i].getIndexInDescriptorA()]->getX(), keyPoints1[matches[i].getIndexInDescriptorA()]->getY()));
-        matchedKeyPoints2.push_back(xpcf::utils::make_shared<Point2Df>(keyPoints2[matches[i].getIndexInDescriptorB()]->getX(), keyPoints2[matches[i].getIndexInDescriptorB()]->getY()));
+        matchedKeyPoints1[i] =  (xpcf::utils::make_shared<Point2Df>(keyPoints1[matches[i].getIndexInDescriptorA()]->getX(), keyPoints1[matches[i].getIndexInDescriptorA()]->getY()));
+        matchedKeyPoints2[i] =  (xpcf::utils::make_shared<Point2Df>(keyPoints2[matches[i].getIndexInDescriptorB()]->getX(), keyPoints2[matches[i].getIndexInDescriptorB()]->getY()));
     }
 }
 
 void getPoint2DFromKeyPoint(std::vector<SRef<Keypoint>> &keyPoints, std::vector<SRef<Point2Df>> &to2D)
 {
-    to2D.reserve(keyPoints.size());
+    to2D.resize(keyPoints.size());
     for (int i = 0; i < keyPoints.size(); i++)
     {
-        to2D.push_back(xpcf::utils::make_shared<Point2Df>(keyPoints[i]->getX(), keyPoints[i]->getY()));
+        to2D[i] =(xpcf::utils::make_shared<Point2Df>(keyPoints[i]->getX(), keyPoints[i]->getY()));
     }
 }
 
@@ -340,47 +342,35 @@ bool addFrameToMapAsKeyFrame(SRef<Frame> &frame, SRef<Image> &view, int newIndex
     viewer->display("reference keyFrame", referenceKeyFrame->m_view);
     cv::waitKey(0);
 
-    Transform3Df poseFrame = frame->m_pose;
-    Transform3Df poseKeyFrame = referenceKeyFrame->m_pose;
-
     LOG_INFO("        #pose frame: " );
-    for (int ii = 0; ii < 3; ++ii)
-    {
-        for (int jj = 0; jj < 3; ++jj)
-        {
-              LOG_INFO("        {}",poseFrame(ii, jj)  );
+    for (int ii = 0; ii < 3; ++ii){
+        for (int jj = 0; jj < 3; ++jj){
+              LOG_INFO("        {}",frame->m_pose(ii, jj)  );
         }
     }
 
     LOG_INFO("        #pose kframe: " );
-    for (int ii = 0; ii < 3; ++ii)
-    {
-        for (int jj = 0; jj < 3; ++jj)
-        {
-            LOG_INFO("        {}",poseKeyFrame(ii, jj));
+    for (int ii = 0; ii < 3; ++ii){
+        for (int jj = 0; jj < 3; ++jj){
+            LOG_INFO("        {}",referenceKeyFrame->m_pose(ii, jj));
         }
     }
 
     std::vector<SRef<Point2Df>> pointsFrame;
     std::vector<SRef<Point2Df>> pointsKeyFrame;
 
-    std::vector<SRef<Keypoint>> kp1, kp2;
-    kp1 = referenceKeyFrame->getKeyPoints();
-    kp2 = frame->getKeyPoints();
-
     // triangulate all points from keyFrame?
-    getMatchedKeyPoints(kp1, kp2, frame->getUnknownMatchesWithReferenceKeyFrame(), pointsKeyFrame, pointsFrame);
+    getMatchedKeyPoints(referenceKeyFrame->getKeyPoints(), frame->getKeyPoints(), frame->getUnknownMatchesWithReferenceKeyFrame(), pointsKeyFrame, pointsFrame);
 
     LOG_INFO("    ->match points: {}",pointsFrame.size());
 
     std::vector<SRef<CloudPoint>> newMapPoints;
-    std::pair<int, int> corres(referenceKeyFrame->m_idx, newIndex);
 
     // Triangulate new points
-    mapper->triangulate(pointsFrame, pointsKeyFrame, frame->getUnknownMatchesWithReferenceKeyFrame(), corres, frame->m_pose, referenceKeyFrame->m_pose,
+    mapper->triangulate(pointsFrame, pointsKeyFrame, frame->getUnknownMatchesWithReferenceKeyFrame(), std::make_pair(referenceKeyFrame->m_idx, newIndex) , frame->m_pose, referenceKeyFrame->m_pose,
                         K, dist, newMapPoints);
 
-    LOG_INFO("     ->new 3d points: {}",newMapPoints.size());                
+    LOG_INFO("     ->new 3d points: {}", newMapPoints.size());                
 
     // check point cloud
     std::vector<bool> tmp_status;
@@ -427,30 +417,24 @@ bool addFrameToMapAsKeyFrame(SRef<Frame> &frame, SRef<Image> &view, int newIndex
 
 bool init_mapping(SRef<Image> &view_1, SRef<Image> &view_2, const std::string &path_cloud = std::string())
 {
-
     SRef<Frame> frame1 = createAndInitFrame(view_1);
     SRef<Frame> frame2 = createAndInitFrame(view_2);
 
-    LOG_INFO("   frame 1: {} ", frame1->getKeyPoints().size());
+    LOG_INFO("   frame 1: {} " , frame1->getKeyPoints().size());
     LOG_INFO("   frame 2: {} " , frame2->getKeyPoints().size()); 
 
     std::vector<DescriptorMatch> matches;    
     std::vector<SRef<Point2Df>> matched_Keypoints1,matched_Keypoints2;
-    std::vector<SRef<Keypoint>> kp1, kp2;
 
-    SRef<DescriptorBuffer> d1 = frame1->getDescriptors();
+    SRef<DescriptorBuffer> d1 = (frame1->getDescriptors());
     SRef<DescriptorBuffer> d2 = frame2->getDescriptors();
 
     matcher->match(d1, d2, matches);
 
-    kp1 = frame1->getKeyPoints();
-    kp2 = frame2->getKeyPoints();
-
-    getMatchedKeyPoints(kp1, kp2, matches, matched_Keypoints1,matched_Keypoints2);
-    int vizPoints0 = matches.size();
+    getMatchedKeyPoints(frame1->getKeyPoints(), frame2->getKeyPoints(), matches, matched_Keypoints1,matched_Keypoints2);
 
     // Draw the matches in a dedicated image
-    overlay->drawMatchesLines(view_1, view_2, viewerImage1, matched_Keypoints1, matched_Keypoints2, vizPoints0);
+    overlay->drawMatchesLines(view_1, view_2, viewerImage1, matched_Keypoints1, matched_Keypoints2, matches.size());
     std::vector<DescriptorMatch> ggmatches;
 
     matchesFilterGeometric->filter(matches, ggmatches, frame1->getKeyPoints(), frame2->getKeyPoints());
@@ -460,14 +444,9 @@ bool init_mapping(SRef<Image> &view_1, SRef<Image> &view_2, const std::string &p
     std::vector<SRef<Point2Df>> ggmatchedKeypoints1;
     std::vector<SRef<Point2Df>> ggmatchedKeypoints2;
 
-    kp1 = frame1->getKeyPoints();
-    kp2 = frame2->getKeyPoints();
+    getMatchedKeyPoints(frame1->getKeyPoints(), frame2->getKeyPoints(), ggmatches, ggmatchedKeypoints1, ggmatchedKeypoints2);
 
-    getMatchedKeyPoints(kp1, kp2, ggmatches, ggmatchedKeypoints1, ggmatchedKeypoints2);
-
-    int vizPoints2 = int(ggmatches.size());
-
-    overlay->drawMatchesLines(view_1, view_2, viewerImage3, ggmatchedKeypoints1, ggmatchedKeypoints2, vizPoints2);
+    overlay->drawMatchesLines(view_1, view_2, viewerImage3, ggmatchedKeypoints1, ggmatchedKeypoints2, ggmatches.size());
 
     viewer->display("original matches", viewerImage1, 27, 1280, 480);
     viewer->display("filtred matches (epipolar)", viewerImage3, 27, 1280, 480);
@@ -478,28 +457,31 @@ bool init_mapping(SRef<Image> &view_1, SRef<Image> &view_2, const std::string &p
 
     fundamentalDecomposer->decompose(F, K, dist, poses);
 
-    Transform3Df pose_canonique;  pose_canonique.setIdentity();
+    Transform3Df identity_pose_mat;  identity_pose_mat.setIdentity();
 
     std::pair<int, int> working_view = std::make_pair(0, 1);
 
     Transform3Df pose_final;
     std::vector<SRef<CloudPoint>> tempCloud;
     
-    if (fullTriangulation(ggmatchedKeypoints1, ggmatchedKeypoints2, ggmatches, working_view, pose_canonique, poses,
+    if (fullTriangulation(ggmatchedKeypoints1, ggmatchedKeypoints2, ggmatches, working_view, identity_pose_mat, poses,
                           K, dist, pose_final, tempCloud))
     {
 
-        keyframe_poses.push_back(pose_canonique);
+        keyframe_poses.push_back(identity_pose_mat);
         keyframe_poses.push_back(pose_final);
 
-        SRef<Keyframe> kframe1 = xpcf::utils::make_shared<Keyframe>(view_1, frame1->getDescriptors(), 0, pose_canonique, frame1->getKeyPoints());
+        SRef<Keyframe> kframe1 = xpcf::utils::make_shared<Keyframe>(view_1, frame1->getDescriptors(), 0, identity_pose_mat, frame1->getKeyPoints());
         SRef<Keyframe> kframe2 = xpcf::utils::make_shared<Keyframe>(view_2, frame2->getDescriptors(), 1, pose_final, frame2->getKeyPoints());
 
         kframe1->addVisibleMapPoints(tempCloud);
         kframe2->addVisibleMapPoints(tempCloud);
+
         poseGraph->initMap(kframe1, kframe2, tempCloud, ggmatches);
+
         Point3Df gravity;
         float maxDist;
+
         poseGraph->getMap()->computeGravity(gravity, maxDist);
         nbFrameSinceKeyFrame = 0;
 
@@ -508,7 +490,7 @@ bool init_mapping(SRef<Image> &view_1, SRef<Image> &view_2, const std::string &p
         viewer3D.resetview(math_vector_3f(gravity.getX(), gravity.getY(), gravity.getZ()), maxDist);
         viewer3D.rotate_180();
 
-        //     viewerGL.AddKeyFrameCameraPose(pose_canonique);
+        //     viewerGL.AddKeyFrameCameraPose(identity_pose_mat);
         //    viewerGL.AddKeyFrameCameraPose(pose_final);
         return true;
     }
@@ -523,9 +505,11 @@ bool init_mapping(SRef<Image> &view_1, SRef<Image> &view_2, const std::string &p
 bool tracking(SRef<Image> &view)
 {
     nbFrameSinceKeyFrame++;
+
     SRef<Frame> newFrame = createAndInitFrame(view);
     poseGraph->associateReferenceKeyFrameToFrame(newFrame);
     newFrame->setNumberOfFramesSinceLastKeyFrame(nbFrameSinceKeyFrame);
+
     std::vector<DescriptorMatch> new_matches, new_matches_filtred;
 
     SRef<Keyframe> referenceKeyFrame = newFrame->getReferenceKeyFrame();
@@ -541,6 +525,7 @@ bool tracking(SRef<Image> &view)
 
     kp1 = referenceKeyFrame->getKeyPoints();
     kp2 = newFrame->getKeyPoints();
+
     getMatchedKeyPoints(kp1, kp2, new_matches_filtred, current_kp1, current_kp2);
 
     overlay->drawMatchesLines(referenceKeyFrame->m_view, view, currentMatchImage, current_kp1, current_kp2, current_kp1.size());
@@ -573,6 +558,7 @@ bool tracking(SRef<Image> &view)
 
         cloud_current = xpcf::utils::make_shared<std::vector<SRef<CloudPoint>>>() ;
         cloud_current->insert(cloud_current->end(), cloud_t.begin()  , cloud_t.end()) ;
+        
         /*
         cloud_current->resize(cloud_t.size());
         for(int k = 0; k < cloud_t.size(); ++k){
@@ -674,7 +660,7 @@ void ogl_callback_draw()
         viewer3D.setup();
         viewer3D.use_light(false);
 
-        glClearColor(1, 1, 1, 1);
+        glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glDisable(GL_CULL_FACE);
 
@@ -693,6 +679,7 @@ void ogl_callback_draw()
         drawing_cameras(keyframe_poses, radius_camera, color_keyframe);
 
         if(frame_poses.size()>0){
+
             drawing_cameras(frame_poses, radius_camera, color_frame);
             drawing_cloud(cloud_current, radius_cloud, color_cloud1);
         }
@@ -702,12 +689,10 @@ void ogl_callback_draw()
     }
 }
 
-int printHelp()
+void printHelp()
 {
     std::cout << "You should add a SlamConfig.txt file such as: " << std::endl;
     std::cout << "        > SolARSample slamConfig.txt  " << std::endl;
-
-    return 1;
 }
 
 int main(int argc, char *argv[])
