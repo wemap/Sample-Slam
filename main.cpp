@@ -202,9 +202,11 @@ void init(std::string configFile)
 #endif
     // load camera parameters from yml input file
     camera->loadCameraParameters(calibCameraSource);
+
     PnP->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
     K = camera->getIntrinsicsParameters();
     dist = camera->getDistorsionParameters();
+    
     // Open camera or file
     if (streamSource == "camera")
     {
@@ -312,7 +314,7 @@ SRef<Frame> createAndInitFrame(SRef<Image> &img)
     return output_frame;
 }
 
-void getMatchedKeyPoints(const std::vector<SRef<Keypoint>> &keyPoints1, const  std::vector<SRef<Keypoint>> &keyPoints2, std::vector<DescriptorMatch> &matches, std::vector<SRef<Point2Df>> &matchedKeyPoints1, std::vector<SRef<Point2Df>> &matchedKeyPoints2)
+void getMatchedKeyPoints(const std::vector<SRef<Keypoint>> & keyPoints1, const  std::vector<SRef<Keypoint>> &keyPoints2, std::vector<DescriptorMatch> &matches, std::vector<SRef<Point2Df>> &matchedKeyPoints1, std::vector<SRef<Point2Df>> &matchedKeyPoints2)
 {
     matchedKeyPoints1.resize(matches.size()); // allocate memory
     matchedKeyPoints2.resize(matches.size()); 
@@ -327,6 +329,7 @@ void getMatchedKeyPoints(const std::vector<SRef<Keypoint>> &keyPoints1, const  s
 void getPoint2DFromKeyPoint(std::vector<SRef<Keypoint>> &keyPoints, std::vector<SRef<Point2Df>> &to2D)
 {
     to2D.resize(keyPoints.size());
+
     for (int i = 0; i < keyPoints.size(); i++)
     {
         to2D[i] =(xpcf::utils::make_shared<Point2Df>(keyPoints[i]->getX(), keyPoints[i]->getY()));
@@ -426,15 +429,16 @@ bool init_mapping(SRef<Image> &view_1, SRef<Image> &view_2, const std::string &p
     std::vector<DescriptorMatch> matches;    
     std::vector<SRef<Point2Df>> matched_Keypoints1,matched_Keypoints2;
 
-    SRef<DescriptorBuffer> d1 = (frame1->getDescriptors());
+    SRef<DescriptorBuffer> d1 = frame1->getDescriptors();
     SRef<DescriptorBuffer> d2 = frame2->getDescriptors();
 
     matcher->match(d1, d2, matches);
 
-    getMatchedKeyPoints(frame1->getKeyPoints(), frame2->getKeyPoints(), matches, matched_Keypoints1,matched_Keypoints2);
+    getMatchedKeyPoints(frame1->getKeyPoints(), frame2->getKeyPoints(), matches, matched_Keypoints1, matched_Keypoints2);
 
     // Draw the matches in a dedicated image
     overlay->drawMatchesLines(view_1, view_2, viewerImage1, matched_Keypoints1, matched_Keypoints2, matches.size());
+
     std::vector<DescriptorMatch> ggmatches;
 
     matchesFilterGeometric->filter(matches, ggmatches, frame1->getKeyPoints(), frame2->getKeyPoints());
@@ -445,7 +449,8 @@ bool init_mapping(SRef<Image> &view_1, SRef<Image> &view_2, const std::string &p
     std::vector<SRef<Point2Df>> ggmatchedKeypoints2;
 
     getMatchedKeyPoints(frame1->getKeyPoints(), frame2->getKeyPoints(), ggmatches, ggmatchedKeypoints1, ggmatchedKeypoints2);
-
+    
+    // Draw the matches in a dedicated image
     overlay->drawMatchesLines(view_1, view_2, viewerImage3, ggmatchedKeypoints1, ggmatchedKeypoints2, ggmatches.size());
 
     viewer->display("original matches", viewerImage1, 27, 1280, 480);
@@ -479,19 +484,8 @@ bool init_mapping(SRef<Image> &view_1, SRef<Image> &view_2, const std::string &p
 
         poseGraph->initMap(kframe1, kframe2, tempCloud, ggmatches);
 
-        Point3Df gravity;
-        float maxDist;
-
-        poseGraph->getMap()->computeGravity(gravity, maxDist);
         nbFrameSinceKeyFrame = 0;
-
-        // update viewer
-
-        viewer3D.resetview(math_vector_3f(gravity.getX(), gravity.getY(), gravity.getZ()), maxDist);
-        viewer3D.rotate_180();
-
-        //     viewerGL.AddKeyFrameCameraPose(identity_pose_mat);
-        //    viewerGL.AddKeyFrameCameraPose(pose_final);
+        
         return true;
     }
     else
@@ -550,8 +544,8 @@ bool tracking(SRef<Image> &view)
 
         newFrame->m_pose = pose_current.inverse();
         frame_poses.push_back(newFrame->m_pose);
-        // triangulate with the first keyframe !
 
+        // triangulate with the first keyframe !
         std::vector<SRef<CloudPoint>>cloud_t;
         double reproj_error = mapper->triangulate(current_kp1, current_kp2, new_matches_filtred,std::make_pair<int,int>(0,2),
                                                   referenceKeyFrame->m_pose, pose_current, K, dist, cloud_t);
@@ -586,13 +580,12 @@ void ogl_callback_idle_static()
 
     if (triangulation_first)
     {
-        std::string path_cloud = output_debug_folder_path+"old_points.txt";
-
-        if (init_mapping(static_views[3], static_views[4], path_cloud))
+        if(init_mapping(static_views[3], static_views[4],  std::string(output_debug_folder_path+"old_points.txt")))
         {
-
             triangulation_first = false;
             LOG_INFO("Init Mapping done");
+            //update opengl drawing
+            ogl_updateGravityFromPoseGraph();
         }
     }
 
@@ -664,14 +657,14 @@ void ogl_callback_draw()
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glDisable(GL_CULL_FACE);
 
-        float color_cloud0[3] = {1.0,0.0,0.0};
-        float color_cloud1[3] = {0.0,0.0,1.0};
+        float color_cloud0[3] = {1.0f,0.0f,0.0f};
+        float color_cloud1[3] = {0.0f,0.0f,1.0f};
 
-        float color_keyframe[3] = {0.0,0.0,1.0};
-        float color_frame[3] = {0.0,1.0,0.0};
+        float color_keyframe[3] = {0.0f,0.0f,1.0f};
+        float color_frame[3] = {0.0f,1.0f,0.0f};
 
-        float radius_cloud = 1.25;
-        float radius_camera = 1.0;
+        float radius_cloud = 1.25f;
+        float radius_camera = 1.0f;
 
         SRef<std::vector<SRef<CloudPoint>>> cloud_temp = poseGraph->getMap()->getPointCloud();
 
