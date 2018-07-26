@@ -275,4 +275,14 @@ void drawing_cloud(SRef<std::vector<SRef<CloudPoint>>> &cloud_temp, float radius
 
 
 
+  // update viewer
+  void ogl_updateGravityFromPoseGraph(void){
+        Point3Df gravity;
+        float maxDist;
+
+        poseGraph->getMap()->computeGravity(gravity, maxDist);
+
+        viewer3D.resetview(math_vector_3f(gravity.getX(), gravity.getY(), gravity.getZ()), maxDist);
+        viewer3D.rotate_180();
+  }
 #endif //_DRAWING_UTILS_H_

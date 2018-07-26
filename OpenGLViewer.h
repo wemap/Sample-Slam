@@ -47,8 +47,6 @@ protected:
     /// \brief  one instance of viewer
     static OpenGLViewer * m_instance ;
 
-
-
 private :
 
     int             m_resolutionX ;
