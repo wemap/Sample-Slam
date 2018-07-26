@@ -58,7 +58,28 @@ std::vector<SRef<Image>> static_views;
 bool adding_once = true;
 const int static_views_no = 9;
 int frame_counter;
-int frame_begin = 4;
+int frame_begin = 5;
+
+
+void log_matrice(Transform3Df&m,std::ofstream&ox){
+    for(int ii = 0; ii < 3; ++ii){
+        for(int  jj = 0; jj < 3; ++jj){
+           ox<<m(ii,jj)<<" ";
+        }
+        ox<<std::endl;
+    }
+   ox<<std::endl;
+}
+
+void log_matrice(CamCalibration&m,std::ofstream&ox){
+    for(int ii = 0; ii < 3; ++ii){
+        for(int  jj = 0; jj < 3; ++jj){
+           ox<<m(ii,jj)<<" ";
+        }
+        ox<<std::endl;
+    }
+   ox<<std::endl;
+}
 
 void ogl_callback_keyBoard(unsigned char key, int x, int y)
 {
@@ -544,29 +565,25 @@ bool tracking(SRef<Image> &view)
 
     Transform3Df pose_current;
 
-    if (PnP->estimate(pt2d, pt3d, imagePoints_inliers, worldPoints_inliers, pose_current) == FrameworkReturnCode::_SUCCESS)
-    {
+    bool updating_map = true;
+    if (PnP->estimate(pt2d, pt3d, imagePoints_inliers, worldPoints_inliers, pose_current) == FrameworkReturnCode::_SUCCESS){
         LOG_INFO(" pnp inliers size: {} / {}",worldPoints_inliers.size(), pt3d.size());
 
         newFrame->m_pose = pose_current.inverse();
         frame_poses.push_back(newFrame->m_pose);
-        // triangulate with the first keyframe !
 
         std::vector<SRef<CloudPoint>>cloud_t;
-        double reproj_error = mapper->triangulate(current_kp1, current_kp2, new_matches_filtred,std::make_pair<int,int>(0,2),
-                                                  referenceKeyFrame->m_pose, pose_current, K, dist, cloud_t);
 
-        cloud_current = xpcf::utils::make_shared<std::vector<SRef<CloudPoint>>>() ;
-        cloud_current->insert(cloud_current->end(), cloud_t.begin()  , cloud_t.end()) ;
+        std::cout<<"    ->reference keyframe: "<<referenceKeyFrame->m_idx<<std::endl;
+        if(updating_map){
+            mapper->triangulate(current_kp1, current_kp2, new_matches_filtred,std::make_pair<int,int>(0,2),
+                                                      referenceKeyFrame->m_pose, pose_current, K, dist, cloud_t);
+
+            cloud_current = xpcf::utils::make_shared<std::vector<SRef<CloudPoint>>>() ;
+            cloud_current->insert(cloud_current->end(), cloud_t.begin()  , cloud_t.end());
+
+        }
         
-        /*
-        cloud_current->resize(cloud_t.size());
-        for(int k = 0; k < cloud_t.size(); ++k){
-            std::vector<int>visibility = std::vector<int>(50, -1);
-           (*cloud_current)[k] = xpcf::utils::make_shared<CloudPoint>(cloud_t[k]->getX(),cloud_t[k]->getY(),cloud_t[k]->getZ(),
-                                                                      0,0,0,0.0,visibility);
-        }*/
-
         LOG_INFO(" cloud current size: {}", cloud_current->size());
         
         return true;
@@ -660,7 +677,7 @@ void ogl_callback_draw()
         viewer3D.setup();
         viewer3D.use_light(false);
 
-        glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+        glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glDisable(GL_CULL_FACE);
 
@@ -695,14 +712,110 @@ void printHelp()
     std::cout << "        > SolARSample slamConfig.txt  " << std::endl;
 }
 
-int main(int argc, char *argv[])
-{
 
-    LOG_ADD_LOG_TO_CONSOLE();
+void off_mapping(std::string&path_info, std::string& path_cloud){
+std::cout<<" offline mapping: "<<std::endl;
+    std::ifstream oxLog(path_info);
+    int pt_no;
+    oxLog>>pt_no;
+    std::vector<DescriptorMatch>matches;
+    std::vector<SRef<Point2Df>> pt_view1;
+    std::vector<SRef<Point2Df>> pt_view2;
+    Transform3Df pose_view1;
+    Transform3Df pose_view2;
+    CamCalibration calib_cam;
+    CamDistortion dist_cam;
 
+    pt_view1.resize(pt_no);
+    pt_view2.resize(pt_no);
+
+    float value[2];
+    unsigned int mm[2];
+    std::cout<<"    #loading points and matches: "<<std::endl;
+    for(int i= 0; i < pt_no; ++i){
+        oxLog>>value[0];
+        oxLog>>value[1];
+
+        pt_view1[i] = xpcf::utils::make_shared<Point2Df>(value[0], value[1]);
+
+        oxLog>>value[0];
+        oxLog>>value[1];
+
+        pt_view2[i] = xpcf::utils::make_shared<Point2Df>(value[0], value[1]);
+
+        /*
+        std::cout<<" pt1: "<<pt_view1[i]->getX()<<" "<<pt_view1[i]->getY()<<std::endl;
+        std::cout<<" pt2: "<<pt_view2[i]->getX()<<" "<<pt_view2[i]->getY()<<std::endl;
+        std::cout<<"-----------------"<<std::endl;
+        */
+        oxLog>>mm[0];
+        oxLog>>mm[1];
+        DescriptorMatch m = DescriptorMatch(mm[0], mm[1],0.5);
+        matches.push_back(m);
+ //       cv::waitKey(0);
+    }
+    std::cout<<"        # pt1: "<<pt_view1.size()<<std::endl;
+    std::cout<<"        # pt2: "<<pt_view2.size()<<std::endl;
+    std::cout<<"        # matches: "<<matches.size()<<std::endl;
+    std::string dummy;
+//    oxLog>>dummy;
+    std::cout<<"    #pose1: "<<std::endl;
+    for(int ii = 0; ii < 3; ++ii){
+        for(int jj = 0; jj < 3; ++jj){
+            oxLog>>pose_view1(ii,jj);
+            std::cout<<pose_view1(ii,jj)<<" ";
+        }
+        std::cout<<std::endl;
+    }
+    std::cout<<std::endl;
+
+    std::cout<<"    #pose2: "<<std::endl;
+    for(int ii = 0; ii < 3; ++ii){
+        for(int jj = 0; jj < 3; ++jj){
+            oxLog>>pose_view2(ii,jj);
+            std::cout<<pose_view2(ii,jj)<<" ";
+        }
+        std::cout<<std::endl;
+    }
+    std::cout<<std::endl;
+
+    std::cout<<"    #calib: "<<std::endl;
+    for(int ii = 0; ii < 3; ++ii){
+        for(int jj = 0; jj < 3; ++jj){
+            oxLog>>calib_cam(ii,jj);
+            std::cout<<calib_cam(ii,jj)<<" ";
+        }
+        std::cout<<std::endl;
+    }
+    std::cout<<std::endl;
+    std::cout<<"    #dist: "<<std::endl;
+    for(int ii = 0; ii < 5; ++ii){
+        dist_cam(0,ii)= 0.0;
+        std::cout<<dist_cam(0,ii)<<" ";
+    }
+    std::cout<<std::endl;
+
+    std::vector<SRef<CloudPoint>>cloud_t;
+    double reproj_error = mapper->triangulate(pt_view1, pt_view2, matches,std::make_pair<int,int>(0,2),
+                                              pose_view1, pose_view2, calib_cam, dist_cam, cloud_t);
+    std::ofstream logCloud(path_cloud);
+    logCloud<<cloud_t.size()<<std::endl;
+
+    for(auto &pp: cloud_t){
+        std::cout<<" pt3d:  "<<pp->getX()<<" "<<pp->getY()<<" "<<pp->getZ()<<std::endl;
+        logCloud<<pp->getX()<<" "<<pp->getY()<<" "<<pp->getZ()<<std::endl;
+        cv::waitKey(0);
+
+    }
+    logCloud.close();
+}
+
+int main(int argc, char *argv[]){
+//    LOG_ADD_LOG_TO_CONSOLE();
     std::string configFile;
     output_debug_folder_path = ""; //default debug folder path
     
+    /*
     //Test input parameters
     if (argc >= 2)
     {
@@ -713,24 +826,33 @@ int main(int argc, char *argv[])
         printHelp();
         return -1;
     }
+*/
+    configFile = "D:/AmineSolar/source/slam/Sample-Slam/slamStaticConfig.txt";
+    init(configFile);   
 
-    init(configFile);
-    
-    //opengl initialization and run
-    glutInit(&argc, argv);
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
-    glutInitWindowSize(1280,1024);
-    glutCreateWindow("Sample-Slam");
+    bool offline = false;
+    if(offline){
+        std::string path_info = "D:/log_slam/infos_5.txt";
+        std::string path_cloud = "D:/log_slam/cloud_5.txt";
+        off_mapping(path_info, path_cloud);
+    }
 
-    //glut callback function to overide behavior
-    glutDisplayFunc(ogl_callback_draw);
-    glutKeyboardFunc(ogl_callback_keyBoard);
-    glutMouseFunc(ogl_callback_mouse_function);
-    glutMotionFunc(ogl_callback_mouse_motion);
-    glutReshapeFunc(ogl_callback_resize);
-    glutIdleFunc(ogl_callback_idle_static);
+    else{
+        //opengl initialization and run
+        glutInit(&argc, argv);
+        glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH);
+        glutInitWindowSize(1280,1024);
+        glutCreateWindow("Sample-Slam");
 
-    glutMainLoop();
+        //glut callback function to overide behavior
+        glutDisplayFunc(ogl_callback_draw);
+        glutKeyboardFunc(ogl_callback_keyBoard);
+        glutMouseFunc(ogl_callback_mouse_function);
+        glutMotionFunc(ogl_callback_mouse_motion);
+        glutReshapeFunc(ogl_callback_resize);
+        glutIdleFunc(ogl_callback_idle_static);
 
+        glutMainLoop();
+    }
     return 0;
 }
