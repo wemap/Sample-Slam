@@ -32,15 +32,11 @@ INCLUDEPATH += "$$(BCOMDEVROOT)/thirdParties/glcamera"
 HEADERS += constant.h \
     constants.h \
     utilities.h \
-    gl_camera.h \
     drawingUtils.h \
     OpenGLViewer.h
 
 SOURCES += \
-    main.cpp \
-    utilities.cpp \
-    gl_camera.cpp \
-    OpenGLViewer.cpp
+    main.cpp
 
 unix {
 
