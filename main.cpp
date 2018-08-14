@@ -26,7 +26,6 @@
 // ADD COMPONENTS HEADERS HERE
 
 #include "SolARModuleOpencv_traits.h"
-#include "SolARModuleTools_traits.h"
 #include "SolARModuleOpengl_traits.h"
 
 #include "xpcf/xpcf.h"
@@ -35,11 +34,7 @@
 #include "api/features/IKeypointDetector.h"
 #include "api/features/IDescriptorsExtractor.h"
 #include "api/features/IDescriptorMatcher.h"
-#include "api/features/IMatchesFilter.h"
-#include "api/features/IKeypointsReIndexer.h"
 #include "api/solver/pose/I3DTransformFinderFrom2D2D.h"
-#include "api/solver/pose/I2DTransformFinder.h"
-#include "api/solver/pose/I2Dto3DTransformDecomposer.h"
 #include "api/solver/map/ITriangulator.h"
 #include "api/solver/map/IMapper.h"
 #include "api/solver/map/IMapFilter.h"
@@ -56,7 +51,6 @@ using namespace SolAR::datastructure;
 using namespace SolAR::api;
 using namespace SolAR::MODULES::OPENCV;
 using namespace SolAR::MODULES::OPENGL;
-using namespace SolAR::MODULES::TOOLS;
 
 namespace xpcf = org::bcom::xpcf;
 
@@ -89,11 +83,7 @@ int main(int argc, char **argv){
     auto descriptorExtractorORB =xpcfComponentManager->create<SolARDescriptorsExtractorORBOpencv>()->bindTo<features::IDescriptorsExtractor>();
     auto matcherKNN =xpcfComponentManager->create<SolARDescriptorMatcherKNNOpencv>()->bindTo<features::IDescriptorMatcher>();
     auto matcherBF =xpcfComponentManager->create<SolARDescriptorMatcherHammingBruteForceOpencv>()->bindTo<features::IDescriptorMatcher>();
-    auto matchesFilterGeometric =xpcfComponentManager->create<SolARGeometricMatchesFilterOpencv>()->bindTo<features::IMatchesFilter>();
-    auto keypointsReindexer =xpcfComponentManager->create<SolARKeypointsReIndexer>()->bindTo<features::IKeypointsReIndexer>();
     auto poseFinderFrom2D2D =xpcfComponentManager->create<SolARPoseFinderFrom2D2DOpencv>()->bindTo<solver::pose::I3DTransformFinderFrom2D2D>();
-    auto fundamentalFinder =xpcfComponentManager->create<SolARFundamentalMatrixEstimationOpencv>()->bindTo<solver::pose::I2DTransformFinder>();
-    auto fundamentalDecomposer =xpcfComponentManager->create<SolARSVDFundamentalMatrixDecomposerOpencv>()->bindTo<solver::pose::I2DTO3DTransformDecomposer>();
     auto mapper =xpcfComponentManager->create<SolARSVDTriangulationOpencv>()->bindTo<solver::map::ITriangulator>();
     auto mapFilter =xpcfComponentManager->create<SolARMapFilterOpencv>()->bindTo<solver::map::IMapFilter>();
     auto poseGraph =xpcfComponentManager->create<SolARMapperOpencv>()->bindTo<solver::map::IMapper>();
@@ -108,8 +98,8 @@ int main(int argc, char **argv){
 
     /* in dynamic mode, we need to check that components are well created*/
     /* this is needed in dynamic mode */
-    if ( !camera || !keypointsDetector || !descriptorExtractorORB || !descriptorExtractorAKAZE2 || !matcherKNN || !matcherBF || !matchesFilterGeometric || !keypointsReindexer || !poseFinderFrom2D2D ||
-         !fundamentalFinder ||!fundamentalDecomposer || !mapper || !mapFilter || !poseGraph || !PnP || !corr2D3DFinder ||
+    if ( !camera || !keypointsDetector || !descriptorExtractorORB || !descriptorExtractorAKAZE2 || !matcherKNN || !matcherBF ||
+         !poseFinderFrom2D2D || !mapper || !mapFilter || !poseGraph || !PnP || !corr2D3DFinder ||
          !overlaySBS || !imageViewerFrame1 || !imageViewerFrame2 || !imageViewerMatches || !viewer3DPoints)
     {
         LOG_ERROR("One or more component creations have failed");
@@ -122,20 +112,15 @@ int main(int argc, char **argv){
     SRef<Frame>                                         frame2 = xpcf::utils::make_shared<Frame>();
     std::vector<SRef<Keypoint>>                         keyPointsView1, keyPointsView2;
     SRef<DescriptorBuffer>                              descriptorsView1, descriptorsView2;
-    std::vector<DescriptorMatch>                        matches, filteredMatches;
-    std::vector<SRef<Point2Df>>                         matchedKeypointsView1,matchedKeypointsView2;
-
-    Transform2Df                                        F;
-    std::vector<Transform3Df>                           posesCandidates;
+    std::vector<DescriptorMatch>                        matches;
 
     Transform3Df                                        poseFrame1 = Transform3Df::Identity();
     Transform3Df                                        poseFrame2;
-    Transform3Df                                        corrected_pose;
 
     std::vector<SRef<CloudPoint>>                       cloud;
 
-    SRef<DescriptorBuffer> d1 = frame1->getDescriptors();
-    SRef<DescriptorBuffer> d2 = frame2->getDescriptors();
+    SRef<DescriptorBuffer>                              d1 = frame1->getDescriptors();
+    SRef<DescriptorBuffer>                              d2 = frame2->getDescriptors();
 
     SRef<Image>                                         view_current;
     std::vector<SRef<Image>>                            views;
@@ -143,18 +128,10 @@ int main(int argc, char **argv){
     SRef<Image>                                         projected_image;
 
     SRef<Image>                                         imageSBSMatches;
-    SRef<Image>                                         viewerImage2;
-    SRef<Image>                                         viewerImage3;
-    SRef<std::vector<SRef<CloudPoint>>>                 cloud_current;
-    CamCalibration                                      K;
-    CamDistortion                                       dist;
-
-
 
     // initialize pose estimation with the camera intrinsic parameters (please refeer to the use of intrinsec parameters file)
     PnP->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
     poseFinderFrom2D2D->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
-    fundamentalDecomposer->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
     mapper->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
 
     LOG_DEBUG("Intrincic parameters : \n {}", camera->getIntrinsicsParameters());
@@ -195,75 +172,23 @@ int main(int argc, char **argv){
 
     // Match keypoint between the two first frame, filtered and display them
     matcherKNN->match(descriptorsView1, descriptorsView2, matches);
-    matchesFilterGeometric->filter(matches, filteredMatches, keyPointsView1, keyPointsView2);
-    keypointsReindexer->reindex(keyPointsView1, keyPointsView2, filteredMatches, matchedKeypointsView1, matchedKeypointsView2);
-    overlaySBS->drawMatchesLines(view1, view2, imageSBSMatches, matchedKeypointsView1, matchedKeypointsView2);
-
-    while (true)
-    {
-        if (imageViewerMatches->display(imageSBSMatches) == SolAR::FrameworkReturnCode::_STOP)
-                break;
-    }
-
-    std::vector<SRef<Point2Df>> inliersView1, inliersView2;
-
+    int nbOriginalMatches = matches.size();
     // Estimate the pose of of the second frame (the first frame being the reference of our coordinate system)
-    poseFinderFrom2D2D->estimate(matchedKeypointsView1, matchedKeypointsView2, poseFrame1, poseFrame2, inliersView1, inliersView2);
-    LOG_DEBUG("Estimate pose of the camera for the frame 2: \n {}", poseFrame2.matrix());
+    poseFinderFrom2D2D->estimate(keyPointsView1, keyPointsView2, poseFrame1, poseFrame2, matches);
+    overlaySBS->drawMatchesLines(view1, view2, imageSBSMatches, keyPointsView1, keyPointsView2, matches);
+    LOG_INFO("Nb matches for triangulation: {}\\{}", matches.size(), nbOriginalMatches);
+    LOG_INFO("Estimate pose of the camera for the frame 2: \n {}", poseFrame2.matrix());
 
 
     // Triangulate
-    std::vector<SRef<CloudPoint>> temp_cloud;
-    std::vector<bool> mapFilterStatus;
-    std::pair<int, int> working_view = std::make_pair(0, 1);
+    double reproj_error = mapper->triangulate(keyPointsView1,keyPointsView2, matches, std::make_pair(0, 1),poseFrame1, poseFrame2,cloud);
 
-/*
-    // Compare to OpenCV !
-    K = camera->getIntrinsicsParameters();
-
-    cv::Mat Kcv(3,3,CV_64FC1);
-    for(int i  = 0; i < 3; ++i){
-        for(int j = 0; j < 3; ++j){
-            double k = K(i,j);
-            Kcv.at<double>(i,j) =k;
-        }
-    }
-
-    std::vector<cv::Point2f> points_view1;
-    std::vector<cv::Point2f> points_view2;
-
-    points_view1.resize(matchedKeypointsView1.size());
-    points_view2.resize(matchedKeypointsView2.size());
-    for( int i = 0; i < matchedKeypointsView1.size(); i++ ){
-        points_view1[i].x=matchedKeypointsView1.at(i)->getX();
-        points_view1[i].y=matchedKeypointsView1.at(i)->getY();
-
-        points_view2[i].x=matchedKeypointsView2.at(i)->getX();
-        points_view2[i].y=matchedKeypointsView2.at(i)->getY();
-    }
-    cv::Mat RotE(3,3,CV_64FC1); cv::Mat RotF(3,3,CV_64FC1);
-    cv::Mat PosE(3,1,CV_64FC1); cv::Mat PosF(3,1,CV_64FC1);
-    cv::Point2f pp; pp.x=K(0,2); pp.y=K(1,2);
-    cv::Mat Fcv = cv::findFundamentalMat(points_view1, points_view2);
-
-    cv::Mat Ecv = cv::findEssentialMat(points_view1, points_view2, K(0,0), pp);
-    LOG_DEBUG("E :\n{}", Ecv);
-    cv::recoverPose(Ecv, points_view1, points_view2, RotE, PosE, K(0,0), pp);
-    cv::Mat Kcvt; cv::transpose(Kcv, Kcvt);
-    cv::recoverPose(Kcvt * Fcv * Kcv, points_view1, points_view2, RotF, PosF, K(0,0), pp);
-    LOG_DEBUG("Kt * F * K: \n {}", Kcvt * Fcv * Kcv);
-    LOG_DEBUG("Estimate rotation RecoverPose from E :\n{}", RotE);
-    LOG_DEBUG("Estimate translation RecoverPose from E :\n{}", PosE);
-    LOG_DEBUG("Estimate rotation RecoverPose from F :\n{}", RotF);
-    LOG_DEBUG("Estimate translation RecoverPose from F :\n{}", PosF);
-*/
-    double reproj_error = mapper->triangulate(inliersView1,inliersView2, filteredMatches, working_view,poseFrame1, poseFrame2,temp_cloud);
-
-//    mapFilter->filterPointCloud(temp_cloud, mapFilterStatus, cloud);
+//  mapFilter->filterPointCloud(temp_cloud, mapFilterStatus, cloud);
 
     while (true)
     {
-        if (viewer3DPoints->display(temp_cloud, poseFrame2) == FrameworkReturnCode::_STOP)
+        if ((imageViewerMatches->display(imageSBSMatches) == FrameworkReturnCode::_STOP) ||
+            (viewer3DPoints->display(cloud, poseFrame2) == FrameworkReturnCode::_STOP))
                 break;
     }
 
