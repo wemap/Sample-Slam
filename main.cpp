@@ -40,6 +40,7 @@
 #include "api/solver/map/IMapFilter.h"
 #include "api/solver/pose/I2D3DCorrespondencesFinder.h"
 #include "api/solver/pose/I3DTransformFinderfrom2D3D.h"
+#include "api/features/IMatchesFilter.h"
 #include "api/display/ISideBySideOverlay.h"
 #include "api/display/I2DOverlay.h"
 #include "api/display/I3DOverlay.h"
@@ -87,6 +88,7 @@ int main(int argc, char **argv){
     auto mapper =xpcfComponentManager->create<SolARSVDTriangulationOpencv>()->bindTo<solver::map::ITriangulator>();
     auto mapFilter =xpcfComponentManager->create<SolARMapFilterOpencv>()->bindTo<solver::map::IMapFilter>();
     auto poseGraph =xpcfComponentManager->create<SolARMapperOpencv>()->bindTo<solver::map::IMapper>();
+    auto matchesFilter =xpcfComponentManager->create<SolARGeometricMatchesFilterOpencv>()->bindTo<features::IMatchesFilter>();
     auto PnP =xpcfComponentManager->create<SolARPoseEstimationPnpOpencv>()->bindTo<solver::pose::I3DTransformFinderFrom2D3D>();
     auto corr2D3DFinder =xpcfComponentManager->create<SolAR2D3DCorrespondencesFinderOpencv>()->bindTo<solver::pose::I2D3DCorrespondencesFinder>();
 
@@ -99,7 +101,7 @@ int main(int argc, char **argv){
     /* in dynamic mode, we need to check that components are well created*/
     /* this is needed in dynamic mode */
     if ( !camera || !keypointsDetector || !descriptorExtractorORB || !descriptorExtractorAKAZE2 || !matcherKNN || !matcherBF ||
-         !poseFinderFrom2D2D || !mapper || !mapFilter || !poseGraph || !PnP || !corr2D3DFinder ||
+         !poseFinderFrom2D2D || !mapper || !mapFilter || !poseGraph || !PnP || !corr2D3DFinder || !matchesFilter ||
          !overlaySBS || !imageViewerFrame1 || !imageViewerFrame2 || !imageViewerMatches || !viewer3DPoints)
     {
         LOG_ERROR("One or more component creations have failed");
@@ -107,11 +109,11 @@ int main(int argc, char **argv){
     }
 
     // declarations
-    SRef<Image>                                         view1, view2;
-    SRef<Frame>                                         frame1 = xpcf::utils::make_shared<Frame>();
-    SRef<Frame>                                         frame2 = xpcf::utils::make_shared<Frame>();
-    std::vector<SRef<Keypoint>>                         keyPointsView1, keyPointsView2;
-    SRef<DescriptorBuffer>                              descriptorsView1, descriptorsView2;
+    SRef<Image>                                         view1, view2, view;
+    SRef<Keyframe>                                      keyframe1;
+    SRef<Keyframe>                                      keyframe2;
+    std::vector<SRef<Keypoint>>                         keypointsView1, keypointsView2, keypoints;
+    SRef<DescriptorBuffer>                              descriptorsView1, descriptorsView2, descriptors;
     std::vector<DescriptorMatch>                        matches;
 
     Transform3Df                                        poseFrame1 = Transform3Df::Identity();
@@ -119,8 +121,8 @@ int main(int argc, char **argv){
 
     std::vector<SRef<CloudPoint>>                       cloud;
 
-    SRef<DescriptorBuffer>                              d1 = frame1->getDescriptors();
-    SRef<DescriptorBuffer>                              d2 = frame2->getDescriptors();
+    std::vector<Transform3Df>                           keyframePoses;
+    std::vector<Transform3Df>                           framePoses;
 
     SRef<Image>                                         view_current;
     std::vector<SRef<Image>>                            views;
@@ -162,36 +164,112 @@ int main(int argc, char **argv){
     }
 
     // Detect keypoints, extract descriptors and create frame for the first two view
-    keypointsDetector->detect(view1, keyPointsView1);
-    descriptorExtractorAKAZE2->extract(view1, keyPointsView1, descriptorsView1);
-    frame1->InitKeyPointsAndDescriptors(keyPointsView1, descriptorsView1);
+    keypointsDetector->detect(view1, keypointsView1);
+    descriptorExtractorAKAZE2->extract(view1, keypointsView1, descriptorsView1);
 
-    keypointsDetector->detect(view2, keyPointsView2);
-    descriptorExtractorAKAZE2->extract(view2, keyPointsView2, descriptorsView2);
-    frame2->InitKeyPointsAndDescriptors(keyPointsView2, descriptorsView2);
+
+    keypointsDetector->detect(view2, keypointsView2);
+    descriptorExtractorAKAZE2->extract(view2, keypointsView2, descriptorsView2);
 
     // Match keypoint between the two first frame, filtered and display them
     matcherKNN->match(descriptorsView1, descriptorsView2, matches);
     int nbOriginalMatches = matches.size();
     // Estimate the pose of of the second frame (the first frame being the reference of our coordinate system)
-    poseFinderFrom2D2D->estimate(keyPointsView1, keyPointsView2, poseFrame1, poseFrame2, matches);
-    overlaySBS->drawMatchesLines(view1, view2, imageSBSMatches, keyPointsView1, keyPointsView2, matches);
+    poseFinderFrom2D2D->estimate(keypointsView1, keypointsView2, poseFrame1, poseFrame2, matches);
+    overlaySBS->drawMatchesLines(view1, view2, imageSBSMatches, keypointsView1, keypointsView2, matches);
     LOG_INFO("Nb matches for triangulation: {}\\{}", matches.size(), nbOriginalMatches);
     LOG_INFO("Estimate pose of the camera for the frame 2: \n {}", poseFrame2.matrix());
 
-
     // Triangulate
-    double reproj_error = mapper->triangulate(keyPointsView1,keyPointsView2, matches, std::make_pair(0, 1),poseFrame1, poseFrame2,cloud);
+    double reproj_error = mapper->triangulate(keypointsView1,keypointsView2, matches, std::make_pair(0, 1),poseFrame1, poseFrame2,cloud);
 
-//  mapFilter->filterPointCloud(temp_cloud, mapFilterStatus, cloud);
 
+    // Initialize the mapper with the frist to frames
+    keyframe1 = xpcf::utils::make_shared<Keyframe>(view1, descriptorsView1, 0, poseFrame1, keypointsView1);
+    keyframe2 = xpcf::utils::make_shared<Keyframe>(view2, descriptorsView2, 1, poseFrame2, keypointsView2);
+    poseGraph->initMap(keyframe1, keyframe2, cloud, matches);
+    keyframePoses.push_back(poseFrame1);
+    keyframePoses.push_back(poseFrame2);
+
+    if ((imageViewerMatches->display(imageSBSMatches) == FrameworkReturnCode::_STOP) ||
+       (viewer3DPoints->display(cloud, poseFrame2) == FrameworkReturnCode::_STOP))
+               return 0;
+
+    // Start tracking
+    int nbFrameSinceKeyFrame = 0;
     while (true)
     {
-        if ((imageViewerMatches->display(imageSBSMatches) == FrameworkReturnCode::_STOP) ||
-            (viewer3DPoints->display(cloud, poseFrame2) == FrameworkReturnCode::_STOP))
-                break;
-    }
+        nbFrameSinceKeyFrame++;
 
+        // Get current image
+        camera->getNextImage(view);
+
+        // Create a new fram
+        SRef<Frame> newFrame = xpcf::utils::make_shared<Frame>();
+
+        // Detect keypoints, extract their corresponding descriptors and add them to the frame
+        keypointsDetector->detect(view, keypoints);
+        descriptorExtractorAKAZE2->extract(view, keypoints, descriptors);
+        newFrame->InitKeyPointsAndDescriptors(keypoints, descriptors);
+
+        // Add this new frame to the Keyframe of reference
+        poseGraph->associateReferenceKeyFrameToFrame(newFrame);
+        newFrame->setNumberOfFramesSinceLastKeyFrame(nbFrameSinceKeyFrame);
+
+        SRef<Keyframe> referenceKeyFrame = newFrame->getReferenceKeyFrame();
+
+        // match current keypoints with the keypoints of the Keyframe
+        SRef<DescriptorBuffer> keyframeDescriptors = referenceKeyFrame->getDescriptors();
+        matcherKNN->match(keyframeDescriptors, descriptors, matches);
+        matchesFilter->filter(matches, matches, referenceKeyFrame->getKeyPoints(), keypoints);
+
+        // display matches
+        overlaySBS->drawMatchesLines(referenceKeyFrame->m_view, view, imageSBSMatches, referenceKeyFrame->getKeyPoints(), keypoints, matches);
+        if (imageViewerMatches->display(imageSBSMatches) == FrameworkReturnCode::_STOP)
+            return 0;
+
+        std::vector<SRef<Point2Df>> pt2d;
+        std::vector<SRef<Point3Df>> pt3d;
+        std::vector<SRef<CloudPoint>> foundPoints;
+        std::vector<DescriptorMatch> foundMatches;
+        std::vector<DescriptorMatch> remainingMatches;
+
+        corr2D3DFinder->find(referenceKeyFrame->getVisibleMapPoints(), referenceKeyFrame->m_idx, matches, keypoints, foundPoints, pt3d, pt2d, foundMatches, remainingMatches);
+
+        std::vector<SRef<Point2Df>> imagePoints_inliers;
+        std::vector<SRef<Point3Df>> worldPoints_inliers;
+
+        Transform3Df pose_current;
+
+        bool updating_map = true;
+        if (PnP->estimate(pt2d, pt3d, imagePoints_inliers, worldPoints_inliers, pose_current) == FrameworkReturnCode::_SUCCESS){
+            LOG_INFO(" pnp inliers size: {} / {}",worldPoints_inliers.size(), pt3d.size());
+
+            newFrame->m_pose = pose_current.inverse();
+            framePoses.push_back(newFrame->m_pose);
+
+            // triangulate with the first keyframe !
+            std::vector<SRef<CloudPoint>>cloud_t;
+            int referenceKeyFrameId = referenceKeyFrame->m_idx;
+            std::cout<<"    ->reference keyframe: "<<referenceKeyFrame->m_idx<<std::endl;
+            if(updating_map){
+                mapper->triangulate(referenceKeyFrame->getKeyPoints(), keypoints, matches,std::make_pair<int,int>((int)referenceKeyFrameId,(int)(referenceKeyFrameId+1)),
+                                    referenceKeyFrame->m_pose, pose_current, cloud_t);
+
+                cloud.insert(cloud.end(), cloud_t.begin()  , cloud_t.end());
+                if (viewer3DPoints->display(cloud, pose_current, keyframePoses, framePoses) == FrameworkReturnCode::_STOP)
+                           return 0;
+            }
+
+            LOG_INFO(" cloud current size: {}", cloud.size());
+
+            //return true;
+
+            }else{
+               // std::cout<<"new keyframe creation.."<<std::endl;
+                return false;
+        }
+    }
     return 0;
 }
 
