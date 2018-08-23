@@ -188,8 +188,8 @@ int main(int argc, char **argv){
     keyframe1 = xpcf::utils::make_shared<Keyframe>(view1, descriptorsView1, 0, poseFrame1, keypointsView1);
     keyframe2 = xpcf::utils::make_shared<Keyframe>(view2, descriptorsView2, 1, poseFrame2, keypointsView2);
     poseGraph->initMap(keyframe1, keyframe2, cloud, matches);
-    keyframePoses.push_back(poseFrame1);
-    keyframePoses.push_back(poseFrame2);
+    keyframePoses.push_back(poseFrame1); // used for display
+    keyframePoses.push_back(poseFrame2); // used for display
 
     if ((imageViewerMatches->display(imageSBSMatches) == FrameworkReturnCode::_STOP) ||
        (viewer3DPoints->display(cloud, poseFrame2) == FrameworkReturnCode::_STOP))
@@ -245,8 +245,9 @@ int main(int argc, char **argv){
         if (PnP->estimate(pt2d, pt3d, imagePoints_inliers, worldPoints_inliers, pose_current) == FrameworkReturnCode::_SUCCESS){
             LOG_INFO(" pnp inliers size: {} / {}",worldPoints_inliers.size(), pt3d.size());
 
-            newFrame->m_pose = pose_current.inverse();
-            framePoses.push_back(newFrame->m_pose);
+            newFrame->m_pose = pose_current;
+            framePoses.push_back(newFrame->m_pose); // used for display
+            LOG_INFO(" frame pose estimation :\n {}", newFrame->m_pose.matrix());
 
             // triangulate with the first keyframe !
             std::vector<SRef<CloudPoint>>cloud_t;
@@ -254,14 +255,14 @@ int main(int argc, char **argv){
             std::cout<<"    ->reference keyframe: "<<referenceKeyFrame->m_idx<<std::endl;
             if(updating_map){
                 mapper->triangulate(referenceKeyFrame->getKeyPoints(), keypoints, matches,std::make_pair<int,int>((int)referenceKeyFrameId,(int)(referenceKeyFrameId+1)),
-                                    referenceKeyFrame->m_pose, pose_current, cloud_t);
+                                    referenceKeyFrame->m_pose, newFrame->m_pose, cloud_t);
 
-                cloud.insert(cloud.end(), cloud_t.begin()  , cloud_t.end());
-                if (viewer3DPoints->display(cloud, pose_current, keyframePoses, framePoses) == FrameworkReturnCode::_STOP)
-                           return 0;
+                cloud.insert(cloud.end(), cloud_t.begin(), cloud_t.end());
+                LOG_INFO(" cloud current size: {}", cloud.size());
             }
+            if (viewer3DPoints->display(cloud, newFrame->m_pose, keyframePoses, framePoses) == FrameworkReturnCode::_STOP)
+                return 0;
 
-            LOG_INFO(" cloud current size: {}", cloud.size());
 
             //return true;
 
