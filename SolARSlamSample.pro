@@ -29,11 +29,7 @@ include ($$(BCOMDEVROOT)/builddefs/qmake/templateappconfig.pri)
 
 INCLUDEPATH += "$$(BCOMDEVROOT)/thirdParties/glcamera"
 
-HEADERS += constant.h \
-    constants.h \
-    utilities.h \
-    drawingUtils.h \
-    OpenGLViewer.h
+HEADERS += constant.h
 
 SOURCES += \
     main.cpp
