@@ -118,16 +118,18 @@ int main(int argc, char **argv){
 
     Transform3Df                                        poseFrame1 = Transform3Df::Identity();
     Transform3Df                                        poseFrame2;
+    Transform3Df                                        newFramePose;
+    Transform3Df                                        lastPose;
 
     std::vector<SRef<CloudPoint>>                       cloud;
 
     std::vector<Transform3Df>                           keyframePoses;
     std::vector<Transform3Df>                           framePoses;
 
-    SRef<Image>                                         view_current;
-    std::vector<SRef<Image>>                            views;
-    SRef<Image>                                         currentMatchImage;
-    SRef<Image>                                         projected_image;
+    SRef<Frame>                                         newFrame;
+
+    SRef<Keyframe>                                      referenceKeyframe;
+    SRef<Keyframe>                                      newKeyframe;
 
     SRef<Image>                                         imageSBSMatches;
 
@@ -183,8 +185,7 @@ int main(int argc, char **argv){
     // Triangulate
     double reproj_error = mapper->triangulate(keypointsView1,keypointsView2, matches, std::make_pair(0, 1),poseFrame1, poseFrame2,cloud);
 
-
-    // Initialize the mapper with the frist to frames
+    // Initialize the mapper with the first two frames
     keyframe1 = xpcf::utils::make_shared<Keyframe>(view1, descriptorsView1, 0, poseFrame1, keypointsView1);
     keyframe2 = xpcf::utils::make_shared<Keyframe>(view2, descriptorsView2, 1, poseFrame2, keypointsView2);
     poseGraph->initMap(keyframe1, keyframe2, cloud, matches);
@@ -195,6 +196,8 @@ int main(int argc, char **argv){
        (viewer3DPoints->display(cloud, poseFrame2) == FrameworkReturnCode::_STOP))
                return 0;
 
+    referenceKeyframe = keyframe2;
+    lastPose = poseFrame2;
     // Start tracking
     int nbFrameSinceKeyFrame = 0;
     while (true)
@@ -204,27 +207,26 @@ int main(int argc, char **argv){
         // Get current image
         camera->getNextImage(view);
 
-        // Create a new fram
-        SRef<Frame> newFrame = xpcf::utils::make_shared<Frame>();
-
         // Detect keypoints, extract their corresponding descriptors and add them to the frame
         keypointsDetector->detect(view, keypoints);
         descriptorExtractorAKAZE2->extract(view, keypoints, descriptors);
-        newFrame->InitKeyPointsAndDescriptors(keypoints, descriptors);
+
+        // Create a new frame
+        newFrame = xpcf::utils::make_shared<Frame>(keypoints, descriptors, view);
+        //newFrame->InitKeyPointsAndDescriptors(keypoints, descriptors);
 
         // Add this new frame to the Keyframe of reference
         poseGraph->associateReferenceKeyFrameToFrame(newFrame);
         newFrame->setNumberOfFramesSinceLastKeyFrame(nbFrameSinceKeyFrame);
 
-        SRef<Keyframe> referenceKeyFrame = newFrame->getReferenceKeyFrame();
-
         // match current keypoints with the keypoints of the Keyframe
-        SRef<DescriptorBuffer> keyframeDescriptors = referenceKeyFrame->getDescriptors();
-        matcherKNN->match(keyframeDescriptors, descriptors, matches);
-        matchesFilter->filter(matches, matches, referenceKeyFrame->getKeyPoints(), keypoints);
+        SRef<DescriptorBuffer> referenceKeyframeDescriptors = referenceKeyframe->getDescriptors();
+        matcherKNN->match(referenceKeyframeDescriptors, descriptors, matches);
+        matchesFilter->filter(matches, matches, referenceKeyframe->getKeyPoints(), keypoints);
 
         // display matches
-        overlaySBS->drawMatchesLines(referenceKeyFrame->m_view, view, imageSBSMatches, referenceKeyFrame->getKeyPoints(), keypoints, matches);
+
+        overlaySBS->drawMatchesLines(referenceKeyframe->m_view, view, imageSBSMatches, referenceKeyframe->getKeyPoints(), keypoints, matches);
         if (imageViewerMatches->display(imageSBSMatches) == FrameworkReturnCode::_STOP)
             return 0;
 
@@ -234,42 +236,54 @@ int main(int argc, char **argv){
         std::vector<DescriptorMatch> foundMatches;
         std::vector<DescriptorMatch> remainingMatches;
 
-        corr2D3DFinder->find(referenceKeyFrame->getVisibleMapPoints(), referenceKeyFrame->m_idx, matches, keypoints, foundPoints, pt3d, pt2d, foundMatches, remainingMatches);
+        corr2D3DFinder->find(referenceKeyframe->getVisibleMapPoints(), referenceKeyframe->m_idx, matches, keypoints, foundPoints, pt3d, pt2d, foundMatches, remainingMatches);
 
         std::vector<SRef<Point2Df>> imagePoints_inliers;
         std::vector<SRef<Point3Df>> worldPoints_inliers;
 
-        Transform3Df pose_current;
-
-        bool updating_map = true;
-        if (PnP->estimate(pt2d, pt3d, imagePoints_inliers, worldPoints_inliers, pose_current) == FrameworkReturnCode::_SUCCESS){
+        if (PnP->estimate(pt2d, pt3d, imagePoints_inliers, worldPoints_inliers, newFramePose, lastPose) == FrameworkReturnCode::_SUCCESS){
             LOG_INFO(" pnp inliers size: {} / {}",worldPoints_inliers.size(), pt3d.size());
+            lastPose = newFramePose;
+            newFrame->m_pose = newFramePose;
+            LOG_INFO(" frame pose estimation :\n {}", newFramePose.matrix());
 
-            newFrame->m_pose = pose_current;
-            framePoses.push_back(newFrame->m_pose); // used for display
-            LOG_INFO(" frame pose estimation :\n {}", newFrame->m_pose.matrix());
+            //std::cout<<"    ->reference keyframe: "<<referenceKeyframe->m_idx<<std::endl;
 
-            // triangulate with the first keyframe !
-            std::vector<SRef<CloudPoint>>cloud_t;
-            int referenceKeyFrameId = referenceKeyFrame->m_idx;
-            std::cout<<"    ->reference keyframe: "<<referenceKeyFrame->m_idx<<std::endl;
-            if(updating_map){
-                mapper->triangulate(referenceKeyFrame->getKeyPoints(), keypoints, matches,std::make_pair<int,int>((int)referenceKeyFrameId,(int)(referenceKeyFrameId+1)),
-                                    referenceKeyFrame->m_pose, newFrame->m_pose, cloud_t);
+            float distance = (newFramePose.translation()-referenceKeyframe->m_pose.translation()).norm();
+            LOG_DEBUG("Distance = {}", distance);
 
-                cloud.insert(cloud.end(), cloud_t.begin(), cloud_t.end());
-                LOG_INFO(" cloud current size: {}", cloud.size());
+            // If the camera has moved enough, create a keyframe and map the scene
+            if (distance > 0.15f && worldPoints_inliers.size() > 40 && referenceKeyframe->m_idx < 2)
+            {
+                poseGraph->addNewKeyFrame(newFrame, newKeyframe);
+                keyframePoses.push_back(newKeyframe->m_pose);
+                nbFrameSinceKeyFrame = 0;
+                LOG_DEBUG("----Triangulate from keyframe {}\n{} \n and keyframe {}\n{}", referenceKeyframe->m_idx, referenceKeyframe->m_pose.matrix(), referenceKeyframe->m_idx+1, newFramePose.matrix());
+
+                // triangulate with the first keyframe !
+                std::vector<SRef<CloudPoint>>newCloud;
+                mapper->triangulate(referenceKeyframe->getKeyPoints(), keypoints, remainingMatches,std::make_pair<int,int>((int)referenceKeyframe->m_idx,(int)(referenceKeyframe->m_idx+1)),
+                                    referenceKeyframe->m_pose, newFramePose, newCloud);
+                poseGraph->updateMap(newKeyframe, foundMatches, remainingMatches, newCloud);
+                referenceKeyframe = newKeyframe;
+                LOG_INFO(" cloud current size: {} \n", poseGraph->getMap()->getPointCloud()->size());
             }
-            if (viewer3DPoints->display(cloud, newFrame->m_pose, keyframePoses, framePoses) == FrameworkReturnCode::_STOP)
-                return 0;
+            else
+            {
+                framePoses.push_back(newFramePose); // used for display
+            }
 
 
             //return true;
 
             }else{
-               // std::cout<<"new keyframe creation.."<<std::endl;
-                return false;
+                LOG_INFO("Pose estimation has failed");
+                // std::cout<<"new keyframe creation.."<<std::endl;
+                //return false;
         }
+        if (viewer3DPoints->display(*(poseGraph->getMap()->getPointCloud()), lastPose, keyframePoses, framePoses) == FrameworkReturnCode::_STOP)
+            return 0;
+
     }
     return 0;
 }
