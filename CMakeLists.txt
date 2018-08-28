@@ -3,27 +3,14 @@ cmake_minimum_required(VERSION 3.7.2)
 ##################################################
 project("SolARSlamSample")
 set (SOURCES 
-utilities.cpp
-OpenGLViewer.cpp
-gl_camera.cpp
 main.cpp)
 
-set (HEADERS
-constants.h
-gl_camera.h
-OpenGLViewer.h
-utilities.h
-)
+#find_package(OpenGL REQUIRED)
 
-include_directories(
-	$ENV{BCOMDEVROOT}/thirdParties/glcamera
-)
-	
-find_package(OpenGL REQUIRED)
-include_directories( ${OPENGL_INCLUDE_DIR} )
-message(STATUS, "############# ${OPENGL_gl_LIBRARY} ${OPENGL_glu_LIBRARY}")
-set (LINKER_OPTIONS_RELEASE "optimized  ${OPENGL_gl_LIBRARY} ${OPENGL_glu_LIBRARY}")
-set (LINKER_OPTIONS_DEBUG "debug  ${OPENGL_gl_LIBRARY} ${OPENGL_glu_LIBRARY}")
+#include_directories( ${OPENGL_INCLUDE_DIR} )
+#message(STATUS, "############# ${OPENGL_gl_LIBRARY} ${OPENGL_glu_LIBRARY}")
+#set (LINKER_OPTIONS_RELEASE "optimized  ${OPENGL_gl_LIBRARY} ${OPENGL_glu_LIBRARY}")
+#set (LINKER_OPTIONS_DEBUG "debug  ${OPENGL_gl_LIBRARY} ${OPENGL_glu_LIBRARY}")
 
 ##################################################
 
@@ -73,7 +60,7 @@ set(FILES_TO_COPY
 	$ENV{BCOMDEVROOT}/bcomBuild/SolARModuleNonFreeOpenCV/0.4.0/lib/x86_64/shared/${BUILDCONFIG}/${LIBPREFIX}SolARModuleNonFreeOpenCV.${LIBEXTENSION}
 	$ENV{BCOMDEVROOT}/bcomBuild/SolARModuleTools/0.4.0/lib/x86_64/shared/${BUILDCONFIG}/${LIBPREFIX}SolARModuleTools.${LIBEXTENSION}
 	$ENV{BCOMDEVROOT}/bcomBuild/SolARFramework/0.4.0/lib/x86_64/shared/${BUILDCONFIG}/${LIBPREFIX}SolARFramework.${LIBEXTENSION}
-	$ENV{BCOMDEVROOT}/thirdParties/xpcf/1.0.0/lib/x86_64/shared/${BUILDCONFIG}/${LIBPREFIX}xpcf.${LIBEXTENSION}
+	$ENV{BCOMDEVROOT}/thirdParties/xpcf/2.0.0/lib/x86_64/shared/${BUILDCONFIG}/${LIBPREFIX}xpcf.${LIBEXTENSION}
 	)
 # define targets (library, install and uninstall)
 defineTargets("executable" "${FILES_TO_COPY}")

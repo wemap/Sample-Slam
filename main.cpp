@@ -39,7 +39,7 @@
 #include "api/solver/map/IMapper.h"
 #include "api/solver/map/IMapFilter.h"
 #include "api/solver/pose/I2D3DCorrespondencesFinder.h"
-#include "api/solver/pose/I3DTransformFinderfrom2D3D.h"
+#include "api/solver/pose/I3DTransformFinderFrom2D3D.h"
 #include "api/features/IMatchesFilter.h"
 #include "api/display/ISideBySideOverlay.h"
 #include "api/display/I2DOverlay.h"
