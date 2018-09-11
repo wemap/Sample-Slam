@@ -26,10 +26,10 @@ DEPENDENCIESCONFIG = sharedlib
 include ($$(BCOMDEVROOT)/builddefs/qmake/templateappconfig.pri)
 
 
+DEFINES += BOOST_ALL_NO_LIB
+DEFINES += BOOST_ALL_DYN_LINK
 
-INCLUDEPATH += "$$(BCOMDEVROOT)/thirdParties/glcamera"
-
-HEADERS += constant.h
+HEADERS += \
 
 SOURCES += \
     main.cpp
