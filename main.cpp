@@ -253,7 +253,7 @@ int main(int argc, char **argv){
             LOG_DEBUG("Distance = {}", distance);
 
             // If the camera has moved enough, create a keyframe and map the scene
-            if (distance > 0.15f && worldPoints_inliers.size() > 40 && referenceKeyframe->m_idx < 2)
+            if (distance > 0.4f && worldPoints_inliers.size() > 40 /*&& referenceKeyframe->m_idx < 2*/)
             {
                 poseGraph->addNewKeyFrame(newFrame, newKeyframe);
                 keyframePoses.push_back(newKeyframe->m_pose);
@@ -273,13 +273,8 @@ int main(int argc, char **argv){
                 framePoses.push_back(newFramePose); // used for display
             }
 
-
-            //return true;
-
-            }else{
-                LOG_INFO("Pose estimation has failed");
-                // std::cout<<"new keyframe creation.."<<std::endl;
-                //return false;
+        }else{
+            LOG_INFO("Pose estimation has failed");
         }
         if (viewer3DPoints->display(*(poseGraph->getMap()->getPointCloud()), lastPose, keyframePoses, framePoses) == FrameworkReturnCode::_STOP)
             return 0;
