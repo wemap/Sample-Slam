@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#define USE_FREE
+//#define USE_FREE
 
 
 #include <iostream>
@@ -31,7 +31,9 @@
 #include "SolARModuleOpencv_traits.h"
 #include "SolARModuleOpengl_traits.h"
 
-#include "SolARModuleNonFreeOpencv_traits.h"
+#ifndef USE_FREE
+    #include "SolARModuleNonFreeOpencv_traits.h"
+#endif
 
 #include "xpcf/xpcf.h"
 
@@ -56,16 +58,18 @@ using namespace SolAR;
 using namespace SolAR::datastructure;
 using namespace SolAR::api;
 using namespace SolAR::MODULES::OPENCV;
+#ifndef USE_FREE
 using namespace SolAR::MODULES::NONFREEOPENCV;
+#endif
 using namespace SolAR::MODULES::OPENGL;
 
 namespace xpcf = org::bcom::xpcf;
 
 int main(int argc, char **argv){
 
-//#if NDEBUG
+#if NDEBUG
     boost::log::core::get()->set_logging_enabled(false);
-//#endif
+#endif
 
     LOG_ADD_LOG_TO_CONSOLE();
 
@@ -73,19 +77,12 @@ int main(int argc, char **argv){
     /* this is needed in dynamic mode */
     SRef<xpcf::IComponentManager> xpcfComponentManager = xpcf::getComponentManagerInstance();
 
- #ifdef USE_FREE
     if(xpcfComponentManager->load("conf_SLAM.xml")!=org::bcom::xpcf::_SUCCESS)
     {
         LOG_ERROR("Failed to load the configuration file conf_SLAM.xml")
         return -1;
     }
-#else
-    if(xpcfComponentManager->load("conf_SLAM_nf.xml")!=org::bcom::xpcf::_SUCCESS)
-    {
-        LOG_ERROR("Failed to load the configuration file conf_SLAM_nf.xml")
-        return -1;
-    }
-#endif
+
     // declare and create components
     LOG_INFO("Start creating components");
 
@@ -93,23 +90,15 @@ int main(int argc, char **argv){
 
     auto camera =xpcfComponentManager->create<SolARCameraOpencv>()->bindTo<input::devices::ICamera>();
 #ifdef USE_FREE
-    LOG_INFO(" free keypoint detector");
     auto keypointsDetector =xpcfComponentManager->create<SolARKeypointDetectorOpencv>()->bindTo<features::IKeypointDetector>();
-#else
-    LOG_INFO(" nonfree keypoint detector");
-   auto  keypointsDetector = xpcfComponentManager->create<SolARKeypointDetectorNonFreeOpencv>()->bindTo<features::IKeypointDetector>();
-#endif
-
-#ifdef USE_FREE
-   LOG_INFO(" free keypoint extractor");
     auto descriptorExtractor =xpcfComponentManager->create<SolARDescriptorsExtractorAKAZE2Opencv>()->bindTo<features::IDescriptorsExtractor>();
 #else
-   LOG_INFO(" nonfree keypoint extractor");
+   auto  keypointsDetector = xpcfComponentManager->create<SolARKeypointDetectorNonFreeOpencv>()->bindTo<features::IKeypointDetector>();
    auto descriptorExtractor = xpcfComponentManager->create<SolARDescriptorsExtractorSURF64Opencv>()->bindTo<features::IDescriptorsExtractor>();
 #endif
+
  //   auto descriptorExtractorORB =xpcfComponentManager->create<SolARDescriptorsExtractorORBOpencv>()->bindTo<features::IDescriptorsExtractor>();
     auto matcher =xpcfComponentManager->create<SolARDescriptorMatcherKNNOpencv>()->bindTo<features::IDescriptorMatcher>();
-
     auto poseFinderFrom2D2D =xpcfComponentManager->create<SolARPoseFinderFrom2D2DOpencv>()->bindTo<solver::pose::I3DTransformFinderFrom2D2D>();
     auto mapper =xpcfComponentManager->create<SolARSVDTriangulationOpencv>()->bindTo<solver::map::ITriangulator>();
     auto mapFilter =xpcfComponentManager->create<SolARMapFilterOpencv>()->bindTo<solver::map::IMapFilter>();
