@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+#define USE_FREE
+
+
 #include <iostream>
 #include <string>
 #include <vector>
@@ -28,6 +31,8 @@
 #include "SolARModuleOpencv_traits.h"
 #include "SolARModuleOpengl_traits.h"
 
+#include "SolARModuleNonFreeOpencv_traits.h"
+
 #include "xpcf/xpcf.h"
 
 #include "api/input/devices/ICamera.h"
@@ -39,7 +44,7 @@
 #include "api/solver/map/IMapper.h"
 #include "api/solver/map/IMapFilter.h"
 #include "api/solver/pose/I2D3DCorrespondencesFinder.h"
-#include "api/solver/pose/I3DTransformFinderfrom2D3D.h"
+#include "api/solver/pose/I3DTransformFinderFrom2D3D.h"
 #include "api/features/IMatchesFilter.h"
 #include "api/display/ISideBySideOverlay.h"
 #include "api/display/I2DOverlay.h"
@@ -51,6 +56,7 @@ using namespace SolAR;
 using namespace SolAR::datastructure;
 using namespace SolAR::api;
 using namespace SolAR::MODULES::OPENCV;
+using namespace SolAR::MODULES::NONFREEOPENCV;
 using namespace SolAR::MODULES::OPENGL;
 
 namespace xpcf = org::bcom::xpcf;
@@ -67,23 +73,43 @@ int main(int argc, char **argv){
     /* this is needed in dynamic mode */
     SRef<xpcf::IComponentManager> xpcfComponentManager = xpcf::getComponentManagerInstance();
 
+ #ifdef USE_FREE
     if(xpcfComponentManager->load("conf_SLAM.xml")!=org::bcom::xpcf::_SUCCESS)
     {
         LOG_ERROR("Failed to load the configuration file conf_SLAM.xml")
         return -1;
     }
-
+#else
+    if(xpcfComponentManager->load("conf_SLAM_nf.xml")!=org::bcom::xpcf::_SUCCESS)
+    {
+        LOG_ERROR("Failed to load the configuration file conf_SLAM_nf.xml")
+        return -1;
+    }
+#endif
     // declare and create components
     LOG_INFO("Start creating components");
 
  // component creation
 
     auto camera =xpcfComponentManager->create<SolARCameraOpencv>()->bindTo<input::devices::ICamera>();
+#ifdef USE_FREE
+    LOG_INFO(" free keypoint detector");
     auto keypointsDetector =xpcfComponentManager->create<SolARKeypointDetectorOpencv>()->bindTo<features::IKeypointDetector>();
-    auto descriptorExtractorAKAZE2 =xpcfComponentManager->create<SolARDescriptorsExtractorAKAZE2Opencv>()->bindTo<features::IDescriptorsExtractor>();
-    auto descriptorExtractorORB =xpcfComponentManager->create<SolARDescriptorsExtractorORBOpencv>()->bindTo<features::IDescriptorsExtractor>();
-    auto matcherKNN =xpcfComponentManager->create<SolARDescriptorMatcherKNNOpencv>()->bindTo<features::IDescriptorMatcher>();
-    auto matcherBF =xpcfComponentManager->create<SolARDescriptorMatcherHammingBruteForceOpencv>()->bindTo<features::IDescriptorMatcher>();
+#else
+    LOG_INFO(" nonfree keypoint detector");
+   auto  keypointsDetector = xpcfComponentManager->create<SolARKeypointDetectorNonFreeOpencv>()->bindTo<features::IKeypointDetector>();
+#endif
+
+#ifdef USE_FREE
+   LOG_INFO(" free keypoint extractor");
+    auto descriptorExtractor =xpcfComponentManager->create<SolARDescriptorsExtractorAKAZE2Opencv>()->bindTo<features::IDescriptorsExtractor>();
+#else
+   LOG_INFO(" nonfree keypoint extractor");
+   auto descriptorExtractor = xpcfComponentManager->create<SolARDescriptorsExtractorSURF64Opencv>()->bindTo<features::IDescriptorsExtractor>();
+#endif
+ //   auto descriptorExtractorORB =xpcfComponentManager->create<SolARDescriptorsExtractorORBOpencv>()->bindTo<features::IDescriptorsExtractor>();
+    auto matcher =xpcfComponentManager->create<SolARDescriptorMatcherKNNOpencv>()->bindTo<features::IDescriptorMatcher>();
+
     auto poseFinderFrom2D2D =xpcfComponentManager->create<SolARPoseFinderFrom2D2DOpencv>()->bindTo<solver::pose::I3DTransformFinderFrom2D2D>();
     auto mapper =xpcfComponentManager->create<SolARSVDTriangulationOpencv>()->bindTo<solver::map::ITriangulator>();
     auto mapFilter =xpcfComponentManager->create<SolARMapFilterOpencv>()->bindTo<solver::map::IMapFilter>();
@@ -100,13 +126,15 @@ int main(int argc, char **argv){
 
     /* in dynamic mode, we need to check that components are well created*/
     /* this is needed in dynamic mode */
-    if ( !camera || !keypointsDetector || !descriptorExtractorORB || !descriptorExtractorAKAZE2 || !matcherKNN || !matcherBF ||
+
+    if ( !camera || !keypointsDetector || !descriptorExtractor || !descriptorExtractor || !matcher ||
          !poseFinderFrom2D2D || !mapper || !mapFilter || !poseGraph || !PnP || !corr2D3DFinder || !matchesFilter ||
          !overlaySBS || !imageViewerFrame1 || !imageViewerFrame2 || !imageViewerMatches || !viewer3DPoints)
     {
         LOG_ERROR("One or more component creations have failed");
         return -1;
     }
+
 
     // declarations
     SRef<Image>                                         view1, view2, view;
@@ -165,16 +193,20 @@ int main(int argc, char **argv){
             imageCaptured = true;
     }
 
-    // Detect keypoints, extract descriptors and create frame for the first two view
     keypointsDetector->detect(view1, keypointsView1);
-    descriptorExtractorAKAZE2->extract(view1, keypointsView1, descriptorsView1);
+    LOG_INFO("->keypoints size", keypointsView1.size());
+    descriptorExtractor->extract(view1, keypointsView1, descriptorsView1);
 
+
+    // trying nf detection and extraction !
 
     keypointsDetector->detect(view2, keypointsView2);
-    descriptorExtractorAKAZE2->extract(view2, keypointsView2, descriptorsView2);
+    descriptorExtractor->extract(view2, keypointsView2, descriptorsView2);
 
     // Match keypoint between the two first frame, filtered and display them
-    matcherKNN->match(descriptorsView1, descriptorsView2, matches);
+ //   matcherKNN->match(descriptorsView1, descriptorsView2, matches);
+    matcher->match(descriptorsView1, descriptorsView2, matches);
+
     int nbOriginalMatches = matches.size();
     // Estimate the pose of of the second frame (the first frame being the reference of our coordinate system)
     poseFinderFrom2D2D->estimate(keypointsView1, keypointsView2, poseFrame1, poseFrame2, matches);
@@ -207,9 +239,9 @@ int main(int argc, char **argv){
         // Get current image
         camera->getNextImage(view);
 
-        // Detect keypoints, extract their corresponding descriptors and add them to the frame
         keypointsDetector->detect(view, keypoints);
-        descriptorExtractorAKAZE2->extract(view, keypoints, descriptors);
+        descriptorExtractor->extract(view, keypoints, descriptors);
+
 
         // Create a new frame
         newFrame = xpcf::utils::make_shared<Frame>(keypoints, descriptors, view);
@@ -221,8 +253,13 @@ int main(int argc, char **argv){
 
         // match current keypoints with the keypoints of the Keyframe
         SRef<DescriptorBuffer> referenceKeyframeDescriptors = referenceKeyframe->getDescriptors();
-        matcherKNN->match(referenceKeyframeDescriptors, descriptors, matches);
+  //      matcherKNN->match(referenceKeyframeDescriptors, descriptors, matches);
+
+        matcher->match(referenceKeyframeDescriptors, descriptors, matches);
+
+        std::cout<<"original matches: "<<matches.size()<<std::endl;
         matchesFilter->filter(matches, matches, referenceKeyframe->getKeyPoints(), keypoints);
+        std::cout<<"filtred matches: "<<matches.size()<<std::endl;
 
         // display matches
 
@@ -241,7 +278,7 @@ int main(int argc, char **argv){
         std::vector<SRef<Point2Df>> imagePoints_inliers;
         std::vector<SRef<Point3Df>> worldPoints_inliers;
 
-        if (PnP->estimate(pt2d, pt3d, imagePoints_inliers, worldPoints_inliers, newFramePose, lastPose) == FrameworkReturnCode::_SUCCESS){
+        if (PnP->estimate(pt2d, pt3d, imagePoints_inliers, worldPoints_inliers, newFramePose , lastPose) == FrameworkReturnCode::_SUCCESS){
             LOG_INFO(" pnp inliers size: {} / {}",worldPoints_inliers.size(), pt3d.size());
             lastPose = newFramePose;
             newFrame->m_pose = newFramePose;
