@@ -288,7 +288,7 @@ int main(int argc, char **argv){
 
                 // triangulate with the first keyframe !
                 std::vector<SRef<CloudPoint>>newCloud;
-                mapper->triangulate(referenceKeyframe->getKeyPoints(), keypoints, remainingMatches,std::make_pair<int,int>((int)referenceKeyframe->m_idx,(int)(referenceKeyframe->m_idx+1)),
+                mapper->triangulate(referenceKeyframe->getKeyPoints(), keypoints, remainingMatches,std::make_pair<int,int>((int)referenceKeyframe->m_idx+0,(int)(referenceKeyframe->m_idx+1)),
                                     referenceKeyframe->m_pose, newFramePose, newCloud);
                 poseGraph->updateMap(newKeyframe, foundMatches, remainingMatches, newCloud);
                 referenceKeyframe = newKeyframe;
