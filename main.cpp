@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-#define USE_FREE
+//#define USE_FREE
 
+#define SAVING
 
 #include <iostream>
 #include <string>
@@ -52,6 +53,11 @@
 #include "api/display/IImageViewer.h"
 #include "api/display/I3DPointsViewer.h"
 
+#include "SolAROpenCVHelper.h"
+#include "opencv2/highgui.hpp"
+#include "opencv2/core.hpp"
+
+
 using namespace SolAR;
 using namespace SolAR::datastructure;
 using namespace SolAR::api;
@@ -62,6 +68,9 @@ using namespace SolAR::MODULES::OPENGL;
 namespace xpcf = org::bcom::xpcf;
 
 int main(int argc, char **argv){
+
+    std::string path_sData = "D:/log_slam2/data/";
+    std::string path_sLogs = "D:/log_slam2/logs/";
 
 //#if NDEBUG
     boost::log::core::get()->set_logging_enabled(false);
@@ -193,23 +202,57 @@ int main(int argc, char **argv){
             imageCaptured = true;
     }
 
+#ifdef SAVING
+        cv::Mat cvView1,cvView2;
+        SolAROpenCVHelper::mapToOpenCV(view1, cvView1);
+        SolAROpenCVHelper::mapToOpenCV(view2, cvView2);
+        cv::imwrite(path_sData +  "frame_0.png",cvView1);
+        cv::imwrite(path_sData +  "frame_1.png",cvView2);
+#endif
+
     keypointsDetector->detect(view1, keypointsView1);
-    LOG_INFO("->keypoints size", keypointsView1.size());
     descriptorExtractor->extract(view1, keypointsView1, descriptorsView1);
-
-
-    // trying nf detection and extraction !
 
     keypointsDetector->detect(view2, keypointsView2);
     descriptorExtractor->extract(view2, keypointsView2, descriptorsView2);
 
-    // Match keypoint between the two first frame, filtered and display them
- //   matcherKNN->match(descriptorsView1, descriptorsView2, matches);
+#ifdef SAVING
+    std::ofstream log_kp0(path_sData +  "log_kpoints0.txt");
+    std::ofstream log_kp1(path_sData +  "log_kpoints1.txt");
+    std::ofstream log_kFrames(path_sData +  "log_keyFrames.txt");
+
+    log_kp0<<keypointsView1.size()<<std::endl;
+    for(auto & kp: keypointsView1)
+        log_kp0<<kp->getX()<<" "<<kp->getY()<<std::endl;
+    log_kp0.close();
+
+    log_kp1<<keypointsView2.size()<<std::endl;
+    for(auto & kp: keypointsView2)
+        log_kp1<<kp->getX()<<" "<<kp->getY()<<std::endl;
+    log_kp1.close();
+#endif
+
     matcher->match(descriptorsView1, descriptorsView2, matches);
+
+#ifdef SAVING
+    std::ofstream log_m(path_sData + "log_matches.txt");
+    log_m<<matches.size()<<std::endl;
+    for(auto & m: matches)
+        log_m<<m.getIndexInDescriptorA()<<" "<<m.getIndexInDescriptorB()<<std::endl;
+    log_m.close();
+#endif
 
     int nbOriginalMatches = matches.size();
     // Estimate the pose of of the second frame (the first frame being the reference of our coordinate system)
     poseFinderFrom2D2D->estimate(keypointsView1, keypointsView2, poseFrame1, poseFrame2, matches);
+
+#ifdef SAVING
+    std::ofstream log_p0(path_sData +  "log_pose0.txt");
+    std::ofstream log_p1(path_sData +  "log_pose1.txt");
+    log_p0<<poseFrame1.matrix()<<std::endl;log_p1<<poseFrame2.matrix()<<std::endl;
+    log_p0.close();log_p1.close();
+#endif
+
     overlaySBS->drawMatchesLines(view1, view2, imageSBSMatches, keypointsView1, keypointsView2, matches);
     LOG_INFO("Nb matches for triangulation: {}\\{}", matches.size(), nbOriginalMatches);
     LOG_INFO("Estimate pose of the camera for the frame 2: \n {}", poseFrame2.matrix());
@@ -232,6 +275,7 @@ int main(int argc, char **argv){
     lastPose = poseFrame2;
     // Start tracking
     int nbFrameSinceKeyFrame = 0;
+    int globalFrameIndex = 2;
     while (true)
     {
         nbFrameSinceKeyFrame++;
@@ -241,6 +285,17 @@ int main(int argc, char **argv){
 
         keypointsDetector->detect(view, keypoints);
         descriptorExtractor->extract(view, keypoints, descriptors);
+
+        #ifdef SAVING
+                cv::Mat cvView;
+                SolAROpenCVHelper::mapToOpenCV(view, cvView);
+                cv::imwrite(path_sData +  "frame_" +std::to_string(globalFrameIndex) + ".png",cvView);
+                std::ofstream log_kp(path_sData + "log_keypoints"+ std::to_string(globalFrameIndex)+".txt");
+                for(auto& kp: keypoints)
+                    log_kp<<kp->getX()<<" "<<kp->getY()<<std::endl;
+                log_kp.close();
+                ++globalFrameIndex;
+        #endif
 
 
         // Create a new frame
@@ -253,16 +308,11 @@ int main(int argc, char **argv){
 
         // match current keypoints with the keypoints of the Keyframe
         SRef<DescriptorBuffer> referenceKeyframeDescriptors = referenceKeyframe->getDescriptors();
-  //      matcherKNN->match(referenceKeyframeDescriptors, descriptors, matches);
 
         matcher->match(referenceKeyframeDescriptors, descriptors, matches);
 
-        std::cout<<"original matches: "<<matches.size()<<std::endl;
         matchesFilter->filter(matches, matches, referenceKeyframe->getKeyPoints(), keypoints);
-        std::cout<<"filtred matches: "<<matches.size()<<std::endl;
-
         // display matches
-
         overlaySBS->drawMatchesLines(referenceKeyframe->m_view, view, imageSBSMatches, referenceKeyframe->getKeyPoints(), keypoints, matches);
         if (imageViewerMatches->display(imageSBSMatches) == FrameworkReturnCode::_STOP)
             return 0;
@@ -284,24 +334,49 @@ int main(int argc, char **argv){
             newFrame->m_pose = newFramePose;
             LOG_INFO(" frame pose estimation :\n {}", newFramePose.matrix());
 
-            //std::cout<<"    ->reference keyframe: "<<referenceKeyframe->m_idx<<std::endl;
-
             float distance = (newFramePose.translation()-referenceKeyframe->m_pose.translation()).norm();
             LOG_DEBUG("Distance = {}", distance);
 
+            #ifdef SAVING
+                    std::ofstream log_pValid(path_sData +"log_pose"+ std::to_string(globalFrameIndex)+".txt");
+                    log_pValid<<newFramePose.matrix()<<std::endl;
+                    log_pValid.close();
+             #endif
+
             // If the camera has moved enough, create a keyframe and map the scene
-            if (distance > 0.15f && worldPoints_inliers.size() > 40 && referenceKeyframe->m_idx < 2)
-            {
+            if (distance > 0.55f && worldPoints_inliers.size() > 40 /*&& referenceKeyframe->m_idx < 2*/){
                 poseGraph->addNewKeyFrame(newFrame, newKeyframe);
                 keyframePoses.push_back(newKeyframe->m_pose);
                 nbFrameSinceKeyFrame = 0;
                 LOG_DEBUG("----Triangulate from keyframe {}\n{} \n and keyframe {}\n{}", referenceKeyframe->m_idx, referenceKeyframe->m_pose.matrix(), referenceKeyframe->m_idx+1, newFramePose.matrix());
 
+                #ifdef SAVING
+                    log_kFrames<<globalFrameIndex<<std::endl;
+                #endif
+
                 // triangulate with the first keyframe !
                 std::vector<SRef<CloudPoint>>newCloud;
                 mapper->triangulate(referenceKeyframe->getKeyPoints(), keypoints, remainingMatches,std::make_pair<int,int>((int)referenceKeyframe->m_idx,(int)(referenceKeyframe->m_idx+1)),
                                     referenceKeyframe->m_pose, newFramePose, newCloud);
+
                 poseGraph->updateMap(newKeyframe, foundMatches, remainingMatches, newCloud);
+
+                #ifdef SAVING
+                    std::ofstream log_cloud(path_sData + "log_cloud"+ std::to_string(globalFrameIndex) + ".txt");
+                    std::ofstream log_reproj(path_sData+ "log_reproj"+ std::to_string(globalFrameIndex) + ".txt");
+
+                    log_cloud<<newCloud.size()<<std::endl;
+                    double err = 0.0;
+
+                    for(auto &v: newCloud){
+                        log_cloud<<v->getX()<<" "<<v->getY()<<" "<<v->getZ()<<std::endl;
+                        err+=v->getReprojError();
+                    }
+                    err/=(double)newCloud.size();
+                    log_reproj<<err<<std::endl;
+                    log_reproj.close(); log_cloud.close();
+                #endif
+
                 referenceKeyframe = newKeyframe;
                 LOG_INFO(" cloud current size: {} \n", poseGraph->getMap()->getPointCloud()->size());
             }
@@ -309,10 +384,7 @@ int main(int argc, char **argv){
             {
                 framePoses.push_back(newFramePose); // used for display
             }
-
-
             //return true;
-
             }else{
                 LOG_INFO("Pose estimation has failed");
                 // std::cout<<"new keyframe creation.."<<std::endl;
