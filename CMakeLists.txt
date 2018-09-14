@@ -24,11 +24,13 @@ processPackagedependencies()
 # define the list of files to copy to build directory
 if (UNIX)
 	set (LIBPREFIX "lib")
+	set (LIBGLUT "free")
 	set (LIBEXTENSION "so")
 	set (OPENCV_VERSION "")
 endif(UNIX)
 if (WIN32)
 	set (LIBPREFIX "")
+	set (LIBGLUT "free")
 	set (LIBEXTENSION "dll")
 	set (OPENCV_VERSION "343")	
 endif(WIN32)
@@ -36,17 +38,7 @@ set (BUILDCONFIG $<$<CONFIG:Debug>:debug>$<$<NOT:$<CONFIG:Debug>>:release>)
 
 set(FILES_TO_COPY
 
-$ENV{BCOMDEVROOT}/thirdParties/opencv/3.4.3/lib/x86_64/shared/${BUILDCONFIG}/${LIBPREFIX}opencv_world${OPENCV_VERSION}.${LIBEXTENSION}
-
-
-
-
-
-
-
-
-
-
+	$ENV{BCOMDEVROOT}/thirdParties/opencv/3.4.3/lib/x86_64/shared/${BUILDCONFIG}/${LIBPREFIX}opencv_world${OPENCV_VERSION}.${LIBEXTENSION}
 
 	$ENV{BCOMDEVROOT}/thirdParties/boost/1.68.0/lib/x86_64/shared/${BUILDCONFIG}/${LIBPREFIX}boost_filesystem.${LIBEXTENSION}
 	$ENV{BCOMDEVROOT}/thirdParties/boost/1.68.0/lib/x86_64/shared/${BUILDCONFIG}/${LIBPREFIX}boost_system.${LIBEXTENSION}
@@ -59,8 +51,10 @@ $ENV{BCOMDEVROOT}/thirdParties/opencv/3.4.3/lib/x86_64/shared/${BUILDCONFIG}/${L
 	$ENV{BCOMDEVROOT}/bcomBuild/SolARModuleOpenCV/0.4.0/lib/x86_64/shared/${BUILDCONFIG}/${LIBPREFIX}SolARModuleOpenCV.${LIBEXTENSION}
 	$ENV{BCOMDEVROOT}/bcomBuild/SolARModuleNonFreeOpenCV/0.4.0/lib/x86_64/shared/${BUILDCONFIG}/${LIBPREFIX}SolARModuleNonFreeOpenCV.${LIBEXTENSION}
 	$ENV{BCOMDEVROOT}/bcomBuild/SolARModuleTools/0.4.0/lib/x86_64/shared/${BUILDCONFIG}/${LIBPREFIX}SolARModuleTools.${LIBEXTENSION}
+	$ENV{BCOMDEVROOT}/bcomBuild/SolARModuleOpenGL/0.4.0/lib/x86_64/shared/${BUILDCONFIG}/${LIBPREFIX}SolARModuleOpenGL.${LIBEXTENSION}
 	$ENV{BCOMDEVROOT}/bcomBuild/SolARFramework/0.4.0/lib/x86_64/shared/${BUILDCONFIG}/${LIBPREFIX}SolARFramework.${LIBEXTENSION}
 	$ENV{BCOMDEVROOT}/thirdParties/xpcf/2.0.1/lib/x86_64/shared/${BUILDCONFIG}/${LIBPREFIX}xpcf.${LIBEXTENSION}
+	$ENV{BCOMDEVROOT}/thirdParties/freeglut/3.0.0/lib/x86_64/shared/${BUILDCONFIG}/${LIBPREFIX}${LIBGLUT}glut.${LIBEXTENSION}
 
 	${CMAKE_CURRENT_SOURCE_DIR}/camera_calibration.yml
 	${CMAKE_CURRENT_SOURCE_DIR}/conf_SLAM.xml
