@@ -143,7 +143,7 @@
 		<component uuid="e95302be-3fe1-44e0-97bf-a98380464af9"> <!-- SolARMatchesOverlayOpencv -->
             <property name="thickness" type="UnsignedInteger" value="1"/>
 			<property name="mode" type="string" value="FADING"/>
-			<property name="minDistanceRatioGreen" type="Float" value="0.15"/>
+			<property name="minDistanceRatioGreen" type="Float" value="0.10"/>
 			<property name="color"  type="UnsignedInteger">
 				<value>0</value>
 				<value>0</value>
@@ -152,8 +152,8 @@
 			<property name="maxMatches" type="UnsignedInteger" value="-1"/>	
         </component>
 		<component uuid="8e3c926a-0861-46f7-80b2-8abb5576692c"> <!-- SolARMapperOpencv -->
-			<property name="minNbMatchesIsKeyframe" type="Integer" value="50"/>
-			<property name="minMeanDistanceIsKeyframe" type="Float" value="0.15"/>
+			<property name="minNbMatchesIsKeyframe" type="Integer" value="100"/>
+			<property name="minMeanDistanceIsKeyframe" type="Float" value="0.10"/>
 		</component>
 		<component uuid="19ea4e13-7085-4e3f-92ca-93f200ffb01b"> <!-- SolARImageViewerOpencv -->
 			<property name="title" type="string" value="Press enter to start the bootstrap"/>
