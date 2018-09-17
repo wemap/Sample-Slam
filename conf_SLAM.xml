@@ -58,9 +58,9 @@
                 <interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" description="IComponentIntrospect"/>
                 <interface uuid="0404e8b9-b824-4852-a34d-6eafa7563918" description="I2D3DCorrespondencesFinder"/>
         </component>
-		<component uuid="e95302be-3fe1-44e0-97bf-a98380464af9" description="SolARSideBySideOverlayOpencv">
+		<component uuid="e95302be-3fe1-44e0-97bf-a98380464af9" description="SolARMatchesOverlayOpencv">
                 <interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" description="IComponentIntrospect"/>
-                <interface uuid="a801354a-3e00-467c-b390-48c76fa8c53a" description="ISideBySideOverlay"/>
+                <interface uuid="a801354a-3e00-467c-b390-48c76fa8c53a" description="IMatchesOverlay"/>
         </component>
 		<component uuid="19ea4e13-7085-4e3f-92ca-93f200ffb01b" description="SolARImageViewerOpencv">
                 <interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" description="IComponentIntrospect"/>
@@ -97,7 +97,7 @@
 	<configuration>
 		<component uuid="5B7396F4-A804-4F3C-A0EB-FB1D56042BB4"> <!-- SolARCameraOpencv -->
 			<property name="calibrationFile" type="string" value="camera_calibration.yml"/>
-			<property name="deviceID" type="UnsignedInteger" value="0"/>
+			<property name="deviceID" type="UnsignedInteger" value="1"/>
 		</component>		
 		<component uuid="e81c7e4e-7da6-476a-8eba-078b43071272"> <!-- SolARKeypointDetectorOpencv -->
 			<property name="type" type="string" value="AKAZE2"/>
@@ -140,9 +140,10 @@
 			<property name="reprojError" type="Float" value="2.0"/>
 			<property name="confidence" type="Float" value="0.99"/>
         </component>
-		<component uuid="e95302be-3fe1-44e0-97bf-a98380464af9"> <!-- SolARSideBySideOverlayOpencv -->
+		<component uuid="e95302be-3fe1-44e0-97bf-a98380464af9"> <!-- SolARMatchesOverlayOpencv -->
             <property name="thickness" type="UnsignedInteger" value="1"/>
-			<property name="randomColor" type="UnsignedInteger" value="1"/>
+			<property name="mode" type="string" value="FADING"/>
+			<property name="minDistanceRatioGreen" type="Float" value="0.15"/>
 			<property name="color"  type="UnsignedInteger">
 				<value>0</value>
 				<value>0</value>
@@ -150,14 +151,12 @@
 			</property>
 			<property name="maxMatches" type="UnsignedInteger" value="-1"/>	
         </component>
-		<component uuid="19ea4e13-7085-4e3f-92ca-93f200ffb01b" name="frame1"> <!-- SolARImageViewerOpencv -->
-			<property name="title" type="string" value="Press enter to capture first frame"/>
-			<property name="exitKey" type="Integer" value="13"/>
-			<property name="width" type="Integer" value="640"/>
-			<property name="height" type="Integer" value="480"/>
+		<component uuid="8e3c926a-0861-46f7-80b2-8abb5576692c"> <!-- SolARMapperOpencv -->
+			<property name="minNbMatchesIsKeyframe" type="Integer" value="50"/>
+			<property name="minMeanDistanceIsKeyframe" type="Float" value="0.15"/>
 		</component>
-		<component uuid="19ea4e13-7085-4e3f-92ca-93f200ffb01b" name="frame2"> <!-- SolARImageViewerOpencv -->
-			<property name="title" type="string" value="Press enter to capture second frame"/>
+		<component uuid="19ea4e13-7085-4e3f-92ca-93f200ffb01b"> <!-- SolARImageViewerOpencv -->
+			<property name="title" type="string" value="Press enter to start the bootstrap"/>
 			<property name="exitKey" type="Integer" value="13"/>
 			<property name="width" type="Integer" value="640"/>
 			<property name="height" type="Integer" value="480"/>
