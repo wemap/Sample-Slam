@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-//#define USE_FREE
+#define USE_FREE
 
 
 #include <iostream>
@@ -100,9 +100,9 @@ int main(int argc, char **argv){
  //   auto descriptorExtractorORB =xpcfComponentManager->create<SolARDescriptorsExtractorORBOpencv>()->bindTo<features::IDescriptorsExtractor>();
     SRef<features::IDescriptorMatcher> matcher =xpcfComponentManager->create<SolARDescriptorMatcherKNNOpencv>()->bindTo<features::IDescriptorMatcher>();
     SRef<solver::pose::I3DTransformFinderFrom2D2D> poseFinderFrom2D2D =xpcfComponentManager->create<SolARPoseFinderFrom2D2DOpencv>()->bindTo<solver::pose::I3DTransformFinderFrom2D2D>();
-    SRef<solver::map::ITriangulator> mapper =xpcfComponentManager->create<SolARSVDTriangulationOpencv>()->bindTo<solver::map::ITriangulator>();
+    SRef<solver::map::ITriangulator> triangulator =xpcfComponentManager->create<SolARSVDTriangulationOpencv>()->bindTo<solver::map::ITriangulator>();
     SRef<solver::map::IMapFilter> mapFilter =xpcfComponentManager->create<SolARMapFilterOpencv>()->bindTo<solver::map::IMapFilter>();
-    SRef<solver::map::IMapper> poseGraph =xpcfComponentManager->create<SolARMapperOpencv>()->bindTo<solver::map::IMapper>();
+    SRef<solver::map::IMapper> mapper =xpcfComponentManager->create<SolARMapperOpencv>()->bindTo<solver::map::IMapper>();
     SRef<features::IMatchesFilter> matchesFilter =xpcfComponentManager->create<SolARGeometricMatchesFilterOpencv>()->bindTo<features::IMatchesFilter>();
     SRef<solver::pose::I3DTransformFinderFrom2D3D> PnP =xpcfComponentManager->create<SolARPoseEstimationPnpOpencv>()->bindTo<solver::pose::I3DTransformFinderFrom2D3D>();
     SRef<solver::pose::I2D3DCorrespondencesFinder> corr2D3DFinder =xpcfComponentManager->create<SolAR2D3DCorrespondencesFinderOpencv>()->bindTo<solver::pose::I2D3DCorrespondencesFinder>();
@@ -115,7 +115,7 @@ int main(int argc, char **argv){
     /* this is needed in dynamic mode */
 
     if ( !camera || !keypointsDetector || !descriptorExtractor || !descriptorExtractor || !matcher ||
-         !poseFinderFrom2D2D || !mapper || !mapFilter || !poseGraph || !PnP || !corr2D3DFinder || !matchesFilter ||
+         !poseFinderFrom2D2D || !triangulator || !mapFilter || !mapper || !PnP || !corr2D3DFinder || !matchesFilter ||
          !matchesOverlay || !imageViewer  || !viewer3DPoints)
     {
         LOG_ERROR("One or more component creations have failed");
@@ -151,7 +151,7 @@ int main(int argc, char **argv){
     // initialize pose estimation with the camera intrinsic parameters (please refeer to the use of intrinsec parameters file)
     PnP->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
     poseFinderFrom2D2D->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
-    mapper->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
+    triangulator->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
 
     LOG_DEBUG("Intrincic parameters : \n {}", camera->getIntrinsicsParameters());
 
@@ -173,13 +173,11 @@ int main(int argc, char **argv){
             descriptorExtractor->extract(view1, keypointsView1, descriptorsView1);
 
             SRef<Frame> frame = xpcf::utils::make_shared<Frame>(keypointsView1, descriptorsView1, view1, poseFrame1);
-            poseGraph->addNewKeyFrame(frame, keyframe1);
+            mapper->addNewKeyFrame(frame, keyframe1);
             keyframePoses.push_back(poseFrame1); // used for display
             imageCaptured = true;
         }
     }
-
-   // imageViewer->bindTo<xpcf::IConfigurable>()->getProperty("title")->setStringValue("Move horizontaly to start the tracking");
 
     bool bootstrapOk= false;
     while (!bootstrapOk)
@@ -197,7 +195,7 @@ int main(int argc, char **argv){
         if(imageViewer->display(imageMatches) == SolAR::FrameworkReturnCode::_STOP)
            return 1;
 
-/*        if (poseGraph->isKeyFrameCandidate(keypointsView1, keypointsView2, matches))
+       if (mapper->isKeyFrameCandidate(keypointsView1, keypointsView2, matches, view2->getWidth()))
         {
             // Estimate the pose of of the second frame (the first frame being the reference of our coordinate system)
             poseFinderFrom2D2D->estimate(keypointsView1, keypointsView2, poseFrame1, poseFrame2, matches);
@@ -205,15 +203,14 @@ int main(int argc, char **argv){
             LOG_INFO("Estimate pose of the camera for the frame 2: \n {}", poseFrame2.matrix());
 
             // Triangulate
-            double reproj_error = mapper->triangulate(keypointsView1,keypointsView2, matches, std::make_pair(0, 1),poseFrame1, poseFrame2,cloud);
+            double reproj_error = triangulator->triangulate(keypointsView1,keypointsView2, matches, std::make_pair(0, 1),poseFrame1, poseFrame2,cloud);
             SRef<Frame> frame = xpcf::utils::make_shared<Frame>(keypointsView2, descriptorsView2, view2, poseFrame2);
-            poseGraph->addNewKeyFrame(frame, keyframe2);
+            mapper->addNewKeyFrame(frame, keyframe2);
             keyframePoses.push_back(poseFrame2); // used for display
-            poseGraph->initMap(keyframe1, keyframe2, cloud, matches);
+            mapper->initMap(keyframe1, keyframe2, cloud, matches);
 
             bootstrapOk = true;
         }
-*/
     }
 
     referenceKeyframe = keyframe2;
@@ -241,8 +238,8 @@ int main(int argc, char **argv){
         std::cout<<"filtred matches: "<<matches.size()<<std::endl;
 
         // display matches
-
-        if (imageViewer->display(view) == FrameworkReturnCode::_STOP)
+        matchesOverlay->draw(view, imageMatches, referenceKeyframe->getKeyPoints(), keypoints, matches);
+        if (imageViewer->display(imageMatches) == FrameworkReturnCode::_STOP)
             return 0;
 
         std::vector<SRef<Point2Df>> pt2d;
@@ -264,7 +261,7 @@ int main(int argc, char **argv){
             newFrame = xpcf::utils::make_shared<Frame>(keypoints, descriptors, view, newFramePose);
 
             // Add this new frame to the Keyframe of reference
-            poseGraph->associateReferenceKeyFrameToFrame(newFrame);
+            mapper->associateReferenceKeyFrameToFrame(newFrame);
             newFrame->setNumberOfFramesSinceLastKeyFrame(nbFrameSinceKeyFrame);
 
             LOG_INFO(" frame pose estimation :\n {}", newFramePose.matrix());
@@ -275,20 +272,20 @@ int main(int argc, char **argv){
             LOG_DEBUG("Distance = {}", distance);
 
             // If the camera has moved enough, create a keyframe and map the scene
-            if (distance > 0.4f && worldPoints_inliers.size() > 40 /*&& referenceKeyframe->m_idx < 2*/)
+            if (mapper->isKeyFrameCandidate(referenceKeyframe->getKeyPoints(), keypoints, matches, view->getWidth()))
             {
-                poseGraph->addNewKeyFrame(newFrame, newKeyframe);
+                mapper->addNewKeyFrame(newFrame, newKeyframe);
                 keyframePoses.push_back(newKeyframe->m_pose);
                 nbFrameSinceKeyFrame = 0;
                 LOG_DEBUG("----Triangulate from keyframe {}\n{} \n and keyframe {}\n{}", referenceKeyframe->m_idx, referenceKeyframe->m_pose.matrix(), referenceKeyframe->m_idx+1, newFramePose.matrix());
 
                 // triangulate with the first keyframe !
                 std::vector<SRef<CloudPoint>>newCloud;
-                mapper->triangulate(referenceKeyframe->getKeyPoints(), keypoints, remainingMatches,std::make_pair<int,int>((int)referenceKeyframe->m_idx+0,(int)(referenceKeyframe->m_idx+1)),
+                triangulator->triangulate(referenceKeyframe->getKeyPoints(), keypoints, remainingMatches,std::make_pair<int,int>((int)referenceKeyframe->m_idx+0,(int)(referenceKeyframe->m_idx+1)),
                                     referenceKeyframe->m_pose, newFramePose, newCloud);
-                poseGraph->updateMap(newKeyframe, foundMatches, remainingMatches, newCloud);
+                mapper->updateMap(newKeyframe, foundMatches, remainingMatches, newCloud);
                 referenceKeyframe = newKeyframe;
-                LOG_INFO(" cloud current size: {} \n", poseGraph->getMap()->getPointCloud()->size());
+                LOG_INFO(" cloud current size: {} \n", mapper->getMap()->getPointCloud()->size());
             }
             else
             {
@@ -298,7 +295,7 @@ int main(int argc, char **argv){
         }else{
             LOG_INFO("Pose estimation has failed");
         }
-        if (viewer3DPoints->display(*(poseGraph->getMap()->getPointCloud()), lastPose, keyframePoses, framePoses) == FrameworkReturnCode::_STOP)
+        if (viewer3DPoints->display(*(mapper->getMap()->getPointCloud()), lastPose, keyframePoses, framePoses) == FrameworkReturnCode::_STOP)
             return 0;
 
     }
