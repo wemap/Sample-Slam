@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#define USE_FREE
-
+//#define USE_FREE
+#define USE_IMAGES_SET
 
 #include <iostream>
 #include <string>
@@ -87,8 +87,11 @@ int main(int argc, char **argv){
     LOG_INFO("Start creating components");
 
  // component creation
-
+#ifdef USE_IMAGES_SET
+    auto camera = xpcfComponentManager->create<SolARImagesAsCameraOpencv>()->bindTo<input::devices::ICamera>();
+#else
     auto camera =xpcfComponentManager->create<SolARCameraOpencv>()->bindTo<input::devices::ICamera>();
+#endif
 #ifdef USE_FREE
     auto keypointsDetector =xpcfComponentManager->create<SolARKeypointDetectorOpencv>()->bindTo<features::IKeypointDetector>();
     auto descriptorExtractor =xpcfComponentManager->create<SolARDescriptorsExtractorAKAZE2Opencv>()->bindTo<features::IDescriptorsExtractor>();
@@ -108,6 +111,9 @@ int main(int argc, char **argv){
     SRef<solver::pose::I2D3DCorrespondencesFinder> corr2D3DFinder =xpcfComponentManager->create<SolAR2D3DCorrespondencesFinderOpencv>()->bindTo<solver::pose::I2D3DCorrespondencesFinder>();
 
     SRef<display::IMatchesOverlay> matchesOverlay =xpcfComponentManager->create<SolARMatchesOverlayOpencv>()->bindTo<display::IMatchesOverlay>();
+    SRef<display::IMatchesOverlay> matchesOverlayBlue =xpcfComponentManager->create<SolARMatchesOverlayOpencv>("matchesBlue")->bindTo<display::IMatchesOverlay>();
+    SRef<display::IMatchesOverlay> matchesOverlayRed =xpcfComponentManager->create<SolARMatchesOverlayOpencv>("matchesRed")->bindTo<display::IMatchesOverlay>();
+
     SRef<display::IImageViewer> imageViewer =xpcfComponentManager->create<SolARImageViewerOpencv>()->bindTo<display::IImageViewer>();
     SRef<display::I3DPointsViewer> viewer3DPoints =xpcfComponentManager->create<SolAR3DPointsViewerOpengl>()->bindTo<display::I3DPointsViewer>();
 
@@ -146,7 +152,7 @@ int main(int argc, char **argv){
     SRef<Keyframe>                                      referenceKeyframe;
     SRef<Keyframe>                                      newKeyframe;
 
-    SRef<Image>                                         imageMatches;
+    SRef<Image>                                         imageMatches, imageMatches2;
 
     // initialize pose estimation with the camera intrinsic parameters (please refeer to the use of intrinsec parameters file)
     PnP->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
@@ -155,7 +161,7 @@ int main(int argc, char **argv){
 
     LOG_DEBUG("Intrincic parameters : \n {}", camera->getIntrinsicsParameters());
 
-    if (camera->start() != FrameworkReturnCode::_SUCCESS) // videoFile
+    if (camera->start() != FrameworkReturnCode::_SUCCESS)
     {
         LOG_ERROR("Camera cannot start");
         return -1;
@@ -167,7 +173,11 @@ int main(int argc, char **argv){
     {
         if (camera->getNextImage(view1) == SolAR::FrameworkReturnCode::_ERROR_)
             break;
+#ifdef USE_IMAGES_SET
+        imageViewer->display(view1);
+#else
         if (imageViewer->display(view1) == SolAR::FrameworkReturnCode::_STOP)
+#endif
         {
             keypointsDetector->detect(view1, keypointsView1);
             descriptorExtractor->extract(view1, keypointsView1, descriptorsView1);
@@ -233,14 +243,9 @@ int main(int argc, char **argv){
 
         matcher->match(referenceKeyframeDescriptors, descriptors, matches);
 
-        std::cout<<"original matches: "<<matches.size()<<std::endl;
+        //std::cout<<"original matches: "<<matches.size()<<std::endl;
         matchesFilter->filter(matches, matches, referenceKeyframe->getKeyPoints(), keypoints);
-        std::cout<<"filtred matches: "<<matches.size()<<std::endl;
-
-        // display matches
-        matchesOverlay->draw(view, imageMatches, referenceKeyframe->getKeyPoints(), keypoints, matches);
-        if (imageViewer->display(imageMatches) == FrameworkReturnCode::_STOP)
-            return 0;
+        //std::cout<<"filtred matches: "<<matches.size()<<std::endl;
 
         std::vector<SRef<Point2Df>> pt2d;
         std::vector<SRef<Point3Df>> pt3d;
@@ -250,11 +255,18 @@ int main(int argc, char **argv){
 
         corr2D3DFinder->find(referenceKeyframe->getVisibleMapPoints(), referenceKeyframe->m_idx, matches, keypoints, foundPoints, pt3d, pt2d, foundMatches, remainingMatches);
 
+        LOG_INFO("found matches {}, Remaining Matches {}", foundMatches.size(), remainingMatches.size());
+        // display matches
+        matchesOverlayBlue->draw(view, imageMatches, referenceKeyframe->getKeyPoints(), keypoints, foundMatches);
+        matchesOverlayRed->draw(imageMatches, imageMatches2, referenceKeyframe->getKeyPoints(), keypoints, remainingMatches);
+        if (imageViewer->display(imageMatches2) == FrameworkReturnCode::_STOP)
+            return 0;
+
         std::vector<SRef<Point2Df>> imagePoints_inliers;
         std::vector<SRef<Point3Df>> worldPoints_inliers;
 
         if (PnP->estimate(pt2d, pt3d, imagePoints_inliers, worldPoints_inliers, newFramePose , lastPose) == FrameworkReturnCode::_SUCCESS){
-            LOG_INFO(" pnp inliers size: {} / {}",worldPoints_inliers.size(), pt3d.size());
+            //LOG_INFO(" pnp inliers size: {} / {}",worldPoints_inliers.size(), pt3d.size());
             lastPose = newFramePose;
 
             // Create a new frame
@@ -264,7 +276,7 @@ int main(int argc, char **argv){
             mapper->associateReferenceKeyFrameToFrame(newFrame);
             newFrame->setNumberOfFramesSinceLastKeyFrame(nbFrameSinceKeyFrame);
 
-            LOG_INFO(" frame pose estimation :\n {}", newFramePose.matrix());
+            //LOG_INFO(" frame pose estimation :\n {}", newFramePose.matrix());
 
             //std::cout<<"    ->reference keyframe: "<<referenceKeyframe->m_idx<<std::endl;
 
@@ -277,12 +289,13 @@ int main(int argc, char **argv){
                 mapper->addNewKeyFrame(newFrame, newKeyframe);
                 keyframePoses.push_back(newKeyframe->m_pose);
                 nbFrameSinceKeyFrame = 0;
-                LOG_DEBUG("----Triangulate from keyframe {}\n{} \n and keyframe {}\n{}", referenceKeyframe->m_idx, referenceKeyframe->m_pose.matrix(), referenceKeyframe->m_idx+1, newFramePose.matrix());
+                //LOG_DEBUG("----Triangulate from keyframe {}\n{} \n and keyframe {}\n{}", referenceKeyframe->m_idx, referenceKeyframe->m_pose.matrix(), referenceKeyframe->m_idx+1, newFramePose.matrix());
 
                 // triangulate with the first keyframe !
                 std::vector<SRef<CloudPoint>>newCloud;
                 triangulator->triangulate(referenceKeyframe->getKeyPoints(), keypoints, remainingMatches,std::make_pair<int,int>((int)referenceKeyframe->m_idx+0,(int)(referenceKeyframe->m_idx+1)),
                                     referenceKeyframe->m_pose, newFramePose, newCloud);
+                LOG_INFO("Number of matches: {}, number of 3D points:{}", remainingMatches.size(), newCloud.size());
                 mapper->updateMap(newKeyframe, foundMatches, remainingMatches, newCloud);
                 referenceKeyframe = newKeyframe;
                 LOG_INFO(" cloud current size: {} \n", mapper->getMap()->getPointCloud()->size());
