@@ -1,0 +1,4 @@
+D:/AmineSolar/source/slam/Sample-Slam/mydata/medium_
+D:/AmineSolar/source/slam/Sample-Slam/mydata/calib_medium.yml
+3
+4
