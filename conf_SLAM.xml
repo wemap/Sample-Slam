@@ -136,11 +136,11 @@
 			<property name="distanceRatio" type="Float" value="0.9"/>
 		</component>
 		<component uuid="52babb5e-9d33-11e8-98d0-529269fb1459"> <!-- SolARPoseFinderFrom2D2DOpencv -->
-			<property name="confidence" type="Float" value="0.9"/>
+			<property name="confidence" type="Float" value="0.99"/>
 			<property name="outlierDistanceRatio" type="Float" value="0.005"/>
 		</component>
 		<component uuid="3731691e-2c4c-4d37-a2ce-06d1918f8d41"> <!-- SolARGeometricMatchesFilterOpencv -->
-            <property name="confidence" type="Float" value="0.9"/>
+            <property name="confidence" type="Float" value="0.99"/>
 			<property name="outlierDistanceRatio" type="Float" value="0.005"/>    
         </component>
 		<component uuid="0753ade1-7932-4e29-a71c-66155e309a53"> <!-- SolARPoseEstimationPnpOpencv -->
@@ -150,6 +150,7 @@
         </component>
 		<component uuid="85274ecd-2914-4f12-96de-37c6040633a4"> <!-- SolARSVDTriangulationOpencv -->
 			<property name="reprojErrorThreshold" type="float" value="2.5"/>
+			<property name="cheiralityCheck" type="integer" value ="1"/>
 		</component>
 		<component uuid="8e3c926a-0861-46f7-80b2-8abb5576692c"> <!-- SolARMapperOpencv -->
 			<property name="minNbMatchesIsKeyframe" type="Integer" value="30"/>
@@ -159,17 +160,6 @@
             <property name="thickness" type="UnsignedInteger" value="1"/>
 			<property name="mode" type="string" value="FADING"/>
 			<property name="minDistanceRatioGreen" type="Float" value="0.1"/>
-			<property name="color"  type="UnsignedInteger">
-				<value>0</value>
-				<value>0</value>
-				<value>255</value>
-			</property>
-			<property name="maxMatches" type="UnsignedInteger" value="-1"/>	
-        </component>
-		<component uuid="e95302be-3fe1-44e0-97bf-a98380464af9"> <!-- SolARMatchesOverlayOpencv -->
-            <property name="thickness" type="UnsignedInteger" value="1"/>
-			<property name="mode" type="string" value="FADING"/>
-			<property name="minDistanceRatioGreen" type="Float" value="0.10"/>
 			<property name="color"  type="UnsignedInteger">
 				<value>0</value>
 				<value>0</value>
@@ -234,7 +224,7 @@
 			<property name="axisScale" type="Float" value="1.0"/>
 			<property name="pointSize" type="Float" value="3.0"/>
 			<property name="cameraScale" type="Float" value="1.0"/>
-			<property name="keyframeAsCamera" type="UnsignedInteger" value="0"/>
+			<property name="keyframeAsCamera" type="UnsignedInteger" value="1"/>
 			<property name="framesColor" type="UnsignedInteger">
 				<value>255</value>
 				<value>0</value>

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-//#define USE_FREE
+#define USE_FREE
 #define USE_IMAGES_SET
 
 #include <iostream>
