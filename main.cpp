@@ -216,7 +216,7 @@ int main(int argc, char **argv){
 
             // Triangulate
             double reproj_error = triangulator->triangulate(keypointsView1,keypointsView2, matches, std::make_pair(0, 1),poseFrame1, poseFrame2,cloud);
-            mapFilter->filter(keyframe1, keyframe2, cloud, filteredCloud);
+            mapFilter->filter(poseFrame1, poseFrame2, cloud, filteredCloud);
             keyframePoses.push_back(poseFrame2); // used for display
             mapper->initMap(keyframe1, keyframe2, filteredCloud, matches);
 
@@ -296,7 +296,7 @@ int main(int argc, char **argv){
                 std::vector<SRef<CloudPoint>>newCloud, filteredCloud;
                 triangulator->triangulate(referenceKeyframe->getKeyPoints(), keypoints, remainingMatches,std::make_pair<int,int>((int)referenceKeyframe->m_idx+0,(int)(referenceKeyframe->m_idx+1)),
                                     referenceKeyframe->m_pose, newFramePose, newCloud);
-                mapFilter->filter(referenceKeyframe, newKeyframe, newCloud, filteredCloud);
+                mapFilter->filter(referenceKeyframe->m_pose, newFramePose, newCloud, filteredCloud);
                 LOG_INFO("Number of matches: {}, number of 3D points:{}", remainingMatches.size(), filteredCloud.size());
                 mapper->updateMap(newKeyframe, foundMatches, remainingMatches, filteredCloud);
                 referenceKeyframe = newKeyframe;
