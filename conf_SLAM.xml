@@ -148,7 +148,7 @@
 			<property name="reprojError" type="Float" value="2.5"/>
 			<property name="confidence" type="Float" value="0.99"/>
         </component>
-		<component uuid="85274ecd-2914-4f12-96de-37c6040633a4"> <!-- SolARSVDTriangulationOpencv -->
+		<component uuid="09205b96-7cba-4415-bc61-64744bc26222"> <!-- SolARMapFilterOpencv -->
 			<property name="reprojErrorThreshold" type="float" value="2.5"/>
 			<property name="cheiralityCheck" type="integer" value ="1"/>
 		</component>
