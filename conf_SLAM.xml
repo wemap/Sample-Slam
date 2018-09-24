@@ -97,6 +97,12 @@
                 <interface uuid="0eadc8b7-1265-434c-a4c6-6da8a028e06e" description="IKeypointDetector"/>
         </component>
     </module>
+	<module uuid="28b89d39-41bd-451d-b19e-d25a3d7c5797" name="SolARModuleTools"  path="$BCOMDEVROOT/bcomBuild/SolARModuleTools/0.4.0/lib/x86_64/shared">
+		<component uuid="ad59a5ba-beb8-11e8-a355-529269fb1459" description="SolARKeyframeSelector">
+                <interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" description="IComponentIntrospect"/>
+                <interface uuid="4d5f2abe-beb7-11e8-a355-529269fb1459" description="IKeyframeSelector"/>
+        </component>
+	</module>
     
 	<configuration>
 		<component uuid="5B7396F4-A804-4F3C-A0EB-FB1D56042BB4"> <!-- SolARCameraOpencv -->
@@ -152,14 +158,14 @@
 			<property name="reprojErrorThreshold" type="float" value="2.5"/>
 			<property name="cheiralityCheck" type="integer" value ="1"/>
 		</component>
-		<component uuid="8e3c926a-0861-46f7-80b2-8abb5576692c"> <!-- SolARMapperOpencv -->
+		<component uuid="ad59a5ba-beb8-11e8-a355-529269fb1459"> <!-- SolARKeyframeSelector -->
 			<property name="minNbMatchesIsKeyframe" type="Integer" value="30"/>
-			<property name="minMeanDistanceIsKeyframe" type="Float" value="0.1"/>
+			<property name="minMeanDistanceIsKeyframe" type="Float" value="0.07"/>
 		</component>
 		<component uuid="e95302be-3fe1-44e0-97bf-a98380464af9"> <!-- SolARMatchesOverlayOpencv -->
             <property name="thickness" type="UnsignedInteger" value="1"/>
 			<property name="mode" type="string" value="FADING"/>
-			<property name="minDistanceRatioGreen" type="Float" value="0.1"/>
+			<property name="minDistanceRatioGreen" type="Float" value="0.07"/>
 			<property name="color"  type="UnsignedInteger">
 				<value>0</value>
 				<value>0</value>
