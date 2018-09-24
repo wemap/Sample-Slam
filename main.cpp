@@ -110,8 +110,8 @@ int main(int argc, char **argv){
     SRef<features::IMatchesFilter> matchesFilter =xpcfComponentManager->create<SolARGeometricMatchesFilterOpencv>()->bindTo<features::IMatchesFilter>();
     SRef<solver::pose::I3DTransformFinderFrom2D3D> PnP =xpcfComponentManager->create<SolARPoseEstimationPnpOpencv>()->bindTo<solver::pose::I3DTransformFinderFrom2D3D>();
     SRef<solver::pose::I2D3DCorrespondencesFinder> corr2D3DFinder =xpcfComponentManager->create<SolAR2D3DCorrespondencesFinderOpencv>()->bindTo<solver::pose::I2D3DCorrespondencesFinder>();
-    SRef<solver::map::IMapFilter> mapFilter =xpcfComponentManager->create<SolARMapFilterOpencv>()->bindTo<solver::map::IMapFilter>();
-    SRef<solver::map::IMapper> mapper =xpcfComponentManager->create<SolARMapperOpencv>()->bindTo<solver::map::IMapper>();
+    SRef<solver::map::IMapFilter> mapFilter =xpcfComponentManager->create<SolARMapFilter>()->bindTo<solver::map::IMapFilter>();
+    SRef<solver::map::IMapper> mapper =xpcfComponentManager->create<SolARMapper>()->bindTo<solver::map::IMapper>();
     SRef<solver::map::IKeyframeSelector> keyframeSelector =xpcfComponentManager->create<SolARKeyframeSelector>()->bindTo<solver::map::IKeyframeSelector>();
 
     SRef<display::IMatchesOverlay> matchesOverlay =xpcfComponentManager->create<SolARMatchesOverlayOpencv>()->bindTo<display::IMatchesOverlay>();

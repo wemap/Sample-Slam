@@ -42,14 +42,6 @@
                 <interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" description="IComponentIntrospect"/>
                 <interface uuid="3a01b0e9-9a76-43f5-97b3-85bb6979b953" description="ITriangulator"/>
         </component>
-		<component uuid="09205b96-7cba-4415-bc61-64744bc26222" description="SolARMapFilterOpencv">
-                <interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" description="IComponentIntrospect"/>
-                <interface uuid="e0d6cc82-6af2-493d-901a-2384fca0b16f" description="IMapFilter"/>
-        </component>
-		<component uuid="8e3c926a-0861-46f7-80b2-8abb5576692c" description="SolARMapperOpencv">
-                <interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" description="IComponentIntrospect"/>
-                <interface uuid="90075c1b-915b-469d-b92d-41c5d575bf15" description="IMapper"/>
-        </component>
 		<component uuid="3731691e-2c4c-4d37-a2ce-06d1918f8d41" description="SolARGeometricMatchesFilterOpencv">
                 <interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" description="IComponentIntrospect"/>
                 <interface uuid="e0d6cc82-6af2-493d-901a-2384fca0b16f" description="IMatchesFilter"/>
@@ -101,6 +93,14 @@
 		<component uuid="ad59a5ba-beb8-11e8-a355-529269fb1459" description="SolARKeyframeSelector">
                 <interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" description="IComponentIntrospect"/>
                 <interface uuid="4d5f2abe-beb7-11e8-a355-529269fb1459" description="IKeyframeSelector"/>
+        </component>
+		<component uuid="09205b96-7cba-4415-bc61-64744bc26222" description="SolARMapFilterOpencv">
+                <interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" description="IComponentIntrospect"/>
+                <interface uuid="e0d6cc82-6af2-493d-901a-2384fca0b16f" description="IMapFilter"/>
+        </component>
+		<component uuid="8e3c926a-0861-46f7-80b2-8abb5576692c" description="SolARMapperOpencv">
+                <interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" description="IComponentIntrospect"/>
+                <interface uuid="90075c1b-915b-469d-b92d-41c5d575bf15" description="IMapper"/>
         </component>
 	</module>
     
