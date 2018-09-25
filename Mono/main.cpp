@@ -21,12 +21,9 @@
 #include <string>
 #include <vector>
 
-#include "opencv2/core.hpp" // TO REMOVE
-#include "opencv2/calib3d.hpp"
-
 #include <boost/log/core.hpp>
 
-// ADD COMPONENTS HEADERS HERE
+// ADD MODULES TRAITS HEADERS HERE
 
 #include "SolARModuleOpencv_traits.h"
 #include "SolARModuleOpengl_traits.h"
@@ -36,8 +33,10 @@
     #include "SolARModuleNonFreeOpencv_traits.h"
 #endif
 
+// ADD XPCF HEADERS HERE
 #include "xpcf/xpcf.h"
 
+// ADD COMPONENTS HEADERS HERE
 #include "api/input/devices/ICamera.h"
 #include "api/features/IKeypointDetector.h"
 #include "api/features/IDescriptorsExtractor.h"
