@@ -296,7 +296,7 @@ int main(int argc, char **argv){
                 mapper->update(map, newKeyframe, filteredCloud, foundMatches, remainingMatches);
                 keyframePoses.push_back(newKeyframe->getPose());
                 referenceKeyframe = newKeyframe;
-                LOG_INFO(" cloud current size: {} \n", mapper->getMap()->getPointCloud()->size());
+                LOG_INFO(" cloud current size: {} \n", map->getPointCloud()->size());
             }
             else
             {
@@ -306,7 +306,7 @@ int main(int argc, char **argv){
         }else{
             LOG_INFO("Pose estimation has failed");
         }
-        if (viewer3DPoints->display(*(mapper->getMap()->getPointCloud()), lastPose, keyframePoses, framePoses) == FrameworkReturnCode::_STOP)
+        if (viewer3DPoints->display(*(map->getPointCloud()), lastPose, keyframePoses, framePoses) == FrameworkReturnCode::_STOP)
             return 0;
 
     }
