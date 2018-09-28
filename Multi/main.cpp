@@ -15,7 +15,7 @@
  */
 
 #define USE_FREE
-#define USE_IMAGES_SET
+// #define USE_IMAGES_SET
 
 #include <iostream>
 #include <string>
@@ -162,6 +162,9 @@ int main(int argc, char **argv){
 
     bool                                                keyFrameDetectionOn;   // if true, keyFrames can be detected
 
+	bool												stop = false;
+
+
     // initialize pose estimation with the camera intrinsic parameters (please refeer to the use of intrinsec parameters file)
     PnP->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
     poseFinderFrom2D2D->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
@@ -200,7 +203,7 @@ int main(int argc, char **argv){
     bool bootstrapOk= false;
     while (!bootstrapOk)
     {
-        if (camera->getNextImage(view2) == SolAR::FrameworkReturnCode::_ERROR_)
+        if (camera->getNextImage(view2) == SolAR::FrameworkReturnCode::_ERROR_LOAD_IMAGE)
             break;
 
         keypointsDetector->detect(view2, keypointsView2);
@@ -212,7 +215,7 @@ int main(int argc, char **argv){
         matchesFilter->filter(matches, matches, keypointsView1, keypointsView2);
 
         matchesOverlay->draw(view2, imageMatches, keypointsView1, keypointsView2, matches);
-        if(imageViewer->display(imageMatches) == SolAR::FrameworkReturnCode::_STOP)
+        if(imageViewer->display(imageMatches) == SolAR::FrameworkReturnCode::_ERROR_LOAD_IMAGE)
            return 1;
 
        if (keyframeSelector->select(frame2, matches))
@@ -244,32 +247,46 @@ int main(int argc, char **argv){
 
     // get images from camera
     xpcf::SharedBuffer< SRef<Image> > workingBufferCamImages(1);
-    std::function<void(void)> getCameraImages = [camera,&workingBufferCamImages](){
+    std::function<void(void)> getCameraImages = [&stop,camera,&workingBufferCamImages](){
 
         SRef<Image> view;
-        camera->getNextImage(view);
-        workingBufferCamImages.push(view);
+		if (camera->getNextImage(view) == SolAR::FrameworkReturnCode::_ERROR_LOAD_IMAGE) {
+			stop = true;
+			return;
+		}
+		if(workingBufferCamImages.empty())
+			 workingBufferCamImages.push(view);
     };
 
     // extract key points
     xpcf::SharedBuffer< std::pair< SRef<Image>,std::vector<SRef<Keypoint>> > > outBufferKeypoints(1);
     std::function<void(void)> getKeyPoints = [&workingBufferCamImages,keypointsDetector,&outBufferKeypoints](){
 
-        SRef<Image> camImage=workingBufferCamImages.pop();
-        std::vector< SRef<Keypoint>> kp;
+		SRef<Image> camImage ;
+		if (!workingBufferCamImages.tryPop(camImage))
+			return;
+		std::vector< SRef<Keypoint>> kp;
         keypointsDetector->detect(camImage, kp);
-        outBufferKeypoints.push(std::make_pair(camImage,kp));
+		if(outBufferKeypoints.empty())
+			outBufferKeypoints.push(std::make_pair(camImage,kp));
     };
 
     // compute descriptors
     xpcf::SharedBuffer< SRef<Frame > > outBufferDescriptors(1);
     std::function<void(void)> getDescriptors = [&referenceKeyframe,&outBufferKeypoints,descriptorExtractor,&outBufferDescriptors](){
 
-        std::pair<SRef<Image>,std::vector<SRef<Keypoint> > > kp=outBufferKeypoints.pop();
-        SRef<DescriptorBuffer> camDescriptors;
+		std::pair<SRef<Image>, std::vector<SRef<Keypoint> > > kp ;
+		SRef<DescriptorBuffer> camDescriptors;
+		SRef<Frame> frame;
+
+		if (!outBufferKeypoints.tryPop(kp)) {
+			return;
+		}
         descriptorExtractor->extract(kp.first, kp.second, camDescriptors);
-        SRef<Frame> frame=xpcf::utils::make_shared<Frame>(kp.second,camDescriptors,kp.first);
-        outBufferDescriptors.push(frame) ;
+        frame=xpcf::utils::make_shared<Frame>(kp.second,camDescriptors,kp.first);
+
+		if(outBufferDescriptors.empty())
+			outBufferDescriptors.push(frame) ;
     };
 
     xpcf::SharedBuffer< std::tuple<SRef<Frame>,SRef<Keyframe>,std::vector<DescriptorMatch>,std::vector<DescriptorMatch>, std::vector<SRef<CloudPoint>>  > >  outBufferTriangulation(1);
@@ -286,7 +303,9 @@ int main(int argc, char **argv){
         std::vector<SRef<CloudPoint>>                       newCloud, filteredCloud;
 
 
-        element=outBufferTriangulation.pop();
+		if (!outBufferTriangulation.tryPop(element)) {
+			return;
+	    }
 
         newFrame=std::get<0>(element);
         refKeyframe=std::get<1>(element);
@@ -323,7 +342,9 @@ int main(int argc, char **argv){
 
         LOG_DEBUG ("**************************   doTriangulation In");
 
-        element=keyFrameBuffer.pop();
+		if (!keyFrameBuffer.tryPop(element) ){
+			return;
+		}
 
         newFrame=std::get<0>(element);
         refKeyFrame=std::get<1>(element);
@@ -332,7 +353,8 @@ int main(int argc, char **argv){
 
         triangulator->triangulate(refKeyFrame->getKeypoints(), newFrame->getKeypoints(), remainingMatches,std::make_pair<int,int>((int)refKeyFrame->m_idx+0,(int)(refKeyFrame->m_idx+1)),
                             refKeyFrame->getPose(), newFrame->getPose(), newCloud);
-        outBufferTriangulation.push(std::make_tuple(newFrame,refKeyFrame,foundMatches,remainingMatches,newCloud));
+		if(outBufferTriangulation.empty())
+			outBufferTriangulation.push(std::make_tuple(newFrame,refKeyFrame,foundMatches,remainingMatches,newCloud));
     };
 
     // Processing of input frames :
@@ -428,17 +450,19 @@ int main(int argc, char **argv){
     xpcf::DelegateTask taskDoTriangulation(doTriangulation);
     xpcf::DelegateTask taskMapUpdate(mapUpdate);
 
+    stop = false;
+
     taskGetCameraImages.start();
-    taskGetKeyPoints.start();
+	taskGetKeyPoints.start();
     taskGetDescriptors.start();
+	taskDoTriangulation.start();
     taskProcessFrames.start();
-    taskDoTriangulation.start();
+    
 
     // running loop process
 
     keyFrameDetectionOn=true;
 
-    bool stop = false;
     while(!stop){
         if (viewer3DPoints->display(*(map->getPointCloud()), lastPose, keyframePoses, framePoses) == FrameworkReturnCode::_STOP){
                stop=true;
@@ -449,12 +473,13 @@ int main(int argc, char **argv){
 
     std::cout << "end of processes \n";
 
-    taskDoTriangulation.stop();
-
     taskGetCameraImages.stop();
     taskGetKeyPoints.stop();
-    taskGetDescriptors.stop();
+	taskGetDescriptors.stop();
+    taskDoTriangulation.stop();
     taskProcessFrames.stop();
+	
+	return 0;
 
 }
 
