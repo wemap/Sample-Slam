@@ -362,8 +362,9 @@ int main(int argc, char **argv){
     // - test if current frame can promoted to a keyFrame.
     // - in that case, push it in the output buffer to be processed by the triangulation thread
     //
-    xpcf::SharedBuffer<bool >  controlBuffer(1);        // used to stop the processes
-    std::function<void(void)> processFrames = [&keyFrameDetectionOn,&outBufferTriangulation,mapUpdate,&keyframeSelector, &matchesOverlayBlue,&matchesOverlayRed,&imageViewer,&framePoses,&outBufferDescriptors,matcher,matchesFilter,corr2D3DFinder,PnP,&referenceKeyframe, &lastPose,&keyFrameBuffer,&controlBuffer](){
+	xpcf::SharedBuffer< SRef<Image> > displayMatches(1);   // matches images should be displayed in the main thread
+
+    std::function<void(void)> processFrames = [&displayMatches,&keyFrameDetectionOn,&outBufferTriangulation,mapUpdate,&keyframeSelector, &matchesOverlayBlue,&matchesOverlayRed,&imageViewer,&framePoses,&outBufferDescriptors,matcher,matchesFilter,corr2D3DFinder,PnP,&referenceKeyframe, &lastPose,&keyFrameBuffer](){
 
          SRef<Frame> newFrame;
          SRef<Keyframe> newKeyframe;
@@ -398,6 +399,7 @@ int main(int argc, char **argv){
          newFrame->setReferenceKeyframe(referenceKeyframe);
          refKeyFrame=newFrame->getReferenceKeyframe();
 
+
          view=newFrame->getView();
          keypoints=newFrame->getKeypoints();
          descriptors=newFrame->getDescriptors();
@@ -415,8 +417,8 @@ int main(int argc, char **argv){
          matchesOverlayBlue->draw(view, imageMatches, refKeyFrame->getKeypoints(), keypoints, foundMatches);
          matchesOverlayRed->draw(imageMatches, imageMatches2, refKeyFrame->getKeypoints(), keypoints, remainingMatches);
 
-         if (imageViewer->display(imageMatches2) == FrameworkReturnCode::_STOP)
-             controlBuffer.push(true);
+		 if (displayMatches.empty())
+			 displayMatches.push(imageMatches2);
 
          if (PnP->estimate(pt2d, pt3d, imagePoints_inliers, worldPoints_inliers, newFramePose , lastPose) == FrameworkReturnCode::_SUCCESS){
              LOG_INFO(" frame pose  :\n {}", newFramePose.matrix());
@@ -464,11 +466,13 @@ int main(int argc, char **argv){
     keyFrameDetectionOn=true;
 
     while(!stop){
+		if (!displayMatches.empty()) {
+			if (imageViewer->display(displayMatches.pop()) == SolAR::FrameworkReturnCode::_STOP)
+				break;
+		}
         if (viewer3DPoints->display(*(map->getPointCloud()), lastPose, keyframePoses, framePoses) == FrameworkReturnCode::_STOP){
                stop=true;
         }
-        if(!controlBuffer.empty())
-            stop = controlBuffer.pop();    // if controlBuffer is not empty (with "bool" value) we stop the process
     }
 
     std::cout << "end of processes \n";
