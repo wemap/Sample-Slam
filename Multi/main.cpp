@@ -464,17 +464,29 @@ int main(int argc, char **argv){
 
     // running loop process
 
-    keyFrameDetectionOn=true;
+	clock_t start, end;
+	int count = 0;
+	start = clock();
+
+	keyFrameDetectionOn=true;
 
     while(!stop){
 		if (!displayMatches.empty()) {
 			if (imageViewer->display(displayMatches.pop()) == SolAR::FrameworkReturnCode::_STOP)
 				break;
 		}
+		count++;
         if (viewer3DPoints->display(*(map->getPointCloud()), lastPose, keyframePoses, framePoses) == FrameworkReturnCode::_STOP){
                stop=true;
         }
     }
+
+	// display stats on frame rate
+	end = clock();
+	double duration = double(end - start) / CLOCKS_PER_SEC;
+	printf("\n\nElasped time is %.2lf seconds.\n", duration);
+	printf("Number of processed frame per second : %8.2f\n", count / duration);
+
 
     std::cout << "end of processes \n";
 
