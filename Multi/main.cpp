@@ -295,7 +295,7 @@ int main(int argc, char **argv){
     // - the triangulation has been performed
     // - the Map is updated accordingly
     //
-    std::function<void(void)> mapUpdate = [&referenceKeyframe, &map, &mapper, &mapFilter, &keyframePoses, &outBufferTriangulation](){
+    std::function<void(void)> mapUpdate = [&keyFrameDetectionOn,&referenceKeyframe, &map, &mapper, &mapFilter, &keyframePoses, &outBufferTriangulation](){
         std::tuple<SRef<Frame>,SRef<Keyframe>,std::vector<DescriptorMatch>,std::vector<DescriptorMatch>, std::vector<SRef<CloudPoint>>  >   element;
         SRef<Frame>                                         newFrame;
         SRef<Keyframe>                                      newKeyframe,refKeyframe;
@@ -321,7 +321,9 @@ int main(int argc, char **argv){
         referenceKeyframe = newKeyframe;
         keyframePoses.push_back(newKeyframe->getPose());
         LOG_DEBUG(" cloud current size: {} \n", map->getPointCloud()->size());
-        LOG_DEBUG (" Valid pose is found");
+		
+		keyFrameDetectionOn = true;					// re - allow keyframe detection
+
     };
 
     xpcf::SharedBuffer< std::tuple<SRef<Frame>,SRef<Keyframe>,std::vector<DescriptorMatch>,std::vector<DescriptorMatch> > >  keyFrameBuffer(1);
@@ -387,9 +389,8 @@ int main(int argc, char **argv){
 
          // test if a triangulation has been performed on a previously keyframe candidate
          if(!outBufferTriangulation.empty()){
-             //if so update the map et re-allow keyframe detection
+             //if so update the map 
              mapUpdate();
-             keyFrameDetectionOn=true;
          }
 
          /*compute matches between reference image and camera image*/
