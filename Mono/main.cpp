@@ -234,10 +234,16 @@ int main(int argc, char **argv){
     lastPose = poseFrame2;
 
     // Start tracking
-    while (true)
+	clock_t start, end;
+	int count = 0;
+	start = clock();
+	while (true)
     {
         // Get current image
-        camera->getNextImage(view);
+		if (camera->getNextImage(view) == SolAR::FrameworkReturnCode::_ERROR_LOAD_IMAGE) {
+			break;
+		}
+		count++;
 
         keypointsDetector->detect(view, keypoints);
         descriptorExtractor->extract(view, keypoints, descriptors);
@@ -309,6 +315,14 @@ int main(int argc, char **argv){
             return 0;
 
     }
+
+	// display stats on frame rate
+	end = clock();
+	double duration = double(end - start) / CLOCKS_PER_SEC;
+	printf("\n\nElasped time is %.2lf seconds.\n", duration);
+	printf("Number of processed frame per second : %8.2f\n", count / duration);
+
+
     return 0;
 }
 
