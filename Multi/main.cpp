@@ -343,7 +343,7 @@ int main(int argc, char **argv){
     // - perform triangulation
     // - the resulting cloud will be used to update the Map
     //
-    std::function<void(void)> doTriangulation = [mapUpdate,&triangulator,&keyFrameBuffer,&outBufferTriangulation](){
+    std::function<void(void)> doTriangulation = [&triangulator,&keyFrameBuffer,&outBufferTriangulation](){
         std::tuple<SRef<Frame>,SRef<Keyframe>,std::vector<DescriptorMatch>,std::vector<DescriptorMatch> > element;
         SRef<Frame>                                         newFrame;
         SRef<Keyframe>                                      newKeyframe;
