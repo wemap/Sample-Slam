@@ -87,7 +87,7 @@ int main(int argc, char **argv) {
 		LOG_ERROR("Failed to load the configuration file conf_SLAM.xml")
 			return -1;
 	}
-	
+
 	// declare and create components
 	LOG_INFO("Start creating components");
 
@@ -99,7 +99,7 @@ int main(int argc, char **argv) {
 #endif
 #ifndef USE_FREE
 	auto keypointsDetector = xpcfComponentManager->create<SolARKeypointDetectorOpencv>()->bindTo<features::IKeypointDetector>();
-	auto descriptorExtractor = xpcfComponentManager->create<SolARDescriptorsExtractorAKAZEOpencv>()->bindTo<features::IDescriptorsExtractor>();
+	auto descriptorExtractor = xpcfComponentManager->create<SolARDescriptorsExtractorAKAZE2Opencv>()->bindTo<features::IDescriptorsExtractor>();
 #else
 	auto  keypointsDetector = xpcfComponentManager->create<SolARKeypointDetectorNonFreeOpencv>()->bindTo<features::IKeypointDetector>();
 	auto descriptorExtractor = xpcfComponentManager->create<SolARDescriptorsExtractorSURF64Opencv>()->bindTo<features::IDescriptorsExtractor>();
@@ -136,7 +136,7 @@ int main(int argc, char **argv) {
 	{
 		LOG_ERROR("One or more component creations have failed");
 		return -1;
-	}	
+	}
 
 	// declarations
 	SRef<Image>                                         view1, view2, view;
@@ -157,9 +157,10 @@ int main(int argc, char **argv) {
 	std::vector<Transform3Df>                           framePoses;
 
 	SRef<Frame>                                         newFrame;
+	SRef<Frame>											frameToTrack;
 
 	SRef<Keyframe>                                      referenceKeyframe;
-	SRef<Keyframe>                                      newKeyframe;
+	SRef<Keyframe>                                      newKeyframe;	
 
 	SRef<Image>                                         imageMatches, imageMatches2;
 	SRef<Map>                                           map;
@@ -242,32 +243,29 @@ int main(int argc, char **argv) {
 	referenceKeyframe = keyframe2;
 	lastPose = poseFrame2;
 
+	// copy referenceKeyframe to frameToTrack
+	frameToTrack = xpcf::utils::make_shared<Frame>(referenceKeyframe);
+	frameToTrack->setReferenceKeyframe(referenceKeyframe);	
+
 	// Start tracking
 	while (true)
 	{
 		// Get current image
-		camera->getNextImage(view);
-
+		camera->getNextImage(view);					
 		keypointsDetector->detect(view, keypoints);
 		descriptorExtractor->extract(view, keypoints, descriptors);
 		newFrame = xpcf::utils::make_shared<Frame>(keypoints, descriptors, view, referenceKeyframe);
 		// match current keypoints with the keypoints of the Keyframe
-		SRef<DescriptorBuffer> referenceKeyframeDescriptors = referenceKeyframe->getDescriptors();
-		//      matcherKNN->match(referenceKeyframeDescriptors, descriptors, matches);
-
-		matcher->match(referenceKeyframeDescriptors, descriptors, matches);
-		//std::cout<<"original matches: "<<matches.size()<<std::endl;
-		matchesFilter->filter(matches, matches, referenceKeyframe->getKeypoints(), keypoints);
-		//std::cout<<"filtred matches: "<<matches.size()<<std::endl;
+		SRef<DescriptorBuffer> frameToTrackDescriptors = frameToTrack->getDescriptors();
+		matcher->match(frameToTrackDescriptors, descriptors, matches);		
+		matchesFilter->filter(matches, matches, frameToTrack->getKeypoints(), keypoints);
 
 		std::vector<SRef<Point2Df>> pt2d;
 		std::vector<SRef<Point3Df>> pt3d;
 		std::vector<SRef<CloudPoint>> foundPoints;
 		std::vector<DescriptorMatch> foundMatches;
 		std::vector<DescriptorMatch> remainingMatches;
-
-		corr2D3DFinder->find(referenceKeyframe, newFrame, matches, foundPoints, pt3d, pt2d, foundMatches, remainingMatches);
-
+		corr2D3DFinder->find(frameToTrack, newFrame, matches, foundPoints, pt3d, pt2d, foundMatches, remainingMatches);
 		//LOG_INFO("found matches {}, Remaining Matches {}", foundMatches.size(), remainingMatches.size());
 		// display matches
 		if (isLostTrack) {
@@ -279,22 +277,24 @@ int main(int argc, char **argv) {
 			matchesOverlayRed->draw(imageMatches, imageMatches2, referenceKeyframe->getKeypoints(), keypoints, remainingMatches);
 			if (imageViewer->display(imageMatches2) == FrameworkReturnCode::_STOP)
 				return 0;
-		}
+		}		
 
 		std::vector<SRef<Point2Df>> imagePoints_inliers;
 		std::vector<SRef<Point3Df>> worldPoints_inliers;
-
 		if (PnP->estimate(pt2d, pt3d, imagePoints_inliers, worldPoints_inliers, newFramePose, lastPose) == FrameworkReturnCode::_SUCCESS) {
-
-			LOG_DEBUG(" pnp inliers size: {} / {}", worldPoints_inliers.size(), pt3d.size());
+			LOG_INFO(" pnp inliers size: {} / {}", worldPoints_inliers.size(), pt3d.size());
 			lastPose = newFramePose;
 
 			// Set the pose of the new frame
 			newFrame->setPose(newFramePose);
 
+			// update frame to track
+			frameToTrack = newFrame;
+			
 			// If the camera has moved enough, create a keyframe and map the scene
-			if (keyframeSelector->select(newFrame, matches))
-			{
+			if (keyframeSelector->select(newFrame, foundMatches))
+			//if ((nbFrameTracking == 0) && (foundMatches.size() < 0.7 * referenceKeyframe->getVisibleMapPoints().size()))
+			{			
 				// create a new keyframe from the current frame
 				newKeyframe = xpcf::utils::make_shared<Keyframe>(newFrame);
 				// triangulate with the reference keyframe
@@ -311,7 +311,10 @@ int main(int argc, char **argv) {
 				mapper->update(map, newKeyframe, filteredCloud, remainingMatches, foundMatches);
 				keyframePoses.push_back(newKeyframe->getPose());
 				referenceKeyframe = newKeyframe;
+				frameToTrack = xpcf::utils::make_shared<Frame>(referenceKeyframe);
+				frameToTrack->setReferenceKeyframe(referenceKeyframe);
 				kfRetriever->addKeyframe(referenceKeyframe); // add keyframe for reloc
+				//LOG_INFO("************************ NEW KEYFRAME *************************");
 				LOG_DEBUG(" cloud current size: {} \n", map->getPointCloud()->size());
 			}
 			else
@@ -323,18 +326,20 @@ int main(int argc, char **argv) {
 
 		}
 		else {
-			LOG_DEBUG("Pose estimation has failed");
+			LOG_INFO("Pose estimation has failed");
 			isLostTrack = true;		// lost tracking
 
 			// reloc
 			std::vector < SRef <Keyframe>> ret_keyframes;
 			if (kfRetriever->retrieve(newFrame, ret_keyframes) == FrameworkReturnCode::_SUCCESS) {
 				referenceKeyframe = ret_keyframes[0];
+				frameToTrack = xpcf::utils::make_shared<Frame>(referenceKeyframe);
+				frameToTrack->setReferenceKeyframe(referenceKeyframe);
 				lastPose = referenceKeyframe->getPose();
-				LOG_DEBUG("Retrieval Success");
+				LOG_INFO("Retrieval Success");
 			}
 			else
-				LOG_DEBUG("Retrieval Failed");
+				LOG_INFO("Retrieval Failed");
 		}
 
 		// display point cloud

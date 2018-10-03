@@ -158,6 +158,7 @@ int main(int argc, char **argv){
     std::vector<Transform3Df>                           framePoses;
 
     SRef<Frame>                                         newFrame;
+	SRef<Frame>											frameToTrack;
 
     SRef<Keyframe>                                      referenceKeyframe;
     SRef<Keyframe>                                      newKeyframe;
@@ -247,6 +248,10 @@ int main(int argc, char **argv){
 
     referenceKeyframe = keyframe2;
     lastPose = poseFrame2;
+	
+	// copy referenceKeyframe to frameToTrack
+	frameToTrack = xpcf::utils::make_shared<Frame>(referenceKeyframe);
+	frameToTrack->setReferenceKeyframe(referenceKeyframe);
 
      /*
      *      Threads Definition
@@ -304,7 +309,7 @@ int main(int argc, char **argv){
     // - the triangulation has been performed
     // - the Map is updated accordingly
     //
-    std::function<void(void)> mapUpdate = [&keyFrameDetectionOn,&referenceKeyframe, &map, &mapper, &mapFilter, &keyframePoses, &outBufferTriangulation, &kfRetriever](){
+    std::function<void(void)> mapUpdate = [&keyFrameDetectionOn,&referenceKeyframe, &map, &mapper, &mapFilter, &keyframePoses, &outBufferTriangulation, &kfRetriever, &frameToTrack](){
         //std::tuple<SRef<Frame>,SRef<Keyframe>,std::vector<DescriptorMatch>,std::vector<DescriptorMatch>, std::vector<SRef<CloudPoint>>  >   element;
 		std::tuple<SRef<Keyframe>, SRef<Keyframe>, std::vector<DescriptorMatch>, std::vector<DescriptorMatch>, std::vector<SRef<CloudPoint>>  >   element;
         //SRef<Frame>                                         newFrame;
@@ -329,6 +334,8 @@ int main(int argc, char **argv){
         mapFilter->filter(refKeyframe->getPose(), newKeyframe->getPose(), newCloud, filteredCloud);
         mapper->update(map, newKeyframe, filteredCloud, foundMatches, remainingMatches);
         referenceKeyframe = newKeyframe;
+		frameToTrack = xpcf::utils::make_shared<Frame>(referenceKeyframe);
+		frameToTrack->setReferenceKeyframe(referenceKeyframe);
 		kfRetriever->addKeyframe(referenceKeyframe); // add keyframe for reloc
         keyframePoses.push_back(newKeyframe->getPose());
         LOG_DEBUG(" cloud current size: {} \n", map->getPointCloud()->size());
@@ -380,10 +387,9 @@ int main(int argc, char **argv){
 	xpcf::SharedBuffer< SRef<Image> > displayMatches(1);   // matches images should be displayed in the main thread
 	xpcf::SharedBuffer< SRef<Keyframe>> keyframeRelocBuffer(1);
 	bool isLostTrack = false;
-    std::function<void(void)> processFrames = [&displayMatches,&keyFrameDetectionOn,&outBufferTriangulation,mapUpdate,&keyframeSelector, &matchesOverlayBlue,&matchesOverlayRed,&imageViewer,&framePoses,&outBufferDescriptors,matcher,matchesFilter,corr2D3DFinder,PnP,&referenceKeyframe, &lastPose,&keyFrameBuffer, &kfRetriever, &keyframeRelocBuffer, &isLostTrack](){
+    std::function<void(void)> processFrames = [&displayMatches,&keyFrameDetectionOn,&outBufferTriangulation,mapUpdate,&keyframeSelector, &matchesOverlayBlue,&matchesOverlayRed,&imageViewer,&framePoses,&outBufferDescriptors,matcher,matchesFilter,corr2D3DFinder,PnP,&referenceKeyframe, &lastPose,&keyFrameBuffer, &kfRetriever, &keyframeRelocBuffer, &isLostTrack, &frameToTrack](){
 
          SRef<Frame> newFrame;
-         SRef<Keyframe> newKeyframe;
          SRef<Keyframe> refKeyFrame;
          SRef<Image> view;
          std::vector< SRef<Keypoint> > keypoints;
@@ -415,11 +421,13 @@ int main(int argc, char **argv){
 		 // referenceKeyframe can be changed outside : let's make a copy.
 		 if (!keyframeRelocBuffer.empty()) {
 			 referenceKeyframe = keyframeRelocBuffer.pop();
+			 frameToTrack = xpcf::utils::make_shared<Frame>(referenceKeyframe);
+			 frameToTrack->setReferenceKeyframe(referenceKeyframe);
 			 lastPose = referenceKeyframe->getPose();
 		 }
 
          newFrame->setReferenceKeyframe(referenceKeyframe);
-         refKeyFrame=newFrame->getReferenceKeyframe();
+		 refKeyFrame = newFrame->getReferenceKeyframe();
 
 
          view=newFrame->getView();
@@ -427,13 +435,13 @@ int main(int argc, char **argv){
          descriptors=newFrame->getDescriptors();
 
 
-         refDescriptors=refKeyFrame->getDescriptors();
+         refDescriptors= frameToTrack->getDescriptors();
          matcher->match(refDescriptors, descriptors, matches);
 
          /* filter matches to remove redundancy and check geometric validity */
-         matchesFilter->filter(matches, matches, refKeyFrame->getKeypoints(), keypoints);
+         matchesFilter->filter(matches, matches, frameToTrack->getKeypoints(), keypoints);
 
-         corr2D3DFinder->find(refKeyFrame, newFrame, matches, foundPoints, pt3d, pt2d, foundMatches, remainingMatches);
+         corr2D3DFinder->find(frameToTrack, newFrame, matches, foundPoints, pt3d, pt2d, foundMatches, remainingMatches);
 
 		 if (isLostTrack)
 			 imageViewer->display(view);
@@ -446,25 +454,26 @@ int main(int argc, char **argv){
 		 }		 
 
          if (PnP->estimate(pt2d, pt3d, imagePoints_inliers, worldPoints_inliers, newFramePose , lastPose) == FrameworkReturnCode::_SUCCESS){
-             LOG_INFO(" frame pose  :\n {}", newFramePose.matrix());
-             LOG_INFO(" pnp inliers size: {} / {}",worldPoints_inliers.size(), pt3d.size());
+             LOG_DEBUG(" frame pose  :\n {}", newFramePose.matrix());
+             LOG_DEBUG(" pnp inliers size: {} / {}",worldPoints_inliers.size(), pt3d.size());
 
            lastPose = newFramePose;
 
            // update new frame
            newFrame->setPose(newFramePose);
+		   // update last frame
+		   frameToTrack = newFrame;
 
              // If the camera has moved enough, create a keyframe and map the scene
-           if (keyFrameDetectionOn && keyframeSelector->select(newFrame, matches))
+           if (keyFrameDetectionOn && keyframeSelector->select(newFrame, foundMatches))
            {
-
                keyFrameDetectionOn=false;
                keyFrameBuffer.push(std::make_tuple(newFrame,refKeyFrame,foundMatches,remainingMatches));
             }
              else{
                  LOG_DEBUG (" No valid pose was found");
                  framePoses.push_back(newFramePose); // used for display
-                 LOG_INFO(" framePoses current size: {} \n", framePoses.size());
+                 LOG_DEBUG(" framePoses current size: {} \n", framePoses.size());
 
              }
 
