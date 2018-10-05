@@ -100,7 +100,7 @@ int main(int argc, char **argv) {
 #else
 	auto camera = xpcfComponentManager->create<SolARCameraOpencv>()->bindTo<input::devices::ICamera>();
 #endif
-#ifndef USE_FREE
+#ifdef USE_FREE
 	auto keypointsDetector = xpcfComponentManager->create<SolARKeypointDetectorOpencv>()->bindTo<features::IKeypointDetector>();
 	auto descriptorExtractor = xpcfComponentManager->create<SolARDescriptorsExtractorAKAZEOpencv>()->bindTo<features::IDescriptorsExtractor>();
 #else
