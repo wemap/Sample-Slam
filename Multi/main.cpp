@@ -83,11 +83,14 @@ int main(int argc, char **argv){
     /* this is needed in dynamic mode */
     SRef<xpcf::IComponentManager> xpcfComponentManager = xpcf::getComponentManagerInstance();
 
-    if(xpcfComponentManager->load("conf_SLAM.xml")!=org::bcom::xpcf::_SUCCESS)
-    {
-        LOG_ERROR("Failed to load the configuration file conf_SLAM.xml")
-        return -1;
-    }
+	std::string configxml = std::string("conf_SLAM.xml");
+	if (argc == 2)
+		configxml = std::string(argv[1]);
+	if (xpcfComponentManager->load(configxml.c_str()) != org::bcom::xpcf::_SUCCESS)
+	{
+		LOG_ERROR("Failed to load the configuration file {}", configxml.c_str())
+			return -1;
+	}
 
     // declare and create components
     LOG_INFO("Start creating components");
