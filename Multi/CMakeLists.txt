@@ -60,7 +60,7 @@ set(FILES_TO_COPY
 	$ENV{BCOMDEVROOT}/bcomBuild/SolARFramework/0.4.0/lib/x86_64/shared/${BUILDCONFIG}/${LIBPREFIX}SolARFramework.${LIBEXTENSION}
 	$ENV{BCOMDEVROOT}/thirdParties/xpcf/2.0.1/lib/x86_64/shared/${BUILDCONFIG}/${LIBPREFIX}xpcf.${LIBEXTENSION}
 	$ENV{BCOMDEVROOT}/thirdParties/freeglut/3.0.0/lib/x86_64/shared/${BUILDCONFIG}/${LIBPREFIX}${LIBGLUT}glut.${LIBEXTENSION}
-	$ENV{BCOMDEVROOT}/thirdParties/fbow/0.0.1/lib/x86_64/shared/${BUILDCONFIG}/${LIBPREFIX}fbow$(FBOW_EXT).${LIBEXTENSION}
+	$ENV{BCOMDEVROOT}/thirdParties/fbow/0.0.1/lib/x86_64/shared/${BUILDCONFIG}/${LIBPREFIX}fbow${FBOW_EXT}.${LIBEXTENSION}
 
 	${CMAKE_CURRENT_SOURCE_DIR}/camera_calibration.yml
 	${CMAKE_CURRENT_SOURCE_DIR}/conf_SLAM.xml
