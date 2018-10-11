@@ -82,9 +82,12 @@ int main(int argc, char **argv) {
 	/* this is needed in dynamic mode */
 	SRef<xpcf::IComponentManager> xpcfComponentManager = xpcf::getComponentManagerInstance();
 
-	if (xpcfComponentManager->load("conf_SLAM.xml") != org::bcom::xpcf::_SUCCESS)
+	std::string configxml = std::string("conf_SLAM.xml");
+	if (argc == 2)
+		configxml = std::string(argv[1]);
+	if (xpcfComponentManager->load(configxml.c_str()) != org::bcom::xpcf::_SUCCESS)
 	{
-		LOG_ERROR("Failed to load the configuration file conf_SLAM.xml")
+		LOG_ERROR("Failed to load the configuration file {}", configxml.c_str())
 			return -1;
 	}
 
@@ -97,7 +100,7 @@ int main(int argc, char **argv) {
 #else
 	auto camera = xpcfComponentManager->create<SolARCameraOpencv>()->bindTo<input::devices::ICamera>();
 #endif
-#ifndef USE_FREE
+#ifdef USE_FREE
 	auto keypointsDetector = xpcfComponentManager->create<SolARKeypointDetectorOpencv>()->bindTo<features::IKeypointDetector>();
 	auto descriptorExtractor = xpcfComponentManager->create<SolARDescriptorsExtractorAKAZE2Opencv>()->bindTo<features::IDescriptorsExtractor>();
 #else
