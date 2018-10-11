@@ -103,7 +103,7 @@ int main(int argc, char **argv){
 #endif
 #ifdef USE_FREE
     auto keypointsDetector =xpcfComponentManager->create<SolARKeypointDetectorOpencv>()->bindTo<features::IKeypointDetector>();
-    auto descriptorExtractor =xpcfComponentManager->create<SolARDescriptorsExtractorAKAZEOpencv>()->bindTo<features::IDescriptorsExtractor>();
+    auto descriptorExtractor =xpcfComponentManager->create<SolARDescriptorsExtractorAKAZE2Opencv>()->bindTo<features::IDescriptorsExtractor>();
 #else
    auto  keypointsDetector = xpcfComponentManager->create<SolARKeypointDetectorNonFreeOpencv>()->bindTo<features::IKeypointDetector>();
    auto descriptorExtractor = xpcfComponentManager->create<SolARDescriptorsExtractorSURF64Opencv>()->bindTo<features::IDescriptorsExtractor>();
