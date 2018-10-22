@@ -11,3 +11,4 @@ spdlog|0.14.0|spdlog|thirdParties|http://repository.b-com.com/
 eigen|3.3.4|eigen|thirdParties|http://repository.b-com.com/amc-generic
 freeglut|3.0.0|freeglut|thirdParties|http://repository.b-com.com/amc-generic
 fbow|0.0.1|fbow|thirdParties|http://repository.b-com.com/amc-generic
+
