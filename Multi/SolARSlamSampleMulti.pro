@@ -35,10 +35,7 @@ SOURCES += \
     main.cpp
 
 unix {
-
-      QMAKE_CXX =clang
-      LIBS += -lGL -lGLU
-     # DEFINES += USE_FREE
+      LIBS += -ldl
 }
 
 macx {
