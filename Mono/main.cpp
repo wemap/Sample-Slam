@@ -251,10 +251,15 @@ int main(int argc, char **argv) {
 	frameToTrack->setReferenceKeyframe(referenceKeyframe);	
 
 	// Start tracking
+    clock_t start, end;
+    int count = 0;
+    start = clock();
+
 	while (true)
 	{
 		// Get current image
-		camera->getNextImage(view);					
+        camera->getNextImage(view);
+        count++;
 		keypointsDetector->detect(view, keypoints);
 		descriptorExtractor->extract(view, keypoints, descriptors);
 		newFrame = xpcf::utils::make_shared<Frame>(keypoints, descriptors, view, referenceKeyframe);
@@ -273,13 +278,13 @@ int main(int argc, char **argv) {
 		// display matches
 		if (isLostTrack) {
 			if (imageViewer->display(view) == FrameworkReturnCode::_STOP)
-				return 0;
+                break;
 		}
 		else {
 			matchesOverlayBlue->draw(view, imageMatches, referenceKeyframe->getKeypoints(), keypoints, foundMatches);
 			matchesOverlayRed->draw(imageMatches, imageMatches2, referenceKeyframe->getKeypoints(), keypoints, remainingMatches);
 			if (imageViewer->display(imageMatches2) == FrameworkReturnCode::_STOP)
-				return 0;
+                break;
 		}		
 
 		std::vector<SRef<Point2Df>> imagePoints_inliers;
@@ -347,9 +352,16 @@ int main(int argc, char **argv) {
 
 		// display point cloud
 		if (viewer3DPoints->display(*(map->getPointCloud()), lastPose, keyframePoses, framePoses) == FrameworkReturnCode::_STOP)
-			return 0;
+            break;
 
 	}
+
+    // display stats on frame rate
+    end = clock();
+    double duration = double(end - start) / CLOCKS_PER_SEC;
+    printf("\n\nElasped time is %.2lf seconds.\n", duration);
+    printf("Number of processed frame per second : %8.2f\n", count / duration);
+
 	return 0;
 }
 
