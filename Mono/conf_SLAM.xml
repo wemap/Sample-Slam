@@ -14,6 +14,10 @@
                 <interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" description="IComponentIntrospect"/>
                 <interface uuid="0eadc8b7-1265-434c-a4c6-6da8a028e06e" description="IKeypointDetector"/>
         </component>
+		<component uuid="c8cc68db-9abd-4dab-9204-2fe4e9d010cd" description="SolARDescriptorsExtractorAKAZEOpencv">
+                <interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" description="IComponentIntrospect"/>
+                <interface uuid="c0e49ff1-0696-4fe6-85a8-9b2c1e155d2e" description="IDescriptorsExtractor"/>
+        </component>
 		<component uuid="21238c00-26dd-11e8-b467-0ed5f89f718b" description="SolARDescriptorsExtractorAKAZE2Opencv">
                 <interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" description="IComponentIntrospect"/>
                 <interface uuid="c0e49ff1-0696-4fe6-85a8-9b2c1e155d2e" description="IDescriptorsExtractor"/>
@@ -103,7 +107,21 @@
                 <interface uuid="90075c1b-915b-469d-b92d-41c5d575bf15" description="IMapper"/>
         </component>
 	</module>
+	
+	<module uuid="b81f0b90-bdbc-11e8-a355-529269fb1459" name="SolARModuleFBOW" path="$BCOMDEVROOT/bcomBuild/SolARModuleFBOW/0.4.0/lib/x86_64/shared">
+        <component uuid="9d1b1afa-bdbc-11e8-a355-529269fb1459" description="SolARKeyframeRetrieverFBOW">
+                <interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" description="IComponentIntrospect"/>
+                <interface uuid="f60980ce-bdbd-11e8-a355-529269fb1459" description="IKeyframeRetriever"/>
+        </component>
+    </module>   
     
+	<module uuid="09f4a367-c5bf-4a9f-9f3b-42424d52f717" name="SolARModuleCeres" path="$BCOMDEVROOT/bcomBuild/SolARModuleCeres/0.4.0/lib/x86_64/shared">
+        <component uuid="4897fc13-682c-4e95-8aba-abd9f7a17193" description="SolARBundlerCeres">
+                <interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" description="IComponentIntrospect"/>
+                <interface uuid="35b9bdb7-d23c-4909-984f-ae7f9a292e6c" description="IBundler"/>
+        </component>
+    </module>
+	
 	<configuration>
 		<component uuid="5B7396F4-A804-4F3C-A0EB-FB1D56042BB4"> <!-- SolARCameraOpencv -->
 			<property name="calibrationFile" type="string" value="camera_calibration.yml"/>
@@ -114,14 +132,19 @@
 			<property name="imagesDirectoryPath" type="string" value="..\Images\frame_%04d.png"/>   
         </component>		
 		<component uuid="e81c7e4e-7da6-476a-8eba-078b43071272"> <!-- SolARKeypointDetectorOpencv -->
-			<property name="type" type="string" value="AKAZE2"/>
+			<property name="type" type="string" value="AKAZE"/>
 			<property name="imageRatio" type="Float" value="1.0"/>
-			<property name="nbDescriptors" type="Integer" value="-1"/>
+			<property name="nbDescriptors" type="Integer" value="3000"/>
+			<property name="threshold" type="Float" value="0.0001"/>
         </component>
 		<component uuid="d1f9317c-9519-4671-8ff5-4629773544f2"> <!-- SolARKeypointDetectorNonFreeOpencv -->
 			<property name="type" type="string" value="SURF"/>
 			<property name="imageRatio" type="Float" value="1.0"/>
 			<property name="nbDescriptors" type="Integer" value="-1"/>
+			<property name="threshold" type="Double" value="-1.0"/>
+        </component>
+		<component uuid="c8cc68db-9abd-4dab-9204-2fe4e9d010cd"> <!-- SolARDescriptorsExtractorAKAZEOpencv -->
+            <property name="threshold" type="Float" value="3e-4"/>
         </component>
 		<component uuid="21238c00-26dd-11e8-b467-0ed5f89f718b"> <!-- SolARDescriptorsExtractorAKAZE2Opencv -->
             <property name="threshold" type="Float" value="3e-4"/>
@@ -153,6 +176,7 @@
             <property name="iterationsCount" type="Integer" value="1000"/>
 			<property name="reprojError" type="Float" value="2.5"/>
 			<property name="confidence" type="Float" value="0.99"/>
+			<property name="minNbInliers" type="Integer" value="15"/>
         </component>
 		<component uuid="09205b96-7cba-4415-bc61-64744bc26222"> <!-- SolARMapFilterOpencv -->
 			<property name="reprojErrorThreshold" type="float" value="2.5"/>
@@ -161,6 +185,10 @@
 		<component uuid="ad59a5ba-beb8-11e8-a355-529269fb1459"> <!-- SolARKeyframeSelector -->
 			<property name="minNbMatchesIsKeyframe" type="Integer" value="30"/>
 			<property name="minMeanDistanceIsKeyframe" type="Float" value="0.07"/>
+		</component>
+		<component uuid="9d1b1afa-bdbc-11e8-a355-529269fb1459">  <!-- SolARKeyframeRetrieverFBOW -->
+			<property name="VOCpath" type="String" value="akaze.fbow"/>
+			<property name="threshold" type="Float" value="0.01"/>
 		</component>
 		<component uuid="e95302be-3fe1-44e0-97bf-a98380464af9"> <!-- SolARMatchesOverlayOpencv -->
             <property name="thickness" type="UnsignedInteger" value="1"/>
