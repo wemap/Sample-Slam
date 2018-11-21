@@ -15,7 +15,7 @@
  */
 
  #define USE_FREE
- //#define USE_IMAGES_SET
+ #define USE_IMAGES_SET
 
 #include <iostream>
 #include <string>
@@ -29,6 +29,7 @@
 #include "SolARModuleOpengl_traits.h"
 #include "SolARModuleTools_traits.h"
 #include "SolARModuleFBOW_traits.h"
+#include "SolARModuleCeres_traits.h"
 
 #ifndef USE_FREE
 #include "SolARModuleNonFreeOpencv_traits.h"
@@ -56,6 +57,7 @@
 #include "api/display/IImageViewer.h"
 #include "api/display/I3DPointsViewer.h"
 #include "api/reloc/IKeyframeRetriever.h"
+#include "api/solver/map/IBundler.h"
 
 using namespace SolAR;
 using namespace SolAR::datastructure;
@@ -67,6 +69,7 @@ using namespace SolAR::MODULES::NONFREEOPENCV;
 #endif
 using namespace SolAR::MODULES::OPENGL;
 using namespace SolAR::MODULES::TOOLS;
+using namespace SolAR::MODULES::CERES;
 
 namespace xpcf = org::bcom::xpcf;
 
@@ -119,6 +122,7 @@ int main(int argc, char **argv) {
 	SRef<solver::map::IMapFilter> mapFilter = xpcfComponentManager->create<SolARMapFilter>()->bindTo<solver::map::IMapFilter>();
 	SRef<solver::map::IMapper> mapper = xpcfComponentManager->create<SolARMapper>()->bindTo<solver::map::IMapper>();
 	SRef<solver::map::IKeyframeSelector> keyframeSelector = xpcfComponentManager->create<SolARKeyframeSelector>()->bindTo<solver::map::IKeyframeSelector>();
+    SRef<solver::map::IBundler> bundler = xpcfComponentManager->create<SolARBundlerCeres>()->bindTo<solver::map::IBundler>();
 
 	SRef<display::IMatchesOverlay> matchesOverlay = xpcfComponentManager->create<SolARMatchesOverlayOpencv>()->bindTo<display::IMatchesOverlay>();
 	SRef<display::IMatchesOverlay> matchesOverlayBlue = xpcfComponentManager->create<SolARMatchesOverlayOpencv>("matchesBlue")->bindTo<display::IMatchesOverlay>();
@@ -308,8 +312,6 @@ int main(int argc, char **argv) {
 				// triangulate with the reference keyframe
 				std::vector<SRef<CloudPoint>>newCloud, filteredCloud;
 				triangulator->triangulate(newKeyframe, remainingMatches, newCloud);
-				//triangulator->triangulate(referenceKeyframe->getKeypoints(), keypoints, remainingMatches, std::make_pair<int, int>((int)referenceKeyframe->m_idx + 0, (int)(mapper->getNbKeyframes())),
-				//	referenceKeyframe->getPose(), newFramePose, newCloud);
 
 				// remove abnormal 3D points from the new cloud
 				mapFilter->filter(referenceKeyframe->getPose(), newFramePose, newCloud, filteredCloud);
@@ -321,7 +323,16 @@ int main(int argc, char **argv) {
 				referenceKeyframe = newKeyframe;
 				frameToTrack = xpcf::utils::make_shared<Frame>(referenceKeyframe);
 				frameToTrack->setReferenceKeyframe(referenceKeyframe);
-				kfRetriever->addKeyframe(referenceKeyframe); // add keyframe for reloc
+                kfRetriever->addKeyframe(referenceKeyframe); // add keyframe for reloc
+
+                // Bundle adjustment
+                // create a vector of size nbKeyframeToOptimize starting at LastKeyframeindex - nbKeyframeToOptimize and finishing at LastKeyframeindex
+/*              int nbKeyframeToOptimize = 4;
+                std::vector<int> selectedKeyframesIndices(nbKeyframeToOptimize);
+                std::generate(selectedKeyframesIndices.begin(), selectedKeyframesIndices.end(), [n=mapper->getKeyframes().size()-nbKeyframeToOptimize] () mutable { return n++; });
+
+                bundler->adjustBundle(mapper->getKeyframes(), *(mapper->getMap()->getPointCloud()), camera->getIntrinsicsParameters(), camera->getDistorsionParameters(), selectedKeyframesIndices );
+*/
 				//LOG_INFO("************************ NEW KEYFRAME *************************");
 				LOG_DEBUG(" cloud current size: {} \n", map->getPointCloud()->size());
 			}
