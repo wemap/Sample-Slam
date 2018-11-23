@@ -15,7 +15,7 @@
  */
 
 #define USE_FREE
-#define USE_IMAGES_SET
+//#define USE_IMAGES_SET
 
 #include <iostream>
 #include <string>
