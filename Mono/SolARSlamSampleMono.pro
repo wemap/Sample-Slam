@@ -1,4 +1,4 @@
-TARGET = SolARSlamSample
+TARGET = SolARSlamSampleMono
 VERSION=1.0.0
 
 CONFIG += c++11
@@ -26,19 +26,16 @@ DEPENDENCIESCONFIG = sharedlib
 include ($$(BCOMDEVROOT)/builddefs/qmake/templateappconfig.pri)
 
 
+DEFINES += BOOST_ALL_NO_LIB
+DEFINES += BOOST_ALL_DYN_LINK
 
-INCLUDEPATH += "$$(BCOMDEVROOT)/thirdParties/glcamera"
-
-HEADERS += constant.h
+HEADERS += \
 
 SOURCES += \
     main.cpp
 
 unix {
-
-      QMAKE_CXX =clang
-      LIBS += -lGL -lGLU
-     # DEFINES += USE_FREE
+      LIBS += -ldl
 }
 
 macx {
