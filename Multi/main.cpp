@@ -421,7 +421,8 @@ int main(int argc, char **argv){
          }
 
          /*compute matches between reference image and camera image*/
-         newFrame=outBufferDescriptors.pop();
+         if(!outBufferDescriptors.tryPop(newFrame))
+                 return;
 
          // referenceKeyframe can be changed outside : let's make a copy.
          if (!keyframeRelocBuffer.empty()) {
