@@ -7,6 +7,8 @@
 #include "core/Log.h"
 
 #define USE_FREE
+#define ONE_THREAD 1
+
 using namespace SolAR;
 using namespace SolAR::datastructure;
 using namespace SolAR::api;
@@ -609,7 +611,7 @@ FrameworkReturnCode PipelineSlam::start(void* imageDataBuffer)
     auto doTriangulationThread = [this](){;doTriangulation();};
     auto mapUpdateThread = [this](){;mapUpdate();};
 
-#if 1
+#if ONE_THREAD
     auto allTasksThread=[this](){;allTasks();};
     m_taskAll= new xpcf::DelegateTask(allTasksThread);
     m_taskAll->start();
@@ -641,9 +643,13 @@ FrameworkReturnCode PipelineSlam::start(void* imageDataBuffer)
 
 FrameworkReturnCode PipelineSlam::stop()
 {
+    m_stopFlag=true;
     m_camera->stop();
 
-#if 0
+#if ONE_THREAD
+    if (m_taskAll != nullptr)
+            m_taskAll->stop();
+#else
     if (m_taskGetCameraImages != nullptr)
         m_taskGetCameraImages->stop();
     if (m_taskDetectFiducialMarker != nullptr)
@@ -660,9 +666,6 @@ FrameworkReturnCode PipelineSlam::stop()
         m_taskDoTriangulation->stop();
 //    if (m_taskMapUpdate != nullptr)
 //        m_taskMapUpdate->stop();
-#else
-    if (m_taskAll != nullptr)
-            m_taskAll->stop();
 #endif
 
      if(!m_initOK)
