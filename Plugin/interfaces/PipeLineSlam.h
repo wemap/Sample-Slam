@@ -169,7 +169,6 @@ private:
     Transform3Df m_firstPose;
 
     SRef<Map>                                           m_map;
-//    std::vector<Transform3Df>                           keyframePoses;
     Transform3Df                                        poseFrame1;
     SRef<Keyframe>                                      keyframe1;
     std::vector<SRef<Keypoint>>                         keypointsView1;
