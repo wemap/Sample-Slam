@@ -146,6 +146,9 @@ FrameworkReturnCode PipelineSlam::init(SRef<xpcf::IComponentManager> xpcfCompone
     m_poseFinderFrom2D2D->setCameraParameters(m_camera->getIntrinsicsParameters(), m_camera->getDistorsionParameters());
     m_triangulator->setCameraParameters(m_camera->getIntrinsicsParameters(), m_camera->getDistorsionParameters());
 
+
+    m_i2DOverlay = xpcf::ComponentFactory::createInstance<SolAR2DOverlayOpencv>()->bindTo<api::display::I2DOverlay>();
+
     m_initOK = true;
 
     return FrameworkReturnCode::_SUCCESS;
@@ -523,6 +526,8 @@ void PipelineSlam::processFrames(){
      keypoints=newFrame->getKeypoints();
      descriptors=newFrame->getDescriptors();
 
+//     m_i2DOverlay->drawCircles(keypoints,camImage);
+
      refDescriptors= m_frameToTrack->getDescriptors();
      m_matcher->match(refDescriptors, descriptors, matches);
 
@@ -537,7 +542,11 @@ void PipelineSlam::processFrames(){
         LOG_DEBUG(" pnp inliers size: {} / {}",worldPoints_inliers.size(), pt3d.size());
 
         m_lastPose = m_pose;
-
+        std::vector<SRef<Point2Df>> point2D;
+        SRef<std::vector<SRef<CloudPoint>>> cloud;
+        cloud=m_map->getPointCloud();
+        project3Dpoints(m_pose, *cloud,point2D);
+        m_i2DOverlay->drawCircles(point2D,camImage);
         // update new frame
         newFrame->setPose(m_pose);
         // update last frame
@@ -678,8 +687,6 @@ FrameworkReturnCode PipelineSlam::stop()
          LOG_WARNING("Try to stop a pipeline that has not been started");
          return FrameworkReturnCode::_ERROR_;
      }
-     m_stopFlag=true;
-
      LOG_INFO("Pipeline has stopped: \n");
 
     return FrameworkReturnCode::_SUCCESS;
@@ -733,6 +740,32 @@ void PipelineSlam::allTasks(){
     doTriangulation();
     processFrames();
 //    mapUpdate();
+}
+
+
+
+void PipelineSlam::project3Dpoints(const Transform3Df pose,const std::vector<SRef<CloudPoint>>& cloud,std::vector<SRef<Point2Df>>& point2D){
+
+    //first step :  from world coordinates to camera coordinates
+    Transform3Df invPose;
+    invPose=pose.inverse();
+    point2D.clear();
+#if (_WIN64) || (_WIN32)
+        Vector3f pointInCamRef;
+#else
+        Vector4f pointInCamRef;
+#endif
+        CamCalibration calib = m_camera->getIntrinsicsParameters();
+    for (auto cld = cloud.begin();cld!=cloud.end();++cld){
+        Vector3f point((*cld)->getX(), (*cld)->getY(), (*cld)->getZ());
+        pointInCamRef=invPose*point;
+        if(pointInCamRef(2)>0){
+            Vector3f p=calib*pointInCamRef;
+            SRef<Point2Df> p2d=xpcf::utils::make_shared<Point2Df> (p(0)/p(2),p(1)/p(2));
+            point2D.push_back(p2d);
+        }
+    }
+
 }
 
 }//namespace PIPELINES

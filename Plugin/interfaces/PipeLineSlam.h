@@ -68,6 +68,9 @@
 #include "xpcf/threading/DropBuffer.h"
 #include "xpcf/threading/BaseTask.h"
 
+
+#include "SolAR2DOverlayOpencv.h"
+
 namespace SolAR {
 using namespace datastructure;
 using namespace api;
@@ -152,6 +155,11 @@ private:
     SRef<geom::IImage2WorldMapper> m_img2worldMapper;
 
 
+
+    // display stuff
+    SRef<api::display::I2DOverlay> m_i2DOverlay;
+
+
 #ifdef USE_OPENGL
     SRef<sink::ISinkPoseTextureBuffer> m_sink;
 #else
@@ -181,9 +189,9 @@ private:
     Transform3Df                                        m_lastPose;
     std::vector<Transform3Df>                           m_keyframePoses;
     bool                                                m_keyFrameDetectionOn;   // if true, keyFrames can be detected
-    xpcf::DropBuffer< SRef<Image> > displayMatches;   // matches images should be displayed in the main thread
-    xpcf::DropBuffer< SRef<Keyframe>> keyframeRelocBuffer;
     bool                                                m_isLostTrack;
+
+
 
 
     bool detectFiducialMarkerCore(SRef<SolAR::datastructure::Image>& image);
@@ -199,6 +207,9 @@ private:
     void processFrames();
 
     void allTasks();
+
+    void project3Dpoints(const Transform3Df pose,const std::vector<SRef<CloudPoint>>& cloud,std::vector<SRef<Point2Df>>& point2D);
+
     xpcf::DelegateTask* m_taskAll;
 
     xpcf::DelegateTask* m_taskGetCameraImages;
