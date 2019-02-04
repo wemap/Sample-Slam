@@ -402,13 +402,23 @@ void PipelineSlam::mapUpdate(){
     foundMatches=std::get<2>(element);
     remainingMatches=std::get<3>(element);
     newCloud=std::get<4>(element);
-
+    std::map<unsigned int, SRef<CloudPoint>> frameVisibility = newKeyframe->getReferenceKeyframe()->getVisibleMapPoints();
+    std::map<unsigned int, unsigned int> visibleKeypoints= newKeyframe->getReferenceKeyframe()->getVisibleKeypoints();
+    LOG_INFO(" ref KF frameVisibility   : {} ", frameVisibility.size());
+    LOG_INFO(" ref KF frameVisibilityPoints   : {} ", visibleKeypoints.size());
+    frameVisibility = newKeyframe->getVisibleMapPoints();
+    LOG_INFO(" cur KF frameVisibility   : {} ", frameVisibility.size());
 
     LOG_DEBUG(" frame pose estimation :\n {}", newKeyframe->getPose().matrix());
     LOG_DEBUG("Number of matches: {}, number of 3D points:{}", remainingMatches.size(), newCloud.size());
     //newKeyframe = xpcf::utils::make_shared<Keyframe>(newFrame);
     m_mapFilter->filter(refKeyframe->getPose(), newKeyframe->getPose(), newCloud, filteredCloud);
+    frameVisibility = newKeyframe->getVisibleMapPoints();
+    LOG_INFO(" cur KF frameVisibility   : {} ", frameVisibility.size());
     m_mapper->update(m_map, newKeyframe, filteredCloud, foundMatches, remainingMatches);
+    frameVisibility = newKeyframe->getVisibleMapPoints();
+    LOG_INFO(" cur KF frameVisibility   : {} ", frameVisibility.size());
+
     m_referenceKeyframe = newKeyframe;
     m_frameToTrack = xpcf::utils::make_shared<Frame>(m_referenceKeyframe);
     m_frameToTrack->setReferenceKeyframe(m_referenceKeyframe);
@@ -530,11 +540,16 @@ void PipelineSlam::processFrames(){
 
      refDescriptors= m_frameToTrack->getDescriptors();
      m_matcher->match(refDescriptors, descriptors, matches);
+     LOG_INFO(" Matches before : {} ", matches.size());
 
      /* filter matches to remove redundancy and check geometric validity */
      m_matchesFilter->filter(matches, matches, m_frameToTrack->getKeypoints(), keypoints);
+     LOG_INFO(" Matches after : {} ", matches.size());
 
+     std::map<unsigned int, SRef<CloudPoint>> frameVisibility = m_frameToTrack->getReferenceKeyframe()->getVisibleMapPoints();
+     LOG_INFO(" frameVisibility   : {} ", frameVisibility.size());
      m_corr2D3DFinder->find(m_frameToTrack, newFrame, matches, foundPoints, pt3d, pt2d, foundMatches, remainingMatches);
+     LOG_INFO(" foundMatches  : {} remainingMatches: {}", foundMatches.size(),remainingMatches.size());
 
 
      if (m_PnP->estimate(pt2d, pt3d, imagePoints_inliers, worldPoints_inliers, m_pose , m_lastPose) == FrameworkReturnCode::_SUCCESS){
@@ -553,35 +568,30 @@ void PipelineSlam::processFrames(){
         m_frameToTrack = newFrame;
 
         // If the camera has moved enough, create a keyframe and map the scene
-        if ( m_keyFrameDetectionOn &&  m_keyframeSelector->select(newFrame, foundMatches)){
+        if ( m_keyFrameDetectionOn &&  m_keyframeSelector->select(newFrame, foundMatches) && 1){
             m_keyFrameDetectionOn=false;
             m_keyFrameBuffer.push(std::make_tuple(newFrame,refKeyFrame,foundMatches,remainingMatches));
-        }
-        else{
-         LOG_DEBUG (" No valid pose was found");
         }
         m_isLostTrack = false;
         m_sink->set(m_pose, camImage);
      }
      else {
-         if ( m_kfRetriever->retrieve(newFrame, ret_keyframes) == FrameworkReturnCode::_SUCCESS) {
-             LOG_INFO("Retrieval Success based on FBOW");
-             m_referenceKeyframe = ret_keyframes[0];
-             m_frameToTrack = xpcf::utils::make_shared<Frame>(m_referenceKeyframe);
-             m_frameToTrack->setReferenceKeyframe(m_referenceKeyframe);
-             m_pose = m_referenceKeyframe->getPose();
-             m_isLostTrack = false;
-         }
+         LOG_DEBUG (" No valid pose was found");
+         m_sink->set(camImage);
+         m_isLostTrack = true;
+//         if ( m_kfRetriever->retrieve(newFrame, ret_keyframes) == FrameworkReturnCode::_SUCCESS) {
+//             LOG_INFO("Retrieval Success based on FBOW");
+//             m_keyframeRelocBuffer.push(ret_keyframes[0]);
+//             m_isLostTrack = false;
+//         }
 //         else if ( detectFiducialMarkerCore(camImage)){
 //              m_lastPose = m_pose;
 //              m_isLostTrack = false;
 //         }
 
-        else{
-             LOG_INFO("Retrieval Failed");
-             m_sink->set(camImage);
-             m_isLostTrack = true;
-         }
+//        else{
+//             LOG_INFO("Retrieval Failed");
+//         }
      }
 
      return;
@@ -716,7 +726,6 @@ CameraParameters PipelineSlam::getCameraParameters()
     }
     return camParam;
 }
-#endif
 
 
 void PipelineSlam::allTasks(){
