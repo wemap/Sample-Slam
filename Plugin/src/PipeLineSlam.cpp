@@ -514,7 +514,7 @@ void PipelineSlam::processFrames(){
 
      // referenceKeyframe can be changed outside : let's make a copy.
      if (!m_keyframeRelocBuffer.empty()) {
-         m_referenceKeyframe = keyframeRelocBuffer.pop();
+         m_referenceKeyframe = m_keyframeRelocBuffer.pop();
          m_frameToTrack = xpcf::utils::make_shared<Frame>(m_referenceKeyframe);
          m_frameToTrack->setReferenceKeyframe(m_referenceKeyframe);
          m_lastPose = m_referenceKeyframe->getPose();
