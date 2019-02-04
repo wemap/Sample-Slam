@@ -53,7 +53,7 @@ PipelineSlam::PipelineSlam():ConfigurableBase(xpcf::toUUID<PipelineSlam>())
     LOG_DEBUG(" Pipeline constructor");
     m_bootstrapOk=false;
     m_firstImageCaptured = false;
-    m_keyFrameDetectionOn = false;
+    m_keyFrameDetectionOn = true;
     m_isLostTrack = false;
 }
 
