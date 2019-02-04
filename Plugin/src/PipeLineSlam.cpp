@@ -692,21 +692,9 @@ FrameworkReturnCode PipelineSlam::stop()
     return FrameworkReturnCode::_SUCCESS;
 }
 
-#ifdef USE_OPENGL
-void PipelineSlam::updateFrameDataOGL(int enventID)
+SourceReturnCode PipelineSlam::loadSourceImage(void* sourceTextureHandle, int width, int height)
 {
-    return m_sink->updateFrameDataOGL(enventID);
-}
-
-SinkReturnCode PipelineSlam::update(Transform3Df& pose)
-{
-    return m_sink->tryUpdate(pose);
-}
-
-#else
-void PipelineSlam::updateFrameDataOGL(int enventID)
-{
-    return ;
+    return SourceReturnCode::_NOT_IMPLEMENTED;
 }
 
 SinkReturnCode PipelineSlam::update(Transform3Df& pose)

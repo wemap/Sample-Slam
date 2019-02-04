@@ -109,7 +109,7 @@ public:
     /// Get the new pose and update the texture buffer with the image that has to be displayed
     SinkReturnCode update(Transform3Df& pose) override;
 
-    void updateFrameDataOGL(int enventID) override;
+    SourceReturnCode loadSourceImage(void* sourceTextureHandle, int width, int height) override;
 
     void unloadComponent () override final;
 
