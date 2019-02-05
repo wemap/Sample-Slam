@@ -565,7 +565,7 @@ void PipelineSlam::processFrames(){
         // update new frame
         newFrame->setPose(m_pose);
         // update last frame
-        m_frameToTrack = newFrame;
+//        m_frameToTrack = newFrame;
 
         // If the camera has moved enough, create a keyframe and map the scene
         if ( m_keyFrameDetectionOn &&  m_keyframeSelector->select(newFrame, foundMatches) && 1){
