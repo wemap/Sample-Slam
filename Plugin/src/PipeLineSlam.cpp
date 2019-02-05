@@ -402,22 +402,18 @@ void PipelineSlam::mapUpdate(){
     foundMatches=std::get<2>(element);
     remainingMatches=std::get<3>(element);
     newCloud=std::get<4>(element);
+
     std::map<unsigned int, SRef<CloudPoint>> frameVisibility = newKeyframe->getReferenceKeyframe()->getVisibleMapPoints();
     std::map<unsigned int, unsigned int> visibleKeypoints= newKeyframe->getReferenceKeyframe()->getVisibleKeypoints();
-    LOG_INFO(" ref KF frameVisibility   : {} ", frameVisibility.size());
-    LOG_INFO(" ref KF frameVisibilityPoints   : {} ", visibleKeypoints.size());
     frameVisibility = newKeyframe->getVisibleMapPoints();
-    LOG_INFO(" cur KF frameVisibility   : {} ", frameVisibility.size());
 
     LOG_DEBUG(" frame pose estimation :\n {}", newKeyframe->getPose().matrix());
     LOG_DEBUG("Number of matches: {}, number of 3D points:{}", remainingMatches.size(), newCloud.size());
     //newKeyframe = xpcf::utils::make_shared<Keyframe>(newFrame);
     m_mapFilter->filter(refKeyframe->getPose(), newKeyframe->getPose(), newCloud, filteredCloud);
     frameVisibility = newKeyframe->getVisibleMapPoints();
-    LOG_INFO(" cur KF frameVisibility   : {} ", frameVisibility.size());
     m_mapper->update(m_map, newKeyframe, filteredCloud, foundMatches, remainingMatches);
     frameVisibility = newKeyframe->getVisibleMapPoints();
-    LOG_INFO(" cur KF frameVisibility   : {} ", frameVisibility.size());
 
     m_referenceKeyframe = newKeyframe;
     m_frameToTrack = xpcf::utils::make_shared<Frame>(m_referenceKeyframe);
@@ -540,17 +536,12 @@ void PipelineSlam::processFrames(){
 
      refDescriptors= m_frameToTrack->getDescriptors();
      m_matcher->match(refDescriptors, descriptors, matches);
-     LOG_INFO(" Matches before : {} ", matches.size());
 
      /* filter matches to remove redundancy and check geometric validity */
      m_matchesFilter->filter(matches, matches, m_frameToTrack->getKeypoints(), keypoints);
-     LOG_INFO(" Matches after : {} ", matches.size());
 
      std::map<unsigned int, SRef<CloudPoint>> frameVisibility = m_frameToTrack->getReferenceKeyframe()->getVisibleMapPoints();
-     LOG_INFO(" frameVisibility   : {} ", frameVisibility.size());
      m_corr2D3DFinder->find(m_frameToTrack, newFrame, matches, foundPoints, pt3d, pt2d, foundMatches, remainingMatches);
-     LOG_INFO(" foundMatches  : {} remainingMatches: {}", foundMatches.size(),remainingMatches.size());
-
 
      if (m_PnP->estimate(pt2d, pt3d, imagePoints_inliers, worldPoints_inliers, m_pose , m_lastPose) == FrameworkReturnCode::_SUCCESS){
         LOG_DEBUG(" frame pose  :\n {}", m_pose.matrix());
