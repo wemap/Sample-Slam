@@ -579,19 +579,19 @@ void PipelineSlam::processFrames(){
          LOG_DEBUG (" No valid pose was found");
          m_sink->set(camImage);
          m_isLostTrack = true;
-//         if ( m_kfRetriever->retrieve(newFrame, ret_keyframes) == FrameworkReturnCode::_SUCCESS) {
-//             LOG_INFO("Retrieval Success based on FBOW");
-//             m_keyframeRelocBuffer.push(ret_keyframes[0]);
-//             m_isLostTrack = false;
-//         }
+         if ( m_kfRetriever->retrieve(newFrame, ret_keyframes) == FrameworkReturnCode::_SUCCESS) {
+             LOG_INFO("Retrieval Success based on FBOW");
+             m_keyframeRelocBuffer.push(ret_keyframes[0]);
+             m_isLostTrack = false;
+         }
 //         else if ( detectFiducialMarkerCore(camImage)){
 //              m_lastPose = m_pose;
 //              m_isLostTrack = false;
 //         }
 
-//        else{
-//             LOG_INFO("Retrieval Failed");
-//         }
+        else{
+             LOG_INFO("Retrieval Failed");
+         }
      }
 
      return;
