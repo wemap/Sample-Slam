@@ -82,7 +82,8 @@ FrameworkReturnCode PipelineSlam::init(SRef<xpcf::IComponentManager> xpcfCompone
     m_matcher =xpcfComponentManager->create<MODULES::OPENCV::SolARDescriptorMatcherKNNOpencv>()->bindTo<features::IDescriptorMatcher>();
     m_poseFinderFrom2D2D =xpcfComponentManager->create<MODULES::OPENCV::SolARPoseFinderFrom2D2DOpencv>()->bindTo<solver::pose::I3DTransformFinderFrom2D2D>();
     m_triangulator =xpcfComponentManager->create<MODULES::OPENCV::SolARSVDTriangulationOpencv>()->bindTo<solver::map::ITriangulator>();
-    m_matchesFilter =xpcfComponentManager->create<MODULES::OPENCV::SolARGeometricMatchesFilterOpencv>()->bindTo<features::IMatchesFilter>();
+    m_basicMatchesFilter = xpcfComponentManager->create<SolARBasicMatchesFilter>()->bindTo<features::IMatchesFilter>();
+    m_geomMatchesFilter =xpcfComponentManager->create<MODULES::OPENCV::SolARGeometricMatchesFilterOpencv>()->bindTo<features::IMatchesFilter>();
     m_PnP =xpcfComponentManager->create<MODULES::OPENCV::SolARPoseEstimationPnpOpencv>()->bindTo<solver::pose::I3DTransformFinderFrom2D3D>();
     m_corr2D3DFinder =xpcfComponentManager->create<MODULES::OPENCV::SolAR2D3DCorrespondencesFinderOpencv>()->bindTo<solver::pose::I2D3DCorrespondencesFinder>();
     m_mapFilter =xpcfComponentManager->create<MODULES::TOOLS::SolARMapFilter>()->bindTo<solver::map::IMapFilter>();
@@ -298,7 +299,11 @@ void PipelineSlam::doBootStrap()
         m_matcher->match(descriptorsView1, descriptorsView2, matches);
 
         int nbOriginalMatches = matches.size();
-        m_matchesFilter->filter(matches, matches, keypointsView1, keypointsView2);
+
+        /* filter matches to remove redundancy and check geometric validity */
+         m_basicMatchesFilter->filter(matches, matches, keypointsView1, keypointsView2);
+         m_geomMatchesFilter->filter(matches, matches, keypointsView1, keypointsView2);
+
 
         SRef<Frame> frame2 = xpcf::utils::make_shared<Frame>(keypointsView2, descriptorsView2, camImage, keyframe1);
 
@@ -538,7 +543,8 @@ void PipelineSlam::processFrames(){
      m_matcher->match(refDescriptors, descriptors, matches);
 
      /* filter matches to remove redundancy and check geometric validity */
-     m_matchesFilter->filter(matches, matches, m_frameToTrack->getKeypoints(), keypoints);
+     m_basicMatchesFilter->filter(matches, matches, m_frameToTrack->getKeypoints(), keypoints);
+     m_geomMatchesFilter->filter(matches, matches, m_frameToTrack->getKeypoints(), keypoints);
 
      std::map<unsigned int, SRef<CloudPoint>> frameVisibility = m_frameToTrack->getReferenceKeyframe()->getVisibleMapPoints();
      m_corr2D3DFinder->find(m_frameToTrack, newFrame, matches, foundPoints, pt3d, pt2d, foundMatches, remainingMatches);
