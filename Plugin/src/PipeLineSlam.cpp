@@ -101,7 +101,7 @@ FrameworkReturnCode PipelineSlam::init(SRef<xpcf::IComponentManager> xpcfCompone
 
     if ( m_camera==nullptr || m_keypointsDetector==nullptr || m_descriptorExtractor==nullptr || m_matcher==nullptr ||
         m_poseFinderFrom2D2D==nullptr || m_triangulator==nullptr || m_mapFilter==nullptr || m_mapper==nullptr || m_keyframeSelector==nullptr || m_PnP==nullptr ||
-        m_corr2D3DFinder==nullptr || m_matchesFilter==nullptr || m_kfRetriever==nullptr || m_sink==nullptr)
+        m_corr2D3DFinder==nullptr || m_geomMatchesFilter==nullptr || m_basicMatchesFilter==nullptr || m_kfRetriever==nullptr || m_sink==nullptr)
     {
        LOG_ERROR("One or more component creations have failed");
        return FrameworkReturnCode::_ERROR_  ;
