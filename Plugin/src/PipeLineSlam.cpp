@@ -22,6 +22,9 @@ using namespace SolAR::MODULES::TOOLS;
 namespace xpcf = org::bcom::xpcf;
 
 
+#define VIDEO_INPUT
+
+
 // Declaration of the module embedding the Slam pipeline
 XPCF_DECLARE_MODULE("da89a6eb-3233-4dea-afdc-9d918be0bd74", "SlamModule", "The module embedding a pipeline to estimate the pose based on a multithreaded Slam")
 
@@ -66,11 +69,14 @@ PipelineSlam::~PipelineSlam()
 FrameworkReturnCode PipelineSlam::init(SRef<xpcf::IComponentManager> xpcfComponentManager)
 {
     // component creation
-   #ifdef USE_IMAGES_SET
-       m_camera = xpcfComponentManager->create<MODULES::OPENCV::SolARImagesAsCameraOpencv>()->bindTo<input::devices::ICamera>();
+//   #ifdef USE_IMAGES_SET
+//       m_camera = xpcfComponentManager->create<MODULES::OPENCV::SolARImagesAsCameraOpencv>()->bindTo<input::devices::ICamera>();
+    #ifdef VIDEO_INPUT
+       m_camera = xpcfComponentManager->create<MODULES::OPENCV::SolARVideoAsCameraOpencv>()->bindTo<input::devices::ICamera>();
    #else
        m_camera =xpcfComponentManager->create<MODULES::OPENCV::SolARCameraOpencv>()->bindTo<input::devices::ICamera>();
    #endif
+
    #ifdef USE_FREE
        m_keypointsDetector =xpcfComponentManager->create<MODULES::OPENCV::SolARKeypointDetectorOpencv>()->bindTo<features::IKeypointDetector>();
        m_descriptorExtractor =xpcfComponentManager->create<MODULES::OPENCV::SolARDescriptorsExtractorAKAZE2Opencv>()->bindTo<features::IDescriptorsExtractor>();
