@@ -657,7 +657,7 @@ FrameworkReturnCode PipelineSlam::start(void* imageDataBuffer)
 //    m_taskMapUpdate->start();
 #endif
 
-    LOG_INFO("Thread have started");
+    LOG_INFO("Threads have started");
     m_startedOK = true;
 
     return FrameworkReturnCode::_SUCCESS;
