@@ -313,6 +313,7 @@ void PipelineSlam::doBootStrap()
 
 
         SRef<Frame> frame2 = xpcf::utils::make_shared<Frame>(keypointsView2, descriptorsView2, camImage, keyframe1);
+        frame2->setPose(poseFrame2);
 
         if (m_keyframeSelector->select(frame2, matches)) {
 
