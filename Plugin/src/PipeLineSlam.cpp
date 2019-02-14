@@ -565,8 +565,9 @@ void PipelineSlam::processFrames(){
         m_frameToTrack = newFrame;
 
         // If the camera has moved enough, create a keyframe and map the scene
-        if ( m_keyFrameDetectionOn &&  m_keyframeSelector->select(newFrame, foundMatches) && 1){
+        if ( m_keyFrameDetectionOn &&  m_keyframeSelector->select(newFrame, foundMatches) ){
             m_keyFrameDetectionOn=false;
+            LOG_INFO("New key Frame ")
             m_keyFrameBuffer.push(std::make_tuple(newFrame,refKeyFrame,foundMatches,remainingMatches));
         }
         m_isLostTrack = false;
