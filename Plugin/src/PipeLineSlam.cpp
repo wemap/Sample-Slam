@@ -706,7 +706,10 @@ SourceReturnCode PipelineSlam::loadSourceImage(void* sourceTextureHandle, int wi
 
 SinkReturnCode PipelineSlam::update(Transform3Df& pose)
 {
-    return m_sink->tryGet(pose);
+    if(m_stopFlag)
+        return SinkReturnCode::_ERROR;
+    else
+        return m_sink->tryGet(pose);
 }
 
 CameraParameters PipelineSlam::getCameraParameters()
