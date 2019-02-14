@@ -320,19 +320,9 @@ void PipelineSlam::doBootStrap()
              LOG_INFO("Nb matches for triangulation: {}\\{}", matches.size(), nbOriginalMatches);
              LOG_INFO("Estimate pose of the camera for the frame 2: \n {}", poseFrame2.matrix());
 
-             double reproj_error = m_triangulator->triangulate(keypointsView1,keypointsView2, matches, std::make_pair(0, 1),poseFrame1, poseFrame2,cloud);
-             m_mapFilter->filter(poseFrame1, poseFrame2, cloud, filteredCloud);
-             keyframe2 = xpcf::utils::make_shared<Keyframe>(frame2);
-             keyframe2->setReferenceKeyframe(keyframe1);
-             m_mapper->update(m_map, keyframe2, filteredCloud, matches);
-             m_kfRetriever->addKeyframe(keyframe2); // add keyframe for reloc
+             std::vector<DescriptorMatch> emptyMatches;
+             m_keyFrameBuffer.push(std::make_tuple(frame2,keyframe1,emptyMatches,matches));
 
-             m_referenceKeyframe = keyframe2;
-             m_lastPose = poseFrame2;
-
-             // copy referenceKeyframe to frameToTrack
-             m_frameToTrack = xpcf::utils::make_shared<Frame>(m_referenceKeyframe);
-             m_frameToTrack->setReferenceKeyframe(m_referenceKeyframe);
              m_bootstrapOk = true;
              LOG_INFO("BootStrap is validated \n");
         }
