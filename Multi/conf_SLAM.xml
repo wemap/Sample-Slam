@@ -192,7 +192,7 @@
 			<property name="minMeanDistanceIsKeyframe" type="Float" value="0.07"/>
 		</component>
 		<component uuid="9d1b1afa-bdbc-11e8-a355-529269fb1459">  <!-- SolARKeyframeRetrieverFBOW -->
-			<property name="VOCpath" type="String" value="../fbow_voc/akaze.fbow"/>
+			<property name="VOCpath" type="String" value="./akaze.fbow"/>
 			<property name="threshold" type="Float" value="0.01"/>
 		</component>
 		<component uuid="e95302be-3fe1-44e0-97bf-a98380464af9"> <!-- SolARMatchesOverlayOpencv -->
