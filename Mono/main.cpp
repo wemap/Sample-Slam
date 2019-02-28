@@ -36,7 +36,7 @@
 
 // ADD XPCF HEADERS HERE
 #include "xpcf/xpcf.h"
-
+#include "core/Log.h"
 // ADD COMPONENTS HEADERS HERE
 #include "api/input/devices/ICamera.h"
 #include "api/features/IKeypointDetector.h"
