@@ -134,7 +134,7 @@
 		</component>
 		<component uuid="b8a8b963-ba55-4ea4-b045-d9e7e8f6db02"> <!-- SolARImagesAsCameraOpencv -->
             <property name="calibrationFile" type="string" value="camera_calibration.yml"/>
-			<property name="imagesDirectoryPath" type="string" value="..\..\..\..\..\Tests\TestImages\frame_%04d.png"/> 
+			<property name="imagesDirectoryPath" type="string" value="..\Images\frame_%04d.png"/> 
         </component>		
 		<component uuid="e81c7e4e-7da6-476a-8eba-078b43071272"> <!-- SolARKeypointDetectorOpencv -->
 			<property name="type" type="string" value="AKAZE2"/>
