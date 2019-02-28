@@ -57,6 +57,7 @@
 #include "api/features/IKeypointsReIndexer.h"
 #include "api/geom/IImage2WorldMapper.h"
 #include "api/geom/I2DTransform.h"
+#include "api/features/IMatchesFilter.h"
 
 #ifdef USE_OPENGL
     #include "api/sink/ISinkPoseTextureBuffer.h"
@@ -121,7 +122,6 @@ private:
     SRef<features::IDescriptorMatcher> m_matcher;
     SRef<solver::pose::I3DTransformFinderFrom2D2D> m_poseFinderFrom2D2D;
 	SRef<solver::map::ITriangulator>  m_triangulator;
-    SRef<features::IMatchesFilter> m_matchesFilter;
     SRef<solver::pose::I3DTransformFinderFrom2D3D> m_PnP;
     SRef<solver::pose::I2D3DCorrespondencesFinder> m_corr2D3DFinder;
     SRef<solver::map::IMapFilter> m_mapFilter;
@@ -153,7 +153,6 @@ private:
     SRef<features::IDescriptorMatcher> m_patternMatcher;
     SRef<features::ISBPatternReIndexer> m_patternReIndexer;
     SRef<geom::IImage2WorldMapper> m_img2worldMapper;
-
 
 
     // display stuff

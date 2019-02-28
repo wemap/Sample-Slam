@@ -22,6 +22,9 @@ using namespace SolAR::MODULES::TOOLS;
 namespace xpcf = org::bcom::xpcf;
 
 
+#define VIDEO_INPUT
+
+
 // Declaration of the module embedding the Slam pipeline
 XPCF_DECLARE_MODULE("da89a6eb-3233-4dea-afdc-9d918be0bd74", "SlamModule", "The module embedding a pipeline to estimate the pose based on a multithreaded Slam")
 
@@ -66,11 +69,14 @@ PipelineSlam::~PipelineSlam()
 FrameworkReturnCode PipelineSlam::init(SRef<xpcf::IComponentManager> xpcfComponentManager)
 {
     // component creation
-   #ifdef USE_IMAGES_SET
-       m_camera = xpcfComponentManager->create<MODULES::OPENCV::SolARImagesAsCameraOpencv>()->bindTo<input::devices::ICamera>();
+//   #ifdef USE_IMAGES_SET
+//       m_camera = xpcfComponentManager->create<MODULES::OPENCV::SolARImagesAsCameraOpencv>()->bindTo<input::devices::ICamera>();
+    #ifdef VIDEO_INPUT
+       m_camera = xpcfComponentManager->create<MODULES::OPENCV::SolARVideoAsCameraOpencv>()->bindTo<input::devices::ICamera>();
    #else
        m_camera =xpcfComponentManager->create<MODULES::OPENCV::SolARCameraOpencv>()->bindTo<input::devices::ICamera>();
    #endif
+
    #ifdef USE_FREE
        m_keypointsDetector =xpcfComponentManager->create<MODULES::OPENCV::SolARKeypointDetectorOpencv>()->bindTo<features::IKeypointDetector>();
        m_descriptorExtractor =xpcfComponentManager->create<MODULES::OPENCV::SolARDescriptorsExtractorAKAZE2Opencv>()->bindTo<features::IDescriptorsExtractor>();
@@ -82,7 +88,8 @@ FrameworkReturnCode PipelineSlam::init(SRef<xpcf::IComponentManager> xpcfCompone
     m_matcher =xpcfComponentManager->create<MODULES::OPENCV::SolARDescriptorMatcherKNNOpencv>()->bindTo<features::IDescriptorMatcher>();
     m_poseFinderFrom2D2D =xpcfComponentManager->create<MODULES::OPENCV::SolARPoseFinderFrom2D2DOpencv>()->bindTo<solver::pose::I3DTransformFinderFrom2D2D>();
     m_triangulator =xpcfComponentManager->create<MODULES::OPENCV::SolARSVDTriangulationOpencv>()->bindTo<solver::map::ITriangulator>();
-    m_matchesFilter =xpcfComponentManager->create<MODULES::OPENCV::SolARGeometricMatchesFilterOpencv>()->bindTo<features::IMatchesFilter>();
+    m_basicMatchesFilter = xpcfComponentManager->create<SolARBasicMatchesFilter>()->bindTo<features::IMatchesFilter>();
+    m_geomMatchesFilter =xpcfComponentManager->create<MODULES::OPENCV::SolARGeometricMatchesFilterOpencv>()->bindTo<features::IMatchesFilter>();
     m_PnP =xpcfComponentManager->create<MODULES::OPENCV::SolARPoseEstimationPnpOpencv>()->bindTo<solver::pose::I3DTransformFinderFrom2D3D>();
     m_corr2D3DFinder =xpcfComponentManager->create<MODULES::OPENCV::SolAR2D3DCorrespondencesFinderOpencv>()->bindTo<solver::pose::I2D3DCorrespondencesFinder>();
     m_mapFilter =xpcfComponentManager->create<MODULES::TOOLS::SolARMapFilter>()->bindTo<solver::map::IMapFilter>();
@@ -100,7 +107,7 @@ FrameworkReturnCode PipelineSlam::init(SRef<xpcf::IComponentManager> xpcfCompone
 
     if ( m_camera==nullptr || m_keypointsDetector==nullptr || m_descriptorExtractor==nullptr || m_matcher==nullptr ||
         m_poseFinderFrom2D2D==nullptr || m_triangulator==nullptr || m_mapFilter==nullptr || m_mapper==nullptr || m_keyframeSelector==nullptr || m_PnP==nullptr ||
-        m_corr2D3DFinder==nullptr || m_matchesFilter==nullptr || m_kfRetriever==nullptr || m_sink==nullptr)
+        m_corr2D3DFinder==nullptr || m_geomMatchesFilter==nullptr || m_basicMatchesFilter==nullptr || m_kfRetriever==nullptr || m_sink==nullptr)
     {
        LOG_ERROR("One or more component creations have failed");
        return FrameworkReturnCode::_ERROR_  ;
@@ -148,6 +155,7 @@ FrameworkReturnCode PipelineSlam::init(SRef<xpcf::IComponentManager> xpcfCompone
 
 
     m_i2DOverlay = xpcf::ComponentFactory::createInstance<SolAR2DOverlayOpencv>()->bindTo<api::display::I2DOverlay>();
+    m_i2DOverlay->bindTo<xpcf::IConfigurable>()->getProperty("radius")->setUnsignedIntegerValue(1);
 
     m_initOK = true;
 
@@ -298,28 +306,23 @@ void PipelineSlam::doBootStrap()
         m_matcher->match(descriptorsView1, descriptorsView2, matches);
 
         int nbOriginalMatches = matches.size();
-        m_matchesFilter->filter(matches, matches, keypointsView1, keypointsView2);
+
+        /* filter matches to remove redundancy and check geometric validity */
+         m_basicMatchesFilter->filter(matches, matches, keypointsView1, keypointsView2);
+         m_geomMatchesFilter->filter(matches, matches, keypointsView1, keypointsView2);
+
 
         SRef<Frame> frame2 = xpcf::utils::make_shared<Frame>(keypointsView2, descriptorsView2, camImage, keyframe1);
+        frame2->setPose(poseFrame2);
 
         if (m_keyframeSelector->select(frame2, matches)) {
 
              LOG_INFO("Nb matches for triangulation: {}\\{}", matches.size(), nbOriginalMatches);
              LOG_INFO("Estimate pose of the camera for the frame 2: \n {}", poseFrame2.matrix());
 
-             double reproj_error = m_triangulator->triangulate(keypointsView1,keypointsView2, matches, std::make_pair(0, 1),poseFrame1, poseFrame2,cloud);
-             m_mapFilter->filter(poseFrame1, poseFrame2, cloud, filteredCloud);
-             keyframe2 = xpcf::utils::make_shared<Keyframe>(frame2);
-             keyframe2->setReferenceKeyframe(keyframe1);
-             m_mapper->update(m_map, keyframe2, filteredCloud, matches);
-             m_kfRetriever->addKeyframe(keyframe2); // add keyframe for reloc
+             std::vector<DescriptorMatch> emptyMatches;
+             m_keyFrameBuffer.push(std::make_tuple(frame2,keyframe1,emptyMatches,matches));
 
-             m_referenceKeyframe = keyframe2;
-             m_lastPose = poseFrame2;
-
-             // copy referenceKeyframe to frameToTrack
-             m_frameToTrack = xpcf::utils::make_shared<Frame>(m_referenceKeyframe);
-             m_frameToTrack->setReferenceKeyframe(m_referenceKeyframe);
              m_bootstrapOk = true;
              LOG_INFO("BootStrap is validated \n");
         }
@@ -402,12 +405,10 @@ void PipelineSlam::mapUpdate(){
     foundMatches=std::get<2>(element);
     remainingMatches=std::get<3>(element);
     newCloud=std::get<4>(element);
+
     std::map<unsigned int, SRef<CloudPoint>> frameVisibility = newKeyframe->getReferenceKeyframe()->getVisibleMapPoints();
     std::map<unsigned int, unsigned int> visibleKeypoints= newKeyframe->getReferenceKeyframe()->getVisibleKeypoints();
-    LOG_INFO(" ref KF frameVisibility   : {} ", frameVisibility.size());
-    LOG_INFO(" ref KF frameVisibilityPoints   : {} ", visibleKeypoints.size());
     frameVisibility = newKeyframe->getVisibleMapPoints();
-    LOG_INFO(" cur KF frameVisibility   : {} ", frameVisibility.size());
 
     LOG_DEBUG(" frame pose estimation :\n {}", newKeyframe->getPose().matrix());
     LOG_DEBUG("Number of matches: {}, number of 3D points:{}", remainingMatches.size(), newCloud.size());
@@ -417,7 +418,6 @@ void PipelineSlam::mapUpdate(){
     LOG_INFO(" cur KF frameVisibility   : {} ", frameVisibility.size());
     m_mapper->update(m_map, newKeyframe, filteredCloud, remainingMatches, foundMatches);
     frameVisibility = newKeyframe->getVisibleMapPoints();
-    LOG_INFO(" cur KF frameVisibility   : {} ", frameVisibility.size());
 
     m_referenceKeyframe = newKeyframe;
     m_frameToTrack = xpcf::utils::make_shared<Frame>(m_referenceKeyframe);
@@ -466,7 +466,9 @@ void PipelineSlam::doTriangulation(){
     remainingMatches=std::get<3>(element);
 
     newKeyframe = xpcf::utils::make_shared<Keyframe>(newFrame);
-    m_triangulator->triangulate(newKeyframe, remainingMatches, newCloud);
+
+    if(remainingMatches.size())
+            m_triangulator->triangulate(newKeyframe, remainingMatches, newCloud);
     //triangulator->triangulate(refKeyFrame->getKeypoints(), newFrame->getKeypoints(), remainingMatches,std::make_pair<int,int>((int)refKeyFrame->m_idx+0,(int)(refKeyFrame->m_idx+1)),
     //                    refKeyFrame->getPose(), newFrame->getPose(), newCloud);
     if(m_outBufferTriangulation.empty())
@@ -540,17 +542,13 @@ void PipelineSlam::processFrames(){
 
      refDescriptors= m_frameToTrack->getDescriptors();
      m_matcher->match(refDescriptors, descriptors, matches);
-     LOG_INFO(" Matches before : {} ", matches.size());
 
      /* filter matches to remove redundancy and check geometric validity */
-     m_matchesFilter->filter(matches, matches, m_frameToTrack->getKeypoints(), keypoints);
-     LOG_INFO(" Matches after : {} ", matches.size());
+     m_basicMatchesFilter->filter(matches, matches, m_frameToTrack->getKeypoints(), keypoints);
+     m_geomMatchesFilter->filter(matches, matches, m_frameToTrack->getKeypoints(), keypoints);
 
      std::map<unsigned int, SRef<CloudPoint>> frameVisibility = m_frameToTrack->getReferenceKeyframe()->getVisibleMapPoints();
-     LOG_INFO(" frameVisibility   : {} ", frameVisibility.size());
      m_corr2D3DFinder->find(m_frameToTrack, newFrame, matches, foundPoints, pt3d, pt2d, foundMatches, remainingMatches);
-     LOG_INFO(" foundMatches  : {} remainingMatches: {}", foundMatches.size(),remainingMatches.size());
-
 
      if (m_PnP->estimate(pt2d, pt3d, imagePoints_inliers, worldPoints_inliers, m_pose , m_lastPose) == FrameworkReturnCode::_SUCCESS){
         LOG_DEBUG(" frame pose  :\n {}", m_pose.matrix());
@@ -568,8 +566,9 @@ void PipelineSlam::processFrames(){
         m_frameToTrack = newFrame;
 
         // If the camera has moved enough, create a keyframe and map the scene
-        if ( m_keyFrameDetectionOn &&  m_keyframeSelector->select(newFrame, foundMatches) && 1){
+        if ( m_keyFrameDetectionOn &&  m_keyframeSelector->select(newFrame, foundMatches) ){
             m_keyFrameDetectionOn=false;
+            LOG_INFO("New key Frame ")
             m_keyFrameBuffer.push(std::make_tuple(newFrame,refKeyFrame,foundMatches,remainingMatches));
         }
         m_isLostTrack = false;
@@ -579,19 +578,19 @@ void PipelineSlam::processFrames(){
          LOG_DEBUG (" No valid pose was found");
          m_sink->set(camImage);
          m_isLostTrack = true;
-//         if ( m_kfRetriever->retrieve(newFrame, ret_keyframes) == FrameworkReturnCode::_SUCCESS) {
-//             LOG_INFO("Retrieval Success based on FBOW");
-//             m_keyframeRelocBuffer.push(ret_keyframes[0]);
-//             m_isLostTrack = false;
-//         }
+         if ( m_kfRetriever->retrieve(newFrame, ret_keyframes) == FrameworkReturnCode::_SUCCESS) {
+             LOG_INFO("Retrieval Success based on FBOW");
+             m_keyframeRelocBuffer.push(ret_keyframes[0]);
+             m_isLostTrack = false;
+         }
 //         else if ( detectFiducialMarkerCore(camImage)){
 //              m_lastPose = m_pose;
 //              m_isLostTrack = false;
 //         }
 
-//        else{
-//             LOG_INFO("Retrieval Failed");
-//         }
+        else{
+             LOG_INFO("Retrieval Failed");
+         }
      }
 
      return;
@@ -654,7 +653,7 @@ FrameworkReturnCode PipelineSlam::start(void* imageDataBuffer)
 //    m_taskMapUpdate->start();
 #endif
 
-    LOG_INFO("Thread have started");
+    LOG_INFO("Threads have started");
     m_startedOK = true;
 
     return FrameworkReturnCode::_SUCCESS;
@@ -709,7 +708,10 @@ SourceReturnCode PipelineSlam::loadSourceImage(void* sourceTextureHandle, int wi
 
 SinkReturnCode PipelineSlam::update(Transform3Df& pose)
 {
-    return m_sink->tryGet(pose);
+    if(m_stopFlag)
+        return SinkReturnCode::_ERROR;
+    else
+        return m_sink->tryGet(pose);
 }
 
 CameraParameters PipelineSlam::getCameraParameters()
