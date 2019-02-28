@@ -415,7 +415,7 @@ void PipelineSlam::mapUpdate(){
     m_mapFilter->filter(refKeyframe->getPose(), newKeyframe->getPose(), newCloud, filteredCloud);
     frameVisibility = newKeyframe->getVisibleMapPoints();
     LOG_INFO(" cur KF frameVisibility   : {} ", frameVisibility.size());
-    m_mapper->update(m_map, newKeyframe, filteredCloud, foundMatches, remainingMatches);
+    m_mapper->update(m_map, newKeyframe, filteredCloud, remainingMatches, foundMatches);
     frameVisibility = newKeyframe->getVisibleMapPoints();
     LOG_INFO(" cur KF frameVisibility   : {} ", frameVisibility.size());
 

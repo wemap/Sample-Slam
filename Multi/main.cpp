@@ -58,6 +58,7 @@
 #include "api/display/IImageViewer.h"
 #include "api/display/I3DPointsViewer.h"
 #include "api/reloc/IKeyframeRetriever.h"
+#inlcude "core/Log.h"
 
 using namespace SolAR;
 using namespace SolAR::datastructure;
@@ -337,7 +338,7 @@ int main(int argc, char **argv){
         LOG_DEBUG("Number of matches: {}, number of 3D points:{}", remainingMatches.size(), newCloud.size());
         //newKeyframe = xpcf::utils::make_shared<Keyframe>(newFrame);
         mapFilter->filter(refKeyframe->getPose(), newKeyframe->getPose(), newCloud, filteredCloud);
-        mapper->update(map, newKeyframe, filteredCloud, foundMatches, remainingMatches);
+        mapper->update(map, newKeyframe, filteredCloud, remainingMatches, foundMatches);
         referenceKeyframe = newKeyframe;
         frameToTrack = xpcf::utils::make_shared<Frame>(referenceKeyframe);
         frameToTrack->setReferenceKeyframe(referenceKeyframe);

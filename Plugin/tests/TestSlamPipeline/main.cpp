@@ -29,7 +29,7 @@ using namespace SolAR::PIPELINE;
 
 namespace xpcf  = org::bcom::xpcf;
 
-#define MARKER_CONFIGFILE "fiducialMarker.yml"
+#define MARKER_CONFIGFILE "FiducialMarker.yml"
 
 #include "SolARModuleOpencv_traits.h"
 #include "SolARImageViewerOpencv.h"
