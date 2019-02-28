@@ -415,7 +415,8 @@ void PipelineSlam::mapUpdate(){
     //newKeyframe = xpcf::utils::make_shared<Keyframe>(newFrame);
     m_mapFilter->filter(refKeyframe->getPose(), newKeyframe->getPose(), newCloud, filteredCloud);
     frameVisibility = newKeyframe->getVisibleMapPoints();
-    m_mapper->update(m_map, newKeyframe, filteredCloud, foundMatches, remainingMatches);
+    LOG_INFO(" cur KF frameVisibility   : {} ", frameVisibility.size());
+    m_mapper->update(m_map, newKeyframe, filteredCloud, remainingMatches, foundMatches);
     frameVisibility = newKeyframe->getVisibleMapPoints();
 
     m_referenceKeyframe = newKeyframe;

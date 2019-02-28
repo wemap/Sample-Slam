@@ -153,7 +153,8 @@
   <configuration>
     <component uuid="5B7396F4-A804-4F3C-A0EB-FB1D56042BB4">
       <property name="calibrationFile" type="string" value="camera_calibration.yml" description="path of the .yml file describing the calibration parameter of the camera." />
-      <property name="deviceID" type="UnsignedInteger" value="0" description="ID of the camera (default = 0)" />
+      <property name="deviceID" type="UnsignedInteger" value="1
+	  " description="ID of the camera (default = 0)" />
       <!--SolARCameraOpencv-->
     </component>
     <component uuid="5d2b8da9-528e-4e5e-96c1-f883edcf3b1c">
@@ -181,7 +182,7 @@
       <!--SolARPerspectiveControllerOpencv-->
     </component>
 			<component uuid="9d1b1afa-bdbc-11e8-a355-529269fb1459">  <!-- SolARKeyframeRetrieverFBOW -->
-			<property name="VOCpath" type="String" value="../../../fbow_voc/akaze.fbow"/>
+			<property name="VOCpath" type="String" value="akaze.fbow"/>
 			<property name="threshold" type="Float" value="0.01"/>
 	</component>
 	<component uuid="ad59a5ba-beb8-11e8-a355-529269fb1459"> <!-- SolARKeyframeSelector -->
@@ -194,7 +195,7 @@
 		</component>
 		<component uuid="b8a8b963-ba55-4ea4-b045-d9e7e8f6db02"> <!-- SolARImagesAsCameraOpencv -->
             <property name="calibrationFile" type="string" value="camera_calibration.yml"/>
-			<property name="imagesDirectoryPath" type="string" value="..\..\..\..\..\Tests\TestImages\frame_%04d.png"/> 
+			<property name="imagesDirectoryPath" type="string" value="..\..\..\Images\frame_%04d.png"/> 
         </component>		
 		<component uuid="e81c7e4e-7da6-476a-8eba-078b43071272"> <!-- SolARKeypointDetectorOpencv -->
 			<property name="type" type="string" value="AKAZE2"/>
