@@ -1,13 +1,11 @@
-TARGET = SolARSlamSampleMono
-VERSION=0.5.1
+TARGET = TestSlamPlugin
+VERSION=0.1.0
 
 CONFIG += c++11
 CONFIG -= qt
 CONFIG += console
 
 DEFINES += MYVERSION=$${VERSION}
-
-QT += opengl
 
 CONFIG(debug,debug|release) {
     DEFINES += _DEBUG=1
@@ -20,14 +18,10 @@ CONFIG(release,debug|release) {
 
 win32:CONFIG -= static
 win32:CONFIG += shared
-QMAKE_TARGET.arch = x86_64 #must be defined prior to include
+
 DEPENDENCIESCONFIG = sharedlib
-#NOTE : CONFIG as staticlib or sharedlib, DEPENDENCIESCONFIG as staticlib or sharedlib, QMAKE_TARGET.arch and PROJECTDEPLOYDIR MUST BE DEFINED BEFORE templatelibconfig.pri inclusion
+#NOTE : CONFIG as staticlib or sharedlib, DEPENDENCIESCONFIG as staticlib or sharedlib MUST BE DEFINED BEFORE templatelibconfig.pri inclusion
 include ($$(BCOMDEVROOT)/builddefs/qmake/templateappconfig.pri)
-
-
-DEFINES += BOOST_ALL_NO_LIB
-DEFINES += BOOST_ALL_DYN_LINK
 
 HEADERS += \
 
@@ -35,7 +29,8 @@ SOURCES += \
     main.cpp
 
 unix {
-      LIBS += -ldl
+    LIBS += -ldl
+    QMAKE_CXXFLAGS += -DBOOST_LOG_DYN_LINK
 }
 
 macx {
@@ -51,5 +46,5 @@ win32 {
     # Windows Kit (msvc2013 64)
     LIBS += -L$$(WINDOWSSDKDIR)lib/winv6.3/um/x64 -lshell32 -lgdi32 -lComdlg32
     INCLUDEPATH += $$(WINDOWSSDKDIR)lib/winv6.3/um/x64
-}
 
+}
