@@ -28,6 +28,7 @@
 #include "api/solver/map/IMapFilter.h"
 #include "api/solver/pose/I2D3DCorrespondencesFinder.h"
 #include "api/solver/pose/I3DTransformSACFinderFrom2D3D.h"
+#include "api/solver/pose/I3DTransformFinderFrom2D3D.h"
 #include "api/features/IMatchesFilter.h"
 #include "api/display/I2DOverlay.h"
 #include "api/display/IMatchesOverlay.h"
@@ -118,13 +119,13 @@ private:
 
     SRef<input::devices::ICamera> m_camera;
     SRef<input::files::IMarker2DSquaredBinary> m_binaryMarker;
+    SRef<DescriptorBuffer> m_markerPatternDescriptor;
     SRef<features::IDescriptorsExtractorSBPattern> m_patternDescriptorExtractor;
     SRef<image::IImageFilter> m_imageFilterBinary;
     SRef<image::IImageConvertor> m_imageConvertor;
     SRef<features::IContoursExtractor> m_contoursExtractor ;
     SRef<features::IContoursFilter> m_contoursFilter;
     SRef<image::IPerspectiveController> m_perspectiveController;
-    SRef<features::IDescriptorsExtractorSBPattern> m_patternDescriptorExtractor;
     SRef<features::IDescriptorMatcher> m_patternMatcher;
     SRef<features::ISBPatternReIndexer> m_patternReIndexer;
     SRef<geom::IImage2WorldMapper> m_img2worldMapper;
@@ -136,40 +137,16 @@ private:
     SRef<features::IMatchesFilter> m_geomMatchesFilter;
     SRef<solver::pose::I3DTransformFinderFrom2D2D> m_poseFinderFrom2D2D;
 	SRef<solver::map::ITriangulator>  m_triangulator;
-    SRef<solver::pose::I3DTransformSACFinderFrom2D3D> m_PnP;
+    SRef<solver::pose::I3DTransformFinderFrom2D3D> m_PnP;
+    SRef<solver::pose::I3DTransformSACFinderFrom2D3D> m_PnPSAC;
     SRef<solver::pose::I2D3DCorrespondencesFinder> m_corr2D3DFinder;
     SRef<solver::map::IMapFilter> m_mapFilter;
     SRef<solver::map::IMapper> m_mapper;
     SRef<solver::map::IKeyframeSelector> m_keyframeSelector;
     SRef<reloc::IKeyframeRetriever> m_kfRetriever;
 
-	
-	
-/*
-    SRef<input::files::IMarker2DNaturalImage> m_naturalImagemarker;
-
-    SRef<solver::pose::I2DTransformFinder> m_homographyEstimation ;
-    SRef<solver::pose::IHomographyValidation> m_homographyValidation ;
-    SRef<features::IKeypointsReIndexer> m_keypointsReindexer;
-    SRef<solver::pose::I3DTransformSACFinderFrom2D3D> m_poseEstimation;
-    SRef<geom::IImage2WorldMapper> m_img_mapper;
-    SRef<geom::I2DTransform> m_transform2D;
-
-    SRef<DescriptorBuffer> m_markerPatternDescriptor;
-
-
-
-    SRef<features::IContoursExtractor> m_contoursExtractor ;
-
-    SRef<image::IPerspectiveController> m_perspectiveController;
-    SRef<features::IDescriptorsExtractorSBPattern> m_patternDescriptorExtractor;
-    SRef<features::IDescriptorMatcher> m_patternMatcher;
-    SRef<features::ISBPatternReIndexer> m_patternReIndexer;
-    SRef<geom::IImage2WorldMapper> m_img2worldMapper;
-*/
-
     // display stuff
-//    SRef<api::display::I2DOverlay> m_i2DOverlay;
+    SRef<api::display::I2DOverlay> m_i2DOverlay;
 
 
 #ifdef USE_OPENGL
