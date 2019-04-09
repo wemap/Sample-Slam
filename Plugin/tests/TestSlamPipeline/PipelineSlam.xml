@@ -45,6 +45,10 @@
 			<interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" name="IComponentIntrospect" description="IComponentIntrospect"/>
 			<interface uuid="45dd370a-0eab-4a7f-93d0-43453b4c7517" name="Transform2DFinder" description="Transform2DFinder"/>
 	</component>
+	<component uuid="0753ade1-7932-4e29-a71c-66155e309a53" name="SolARPoseEstimationPnpOpencv" description="SolARPoseEstimationPnpOpencv">
+			<interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" name="IComponentIntrospect" description="IComponentIntrospect"/>
+			<interface uuid="77281cda-47c2-4bb7-bde6-5b0d02e75dae" name="I3DTransformFinder" description="I3DTransformFinder"/>
+	</component>
 	<component uuid="4d369049-809c-4e99-9994-5e8167bab808" name="SolARPoseEstimationSACPnpOpencv" description="SolARPoseEstimationSACPnpOpencv">
                 <interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" name="IComponentIntrospect" description="IComponentIntrospect"/>
                 <interface uuid="8dd889c5-e8e6-4b3b-92e4-34cf7442f272" name="I3DTransformSACFinderFrom2D3D" description="I3DTransformSACFinderFrom2D3D"/>
@@ -126,6 +130,11 @@
 			<interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" name="IComponentIntrospect" description="IComponentIntrospect"/>
 			<interface uuid="4d5f2abe-beb7-11e8-a355-529269fb1459" name="IKeyframeSelector" description="IKeyframeSelector"/>
 	</component>
+	<component uuid="cbb620c3-a7fc-42d7-bcbf-f59b475b23b0" name="SolARBasicMatchesFilter" description="SolARBasicMatchesFilter">
+		<interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" name="IComponentIntrospect" description="IComponentIntrospect"/>
+		<interface uuid="e0d6cc82-6af2-493d-901a-2384fca0b16f" name="IMatchesFilter" description= "IMatchesFilter"/>
+	</component>
+
   </module>
   
   <module uuid="6e960df6-9a36-11e8-9eb6-529269fb1459" name="SolARModuleOpenGL" path="$BCOMDEVROOT/bcomBuild/SolARModuleOpenGL/0.5.2/lib/x86_64/shared" description="Module OpenGL">
@@ -151,8 +160,7 @@
   <configuration>
     <component uuid="5B7396F4-A804-4F3C-A0EB-FB1D56042BB4">
       <property name="calibrationFile" type="string" value="camera_calibration.yml" description="path of the .yml file describing the calibration parameter of the camera." />
-      <property name="deviceID" type="UnsignedInteger" value="1
-	  " description="ID of the camera (default = 0)" />
+      <property name="deviceID" type="UnsignedInteger" value="0" description="ID of the camera (default = 0)" />
       <!--SolARCameraOpencv-->
     </component>
     <component uuid="5d2b8da9-528e-4e5e-96c1-f883edcf3b1c">
@@ -189,7 +197,7 @@
 	</component>
 		<component uuid="fa4a780a-9720-11e8-9eb6-529269fb1459"> <!-- SolARVideoAsCameraOpencv -->
 			<property name="calibrationFile" type="string" value="camera_calibration.yml"/>
-			<property name="videoPath" type="string" value="video.mp4"/>
+			<property name="videoPath" type="string" value="video8.mp4"/>
 		</component>
 		<component uuid="b8a8b963-ba55-4ea4-b045-d9e7e8f6db02"> <!-- SolARImagesAsCameraOpencv -->
             <property name="calibrationFile" type="string" value="camera_calibration.yml"/>
