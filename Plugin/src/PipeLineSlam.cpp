@@ -22,7 +22,7 @@ using namespace SolAR::MODULES::TOOLS;
 namespace xpcf = org::bcom::xpcf;
 
 
-#define VIDEO_INPUT
+//#define VIDEO_INPUT
 
 
 // Declaration of the module embedding the Slam pipeline
@@ -71,93 +71,96 @@ FrameworkReturnCode PipelineSlam::init(SRef<xpcf::IComponentManager> xpcfCompone
     // component creation
 //   #ifdef USE_IMAGES_SET
 //       m_camera = xpcfComponentManager->create<MODULES::OPENCV::SolARImagesAsCameraOpencv>()->bindTo<input::devices::ICamera>();
+    try {
     #ifdef VIDEO_INPUT
-       m_camera = xpcfComponentManager->create<MODULES::OPENCV::SolARVideoAsCameraOpencv>()->bindTo<input::devices::ICamera>();
-   #else
-       m_camera =xpcfComponentManager->create<MODULES::OPENCV::SolARCameraOpencv>()->bindTo<input::devices::ICamera>();
-   #endif
+           m_camera = xpcfComponentManager->create<MODULES::OPENCV::SolARVideoAsCameraOpencv>()->bindTo<input::devices::ICamera>();
+    #else
+           m_camera =xpcfComponentManager->create<MODULES::OPENCV::SolARCameraOpencv>()->bindTo<input::devices::ICamera>();
+       #endif
 
-   #ifdef USE_FREE
-       m_keypointsDetector =xpcfComponentManager->create<MODULES::OPENCV::SolARKeypointDetectorOpencv>()->bindTo<features::IKeypointDetector>();
-       m_descriptorExtractor =xpcfComponentManager->create<MODULES::OPENCV::SolARDescriptorsExtractorAKAZE2Opencv>()->bindTo<features::IDescriptorsExtractor>();
-   #else
-      m_keypointsDetector = xpcfComponentManager->create<MODULES::OPENCV::SolARKeypointDetectorNonFreeOpencv>()->bindTo<features::IKeypointDetector>();
-      m_descriptorExtractor = xpcfComponentManager->create<MODULES::OPENCV::SolARDescriptorsExtractorSURF64Opencv>()->bindTo<features::IDescriptorsExtractor>();
-   #endif
+       #ifdef USE_FREE
+           m_keypointsDetector =xpcfComponentManager->create<MODULES::OPENCV::SolARKeypointDetectorOpencv>()->bindTo<features::IKeypointDetector>();
+           m_descriptorExtractor =xpcfComponentManager->create<MODULES::OPENCV::SolARDescriptorsExtractorAKAZE2Opencv>()->bindTo<features::IDescriptorsExtractor>();
+       #else
+          m_keypointsDetector = xpcfComponentManager->create<MODULES::OPENCV::SolARKeypointDetectorNonFreeOpencv>()->bindTo<features::IKeypointDetector>();
+          m_descriptorExtractor = xpcfComponentManager->create<MODULES::OPENCV::SolARDescriptorsExtractorSURF64Opencv>()->bindTo<features::IDescriptorsExtractor>();
+       #endif
 
-    m_matcher =xpcfComponentManager->create<MODULES::OPENCV::SolARDescriptorMatcherKNNOpencv>()->bindTo<features::IDescriptorMatcher>();
-    m_poseFinderFrom2D2D =xpcfComponentManager->create<MODULES::OPENCV::SolARPoseFinderFrom2D2DOpencv>()->bindTo<solver::pose::I3DTransformFinderFrom2D2D>();
-    m_triangulator =xpcfComponentManager->create<MODULES::OPENCV::SolARSVDTriangulationOpencv>()->bindTo<solver::map::ITriangulator>();
-    m_basicMatchesFilter = xpcfComponentManager->create<SolARBasicMatchesFilter>()->bindTo<features::IMatchesFilter>();
-    m_geomMatchesFilter =xpcfComponentManager->create<MODULES::OPENCV::SolARGeometricMatchesFilterOpencv>()->bindTo<features::IMatchesFilter>();
-    m_PnP =xpcfComponentManager->create<MODULES::OPENCV::SolARPoseEstimationPnpOpencv>()->bindTo<solver::pose::I3DTransformFinderFrom2D3D>();
-    m_corr2D3DFinder =xpcfComponentManager->create<MODULES::OPENCV::SolAR2D3DCorrespondencesFinderOpencv>()->bindTo<solver::pose::I2D3DCorrespondencesFinder>();
-    m_mapFilter =xpcfComponentManager->create<MODULES::TOOLS::SolARMapFilter>()->bindTo<solver::map::IMapFilter>();
-    m_mapper =xpcfComponentManager->create<MODULES::TOOLS::SolARMapper>()->bindTo<solver::map::IMapper>();
-    m_keyframeSelector =xpcfComponentManager->create<MODULES::TOOLS::SolARKeyframeSelector>()->bindTo<solver::map::IKeyframeSelector>();
-    m_kfRetriever = xpcfComponentManager->create<MODULES::FBOW::SolARKeyframeRetrieverFBOW>()->bindTo<reloc::IKeyframeRetriever>();
+        m_matcher =xpcfComponentManager->create<MODULES::OPENCV::SolARDescriptorMatcherKNNOpencv>()->bindTo<features::IDescriptorMatcher>();
+        m_poseFinderFrom2D2D =xpcfComponentManager->create<MODULES::OPENCV::SolARPoseFinderFrom2D2DOpencv>()->bindTo<solver::pose::I3DTransformFinderFrom2D2D>();
+        m_triangulator =xpcfComponentManager->create<MODULES::OPENCV::SolARSVDTriangulationOpencv>()->bindTo<solver::map::ITriangulator>();
+        m_basicMatchesFilter = xpcfComponentManager->create<SolARBasicMatchesFilter>()->bindTo<features::IMatchesFilter>();
+        m_geomMatchesFilter =xpcfComponentManager->create<MODULES::OPENCV::SolARGeometricMatchesFilterOpencv>()->bindTo<features::IMatchesFilter>();
+        m_PnP =xpcfComponentManager->create<MODULES::OPENCV::SolARPoseEstimationPnpOpencv>()->bindTo<solver::pose::I3DTransformFinderFrom2D3D>();
+        m_PnPSAC =xpcfComponentManager->create<MODULES::OPENCV::SolARPoseEstimationSACPnpOpencv>()->bindTo<solver::pose::I3DTransformSACFinderFrom2D3D>();
+        m_corr2D3DFinder =xpcfComponentManager->create<MODULES::OPENCV::SolAR2D3DCorrespondencesFinderOpencv>()->bindTo<solver::pose::I2D3DCorrespondencesFinder>();
+        m_mapFilter =xpcfComponentManager->create<MODULES::TOOLS::SolARMapFilter>()->bindTo<solver::map::IMapFilter>();
+        m_mapper =xpcfComponentManager->create<MODULES::TOOLS::SolARMapper>()->bindTo<solver::map::IMapper>();
+        m_keyframeSelector =xpcfComponentManager->create<MODULES::TOOLS::SolARKeyframeSelector>()->bindTo<solver::map::IKeyframeSelector>();
+        m_kfRetriever = xpcfComponentManager->create<MODULES::FBOW::SolARKeyframeRetrieverFBOW>()->bindTo<reloc::IKeyframeRetriever>();
+        m_sink = xpcfComponentManager->create<MODULES::TOOLS::SolARBasicSink>()->bindTo<sink::ISinkPoseImage>();
 
-#ifdef USE_OPENGL
-    m_sink = xpcfComponentManager->create<MODULES::OPENGL::SinkPoseTextureBuffer>()->bindTo<sink::ISinkPoseTextureBuffer>();
-#else
-    m_sink = xpcfComponentManager->create<MODULES::TOOLS::SolARBasicSink>()->bindTo<sink::ISinkPoseImage>();
-#endif
-    if (m_sink)
-        LOG_INFO("Pose Texture Buffer Sink component loaded");
+        if ( m_camera==nullptr || m_keypointsDetector==nullptr || m_descriptorExtractor==nullptr || m_matcher==nullptr ||
+            m_poseFinderFrom2D2D==nullptr || m_triangulator==nullptr || m_mapFilter==nullptr || m_mapper==nullptr || m_keyframeSelector==nullptr || m_PnP==nullptr ||
+            m_corr2D3DFinder==nullptr || m_geomMatchesFilter==nullptr || m_basicMatchesFilter==nullptr || m_kfRetriever==nullptr || m_sink==nullptr)
+        {
+           LOG_ERROR("One or more component creations have failed");
+           return FrameworkReturnCode::_ERROR_  ;
+        }
 
-    if ( m_camera==nullptr || m_keypointsDetector==nullptr || m_descriptorExtractor==nullptr || m_matcher==nullptr ||
-        m_poseFinderFrom2D2D==nullptr || m_triangulator==nullptr || m_mapFilter==nullptr || m_mapper==nullptr || m_keyframeSelector==nullptr || m_PnP==nullptr ||
-        m_corr2D3DFinder==nullptr || m_geomMatchesFilter==nullptr || m_basicMatchesFilter==nullptr || m_kfRetriever==nullptr || m_sink==nullptr)
+        // init relative to fiducial marker detection (will define the start of the process)
+        m_binaryMarker =xpcfComponentManager->create<MODULES::OPENCV::SolARMarker2DSquaredBinaryOpencv>()->bindTo<input::files::IMarker2DSquaredBinary>();
+        m_imageFilterBinary =xpcfComponentManager->create<MODULES::OPENCV::SolARImageFilterBinaryOpencv>()->bindTo<image::IImageFilter>();
+        m_imageConvertor =xpcfComponentManager->create<MODULES::OPENCV::SolARImageConvertorOpencv>()->bindTo<image::IImageConvertor>();
+        m_contoursExtractor =xpcfComponentManager->create<MODULES::OPENCV::SolARContoursExtractorOpencv>()->bindTo<features::IContoursExtractor>();
+        m_contoursFilter =xpcfComponentManager->create<MODULES::OPENCV::SolARContoursFilterBinaryMarkerOpencv>()->bindTo<features::IContoursFilter>();
+        m_perspectiveController =xpcfComponentManager->create<MODULES::OPENCV::SolARPerspectiveControllerOpencv>()->bindTo<image::IPerspectiveController>();
+        m_projector = xpcfComponentManager->create<MODULES::OPENCV::SolARProjectOpencv>()->bindTo<geom::IProject>();
+        m_patternDescriptorExtractor =xpcfComponentManager->create<MODULES::OPENCV::SolARDescriptorsExtractorSBPatternOpencv>()->bindTo<features::IDescriptorsExtractorSBPattern>();
+        m_patternMatcher =xpcfComponentManager->create<MODULES::OPENCV::SolARDescriptorMatcherRadiusOpencv>()->bindTo<features::IDescriptorMatcher>();
+        m_patternReIndexer = xpcfComponentManager->create<MODULES::TOOLS::SolARSBPatternReIndexer>()->bindTo<features::ISBPatternReIndexer>();
+        m_img2worldMapper = xpcfComponentManager->create<MODULES::TOOLS::SolARImage2WorldMapper4Marker2D>()->bindTo<geom::IImage2WorldMapper>();
+
+        // load marker
+        LOG_INFO("LOAD MARKER IMAGE ");
+       if( m_binaryMarker->loadMarker()==FrameworkReturnCode::_ERROR_){
+           return FrameworkReturnCode::_ERROR_;
+        }
+        LOG_INFO("MARKER IMAGE LOADED");
+
+        m_patternDescriptorExtractor->extract(m_binaryMarker->getPattern(), m_markerPatternDescriptor);
+        LOG_INFO ("Marker pattern:\n {}", m_binaryMarker->getPattern()->getPatternMatrix())
+
+        int patternSize = m_binaryMarker->getPattern()->getSize();
+
+        m_patternDescriptorExtractor->bindTo<xpcf::IConfigurable>()->getProperty("patternSize")->setIntegerValue(patternSize);
+        m_patternReIndexer->bindTo<xpcf::IConfigurable>()->getProperty("sbPatternSize")->setIntegerValue(patternSize);
+
+        m_img2worldMapper->bindTo<xpcf::IConfigurable>()->getProperty("digitalWidth")->setIntegerValue(patternSize);
+        m_img2worldMapper->bindTo<xpcf::IConfigurable>()->getProperty("digitalHeight")->setIntegerValue(patternSize);
+        m_img2worldMapper->bindTo<xpcf::IConfigurable>()->getProperty("worldWidth")->setFloatingValue(m_binaryMarker->getSize().width);
+        m_img2worldMapper->bindTo<xpcf::IConfigurable>()->getProperty("worldHeight")->setFloatingValue(m_binaryMarker->getSize().height);
+
+
+
+        // specific to the
+        // initialize components requiring the camera intrinsic and distortion parameters
+        m_PnP->setCameraParameters(m_camera->getIntrinsicsParameters(), m_camera->getDistorsionParameters());
+        m_PnPSAC->setCameraParameters(m_camera->getIntrinsicsParameters(), m_camera->getDistorsionParameters());
+        m_poseFinderFrom2D2D->setCameraParameters(m_camera->getIntrinsicsParameters(), m_camera->getDistorsionParameters());
+        m_triangulator->setCameraParameters(m_camera->getIntrinsicsParameters(), m_camera->getDistorsionParameters());
+        m_projector->setCameraParameters(m_camera->getIntrinsicsParameters(), m_camera->getDistorsionParameters());
+
+        m_i2DOverlay = xpcf::ComponentFactory::createInstance<SolAR2DOverlayOpencv>()->bindTo<api::display::I2DOverlay>();
+        m_i2DOverlay->bindTo<xpcf::IConfigurable>()->getProperty("radius")->setUnsignedIntegerValue(1);
+
+        m_initOK = true;
+    }
+    catch (xpcf::Exception e)
     {
-       LOG_ERROR("One or more component creations have failed");
-       return FrameworkReturnCode::_ERROR_  ;
+        LOG_ERROR("Exception catched: {}", e.what());
+        return FrameworkReturnCode::_ERROR_;
     }
-
-    // init relative to fiducial marker detection (will define the start of the process)
-    m_binaryMarker =xpcfComponentManager->create<MODULES::OPENCV::SolARMarker2DSquaredBinaryOpencv>()->bindTo<input::files::IMarker2DSquaredBinary>();
-    m_imageFilterBinary =xpcfComponentManager->create<MODULES::OPENCV::SolARImageFilterBinaryOpencv>()->bindTo<image::IImageFilter>();
-    m_imageConvertor =xpcfComponentManager->create<MODULES::OPENCV::SolARImageConvertorOpencv>()->bindTo<image::IImageConvertor>();
-    m_contoursExtractor =xpcfComponentManager->create<MODULES::OPENCV::SolARContoursExtractorOpencv>()->bindTo<features::IContoursExtractor>();
-    m_contoursFilter =xpcfComponentManager->create<MODULES::OPENCV::SolARContoursFilterBinaryMarkerOpencv>()->bindTo<features::IContoursFilter>();
-    m_perspectiveController =xpcfComponentManager->create<MODULES::OPENCV::SolARPerspectiveControllerOpencv>()->bindTo<image::IPerspectiveController>();
-    m_patternDescriptorExtractor =xpcfComponentManager->create<MODULES::OPENCV::SolARDescriptorsExtractorSBPatternOpencv>()->bindTo<features::IDescriptorsExtractorSBPattern>();
-    m_patternMatcher =xpcfComponentManager->create<MODULES::OPENCV::SolARDescriptorMatcherRadiusOpencv>()->bindTo<features::IDescriptorMatcher>();
-    m_patternReIndexer = xpcfComponentManager->create<MODULES::TOOLS::SolARSBPatternReIndexer>()->bindTo<features::ISBPatternReIndexer>();
-    m_img2worldMapper = xpcfComponentManager->create<MODULES::TOOLS::SolARImage2WorldMapper4Marker2D>()->bindTo<geom::IImage2WorldMapper>();
-
-    // load marker
-    LOG_INFO("LOAD MARKER IMAGE ");
-   if( m_binaryMarker->loadMarker()==FrameworkReturnCode::_ERROR_){
-       return FrameworkReturnCode::_ERROR_;
-    }
-    LOG_INFO("MARKER IMAGE LOADED");
-
-    m_patternDescriptorExtractor->extract(m_binaryMarker->getPattern(), m_markerPatternDescriptor);
-    LOG_INFO ("Marker pattern:\n {}", m_binaryMarker->getPattern()->getPatternMatrix())
-
-    int patternSize = m_binaryMarker->getPattern()->getSize();
-
-    m_patternDescriptorExtractor->bindTo<xpcf::IConfigurable>()->getProperty("patternSize")->setIntegerValue(patternSize);
-    m_patternReIndexer->bindTo<xpcf::IConfigurable>()->getProperty("sbPatternSize")->setIntegerValue(patternSize);
-
-    m_img2worldMapper->bindTo<xpcf::IConfigurable>()->getProperty("digitalWidth")->setIntegerValue(patternSize);
-    m_img2worldMapper->bindTo<xpcf::IConfigurable>()->getProperty("digitalHeight")->setIntegerValue(patternSize);
-    m_img2worldMapper->bindTo<xpcf::IConfigurable>()->getProperty("worldWidth")->setFloatingValue(m_binaryMarker->getSize().width);
-    m_img2worldMapper->bindTo<xpcf::IConfigurable>()->getProperty("worldHeight")->setFloatingValue(m_binaryMarker->getSize().height);
-
-
-
-    // specific to the
-    // initialize pose estimation with the camera intrinsic parameters (please refeer to the use of intrinsec parameters file)
-    m_PnP->setCameraParameters(m_camera->getIntrinsicsParameters(), m_camera->getDistorsionParameters());
-    m_poseFinderFrom2D2D->setCameraParameters(m_camera->getIntrinsicsParameters(), m_camera->getDistorsionParameters());
-    m_triangulator->setCameraParameters(m_camera->getIntrinsicsParameters(), m_camera->getDistorsionParameters());
-
-
-    m_i2DOverlay = xpcf::ComponentFactory::createInstance<SolAR2DOverlayOpencv>()->bindTo<api::display::I2DOverlay>();
-    m_i2DOverlay->bindTo<xpcf::IConfigurable>()->getProperty("radius")->setUnsignedIntegerValue(1);
-
-    m_initOK = true;
 
     return FrameworkReturnCode::_SUCCESS;
 }
@@ -229,6 +232,7 @@ bool PipelineSlam::detectFiducialMarkerCore(SRef<Image>& image)
             if (m_PnP->estimate(img2DPoints, pattern3DPoints, m_pose) == FrameworkReturnCode::_SUCCESS)
             {
                 poseComputed = true;
+                LOG_DEBUG("Fiducial marker detected")
              }
         }
     }
@@ -432,10 +436,6 @@ void PipelineSlam::mapUpdate(){
 
 };
 
-
-
-
-
 // A new keyFrame has been detected :
 // - perform triangulation
 // - the resulting cloud will be used to update the Map
@@ -550,7 +550,7 @@ void PipelineSlam::processFrames(){
      std::map<unsigned int, SRef<CloudPoint>> frameVisibility = m_frameToTrack->getReferenceKeyframe()->getVisibleMapPoints();
      m_corr2D3DFinder->find(m_frameToTrack, newFrame, matches, foundPoints, pt3d, pt2d, foundMatches, remainingMatches);
 
-     if (m_PnP->estimate(pt2d, pt3d, imagePoints_inliers, worldPoints_inliers, m_pose , m_lastPose) == FrameworkReturnCode::_SUCCESS){
+     if (m_PnPSAC->estimate(pt2d, pt3d, imagePoints_inliers, worldPoints_inliers, m_pose , m_lastPose) == FrameworkReturnCode::_SUCCESS){
         LOG_DEBUG(" frame pose  :\n {}", m_pose.matrix());
         LOG_DEBUG(" pnp inliers size: {} / {}",worldPoints_inliers.size(), pt3d.size());
 
@@ -558,7 +558,7 @@ void PipelineSlam::processFrames(){
         std::vector<SRef<Point2Df>> point2D;
         SRef<std::vector<SRef<CloudPoint>>> cloud;
         cloud=m_map->getPointCloud();
-        project3Dpoints(m_pose, *cloud,point2D);
+        m_projector->project(*cloud, point2D, m_pose);
         m_i2DOverlay->drawCircles(point2D,camImage);
         // update new frame
         newFrame->setPose(m_pose);
@@ -596,11 +596,7 @@ void PipelineSlam::processFrames(){
      return;
 };
 
-#ifdef USE_OPENGL
-FrameworkReturnCode PipelineSlam::start(void* textureHandle)
-#else
 FrameworkReturnCode PipelineSlam::start(void* imageDataBuffer)
-#endif
 {
     if (m_initOK==false)
     {
@@ -608,11 +604,9 @@ FrameworkReturnCode PipelineSlam::start(void* imageDataBuffer)
         return FrameworkReturnCode::_ERROR_;
     }
     m_stopFlag=false;
-#ifdef USE_OPENGL
-    m_sink->setTextureBuffer(textureHandle);
-#else
+
     m_sink->setImageBuffer((unsigned char*)imageDataBuffer);
-#endif
+
     if (m_camera->start() != FrameworkReturnCode::_SUCCESS)
     {
         LOG_ERROR("Camera cannot start")
@@ -721,7 +715,6 @@ CamCalibration PipelineSlam::getCameraParameters()
     {
         Sizei resolution = m_camera->getResolution();
         calib = m_camera->getIntrinsicsParameters();
-
     }
     return calib;
 }
@@ -736,32 +729,6 @@ void PipelineSlam::allTasks(){
     doTriangulation();
     processFrames();
 //    mapUpdate();
-}
-
-
-
-void PipelineSlam::project3Dpoints(const Transform3Df pose,const std::vector<SRef<CloudPoint>>& cloud,std::vector<SRef<Point2Df>>& point2D){
-
-    //first step :  from world coordinates to camera coordinates
-    Transform3Df invPose;
-    invPose=pose.inverse();
-    point2D.clear();
-#if (_WIN64) || (_WIN32)
-        Vector3f pointInCamRef;
-#else
-        Vector4f pointInCamRef;
-#endif
-        CamCalibration calib = m_camera->getIntrinsicsParameters();
-    for (auto cld = cloud.begin();cld!=cloud.end();++cld){
-        Vector3f point((*cld)->getX(), (*cld)->getY(), (*cld)->getZ());
-        pointInCamRef=invPose*point;
-        if(pointInCamRef(2)>0){
-            Vector3f p=calib*pointInCamRef;
-            SRef<Point2Df> p2d=xpcf::utils::make_shared<Point2Df> (p(0)/p(2),p(1)/p(2));
-            point2D.push_back(p2d);
-        }
-    }
-
 }
 
 }//namespace PIPELINES
