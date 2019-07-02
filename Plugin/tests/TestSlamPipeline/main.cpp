@@ -21,7 +21,7 @@
 
 // ADD COMPONENTS HEADERS HERE, e.g #include "SolarComponent.h"
 
-#include "PipelineManager.h"
+#include "SolARPluginPipelineManager.h"
 
 using namespace SolAR;
 using namespace SolAR::PIPELINE;
