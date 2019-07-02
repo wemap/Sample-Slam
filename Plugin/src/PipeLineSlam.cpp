@@ -714,19 +714,16 @@ SinkReturnCode PipelineSlam::update(Transform3Df& pose)
         return m_sink->tryGet(pose);
 }
 
-CameraParameters PipelineSlam::getCameraParameters()
+CamCalibration PipelineSlam::getCameraParameters()
 {
-    CameraParameters camParam;
+    CamCalibration calib;
     if (m_camera)
     {
         Sizei resolution = m_camera->getResolution();
-        CamCalibration calib = m_camera->getIntrinsicsParameters();
-        camParam.width = resolution.width;
-        camParam.height = resolution.height;
-        camParam.focalX = calib(0,0);
-        camParam.focalY = calib(1,1);
+        calib = m_camera->getIntrinsicsParameters();
+
     }
-    return camParam;
+    return calib;
 }
 
 
