@@ -368,3 +368,7 @@ Mono/surf.fbow
 Mono/orb.fbow
 Mono/fbow_voc.zip
 Mono/akaze.fbow
+akaze.fbow
+orb.fbow
+sift.fbow
+surf.fbow
