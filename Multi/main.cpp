@@ -148,7 +148,7 @@ int main(int argc, char **argv){
     SRef<Image>                                         view1, view2;
     SRef<Keyframe>                                      keyframe1;
     SRef<Keyframe>                                      keyframe2;
-    std::vector<SRef<Keypoint>>                         keypointsView1, keypointsView2, keypoints;
+    std::vector<Keypoint>                         keypointsView1, keypointsView2, keypoints;
     SRef<DescriptorBuffer>                              descriptorsView1, descriptorsView2, descriptors;
     std::vector<DescriptorMatch>                        matches;
 
@@ -157,7 +157,7 @@ int main(int argc, char **argv){
     Transform3Df                                        newFramePose;
     Transform3Df                                        lastPose;
 
-    std::vector<SRef<CloudPoint>>                       cloud, filteredCloud;
+    std::vector<CloudPoint>                       cloud, filteredCloud;
 
     std::vector<Transform3Df>                           keyframePoses;
     std::vector<Transform3Df>                           framePoses;
@@ -277,13 +277,13 @@ int main(int argc, char **argv){
     };
 
     // extract key points
-    xpcf::DropBuffer< std::pair< SRef<Image>,std::vector<SRef<Keypoint>> > > outBufferKeypoints;
+    xpcf::DropBuffer< std::pair<SRef<Image> , std::vector<Keypoint>>> outBufferKeypoints;
     std::function<void(void)> getKeyPoints = [&workingBufferCamImages,keypointsDetector,&outBufferKeypoints](){
 
         SRef<Image> camImage ;
         if (!workingBufferCamImages.tryPop(camImage))
             return;
-        std::vector< SRef<Keypoint>> kp;
+        std::vector<Keypoint> kp;
         keypointsDetector->detect(camImage, kp);
         if(outBufferKeypoints.empty())
             outBufferKeypoints.push(std::make_pair(camImage,kp));
@@ -293,7 +293,7 @@ int main(int argc, char **argv){
     xpcf::DropBuffer< SRef<Frame > > outBufferDescriptors;
     std::function<void(void)> getDescriptors = [&referenceKeyframe,&outBufferKeypoints,descriptorExtractor,&outBufferDescriptors](){
 
-        std::pair<SRef<Image>, std::vector<SRef<Keypoint> > > kp ;
+        std::pair<SRef<Image> , std::vector<Keypoint>> kp ;
         SRef<DescriptorBuffer> camDescriptors;
         SRef<Frame> frame;
 
@@ -308,7 +308,7 @@ int main(int argc, char **argv){
     };
 
     //xpcf::SharedBuffer< std::tuple<SRef<Frame>,SRef<Keyframe>,std::vector<DescriptorMatch>,std::vector<DescriptorMatch>, std::vector<SRef<CloudPoint>>  > >  outBufferTriangulation(1);
-    xpcf::DropBuffer< std::tuple<SRef<Keyframe>, SRef<Keyframe>, std::vector<DescriptorMatch>, std::vector<DescriptorMatch>, std::vector<SRef<CloudPoint>>  > >  outBufferTriangulation;
+    xpcf::DropBuffer< std::tuple<SRef<Keyframe>, SRef<Keyframe>, std::vector<DescriptorMatch>, std::vector<DescriptorMatch>, std::vector<CloudPoint>>>  outBufferTriangulation;
 
     // A new keyFrame has been detected :
     // - the triangulation has been performed
@@ -316,7 +316,7 @@ int main(int argc, char **argv){
     //
     std::function<void(void)> mapUpdate = [&keyFrameDetectionOn,&referenceKeyframe, &map, &mapper, &mapFilter, &keyframePoses, &outBufferTriangulation, &kfRetriever, &frameToTrack](){
         //std::tuple<SRef<Frame>,SRef<Keyframe>,std::vector<DescriptorMatch>,std::vector<DescriptorMatch>, std::vector<SRef<CloudPoint>>  >   element;
-        std::tuple<SRef<Keyframe>, SRef<Keyframe>, std::vector<DescriptorMatch>, std::vector<DescriptorMatch>, std::vector<SRef<CloudPoint>>  >   element;
+        std::tuple<SRef<Keyframe>, SRef<Keyframe>, std::vector<DescriptorMatch>, std::vector<DescriptorMatch>, std::vector<CloudPoint>>   element;
 
         if (!outBufferTriangulation.tryPop(element)) {
             return;
@@ -324,7 +324,7 @@ int main(int argc, char **argv){
         //SRef<Frame>                                         newFrame;
         SRef<Keyframe>                                      newKeyframe,refKeyframe;
         std::vector<DescriptorMatch>                        foundMatches, remainingMatches;
-        std::vector<SRef<CloudPoint>>                       newCloud;
+        std::vector<CloudPoint>                       newCloud;
 
         newKeyframe=std::get<0>(element);
         refKeyframe=std::get<1>(element);
@@ -332,7 +332,7 @@ int main(int argc, char **argv){
         remainingMatches=std::get<3>(element);
         newCloud=std::get<4>(element);
 
-        std::vector<SRef<CloudPoint>>                       filteredCloud;
+        std::vector<CloudPoint>                       filteredCloud;
 
         LOG_DEBUG(" frame pose estimation :\n {}", newKeyframe->getPose().matrix());
         LOG_DEBUG("Number of matches: {}, number of 3D points:{}", remainingMatches.size(), newCloud.size());
@@ -344,7 +344,7 @@ int main(int argc, char **argv){
         frameToTrack->setReferenceKeyframe(referenceKeyframe);
         kfRetriever->addKeyframe(referenceKeyframe); // add keyframe for reloc
         keyframePoses.push_back(newKeyframe->getPose());
-        LOG_DEBUG(" cloud current size: {} \n", map->getPointCloud()->size());
+        LOG_DEBUG(" cloud current size: {} \n", map->getPointCloud().size());
 
         keyFrameDetectionOn = true;					// re - allow keyframe detection
 
@@ -363,7 +363,7 @@ int main(int argc, char **argv){
         SRef<Keyframe>                                      refKeyFrame;
         std::vector<DescriptorMatch>                        foundMatches;
         std::vector<DescriptorMatch>                        remainingMatches;
-        std::vector<SRef<CloudPoint>>                       newCloud;
+        std::vector<CloudPoint>                       newCloud;
 
 
         LOG_DEBUG ("**************************   doTriangulation In");
@@ -398,19 +398,19 @@ int main(int argc, char **argv){
          SRef<Frame> newFrame;
          SRef<Keyframe> refKeyFrame;
          SRef<Image> view;
-         std::vector< SRef<Keypoint> > keypoints;
+         std::vector<Keypoint> keypoints;
          SRef<DescriptorBuffer> descriptors;
          SRef<DescriptorBuffer> refDescriptors;
          std::vector<DescriptorMatch> matches;
          Transform3Df newFramePose;
 
-         std::vector<SRef<Point2Df>> pt2d;
-         std::vector<SRef<Point3Df>> pt3d;
-         std::vector<SRef<CloudPoint>> foundPoints;
+         std::vector<Point2Df> pt2d;
+         std::vector<Point3Df> pt3d;
+         std::vector<CloudPoint> foundPoints;
          std::vector<DescriptorMatch> foundMatches;
          std::vector<DescriptorMatch> remainingMatches;
-         std::vector<SRef<Point2Df>> imagePoints_inliers;
-         std::vector<SRef<Point3Df>> worldPoints_inliers;
+         std::vector<Point2Df> imagePoints_inliers;
+         std::vector<Point3Df> worldPoints_inliers;
 
          if (isLostTrack && !outBufferTriangulation.empty() && !keyFrameBuffer.empty())
              return;
@@ -531,7 +531,7 @@ int main(int argc, char **argv){
                 break;
         }
         count++;
-        if (viewer3DPoints->display(*(map->getPointCloud()), lastPose, keyframePoses, framePoses) == FrameworkReturnCode::_STOP){
+        if (viewer3DPoints->display(map->getPointCloud(), lastPose, keyframePoses, framePoses) == FrameworkReturnCode::_STOP){
                stop=true;
         }
     }

@@ -137,7 +137,7 @@ int main(int argc, char **argv) {
         SRef<Image>                                         view1, view2, view;
         SRef<Keyframe>                                      keyframe1;
         SRef<Keyframe>                                      keyframe2;
-        std::vector<SRef<Keypoint>>                         keypointsView1, keypointsView2, keypoints;
+        std::vector<Keypoint>                         keypointsView1, keypointsView2, keypoints;
         SRef<DescriptorBuffer>                              descriptorsView1, descriptorsView2, descriptors;
         std::vector<DescriptorMatch>                        matches;
 
@@ -146,7 +146,7 @@ int main(int argc, char **argv) {
         Transform3Df                                        newFramePose;
         Transform3Df                                        lastPose;
 
-        std::vector<SRef<CloudPoint>>                       cloud, filteredCloud;
+        std::vector<CloudPoint>                       cloud, filteredCloud;
 
         std::vector<Transform3Df>                           keyframePoses;
         std::vector<Transform3Df>                           framePoses;
@@ -260,9 +260,9 @@ int main(int argc, char **argv) {
             matcher->match(frameToTrackDescriptors, descriptors, matches);
             matchesFilter->filter(matches, matches, frameToTrack->getKeypoints(), keypoints);
 
-            std::vector<SRef<Point2Df>> pt2d;
-            std::vector<SRef<Point3Df>> pt3d;
-            std::vector<SRef<CloudPoint>> foundPoints;
+            std::vector<Point2Df> pt2d;
+            std::vector<Point3Df> pt3d;
+            std::vector<CloudPoint> foundPoints;
             std::vector<DescriptorMatch> foundMatches;
             std::vector<DescriptorMatch> remainingMatches;
             corr2D3DFinder->find(frameToTrack, newFrame, matches, foundPoints, pt3d, pt2d, foundMatches, remainingMatches);
@@ -279,8 +279,8 @@ int main(int argc, char **argv) {
                     break;
             }
 
-            std::vector<SRef<Point2Df>> imagePoints_inliers;
-            std::vector<SRef<Point3Df>> worldPoints_inliers;
+            std::vector<Point2Df> imagePoints_inliers;
+            std::vector<Point3Df> worldPoints_inliers;
             if (PnP->estimate(pt2d, pt3d, imagePoints_inliers, worldPoints_inliers, newFramePose, lastPose) == FrameworkReturnCode::_SUCCESS) {
                 LOG_INFO(" pnp inliers size: {} / {}", worldPoints_inliers.size(), pt3d.size());
                 lastPose = newFramePose;
@@ -298,7 +298,7 @@ int main(int argc, char **argv) {
                     // create a new keyframe from the current frame
                     newKeyframe = xpcf::utils::make_shared<Keyframe>(newFrame);
                     // triangulate with the reference keyframe
-                    std::vector<SRef<CloudPoint>>newCloud, filteredCloud;
+                    std::vector<CloudPoint>newCloud, filteredCloud;
                     triangulator->triangulate(newKeyframe, remainingMatches, newCloud);
                     //triangulator->triangulate(referenceKeyframe->getKeypoints(), keypoints, remainingMatches, std::make_pair<int, int>((int)referenceKeyframe->m_idx + 0, (int)(mapper->getNbKeyframes())),
                     //	referenceKeyframe->getPose(), newFramePose, newCloud);
@@ -315,7 +315,7 @@ int main(int argc, char **argv) {
                     frameToTrack->setReferenceKeyframe(referenceKeyframe);
                     kfRetriever->addKeyframe(referenceKeyframe); // add keyframe for reloc
                     //LOG_INFO("************************ NEW KEYFRAME *************************");
-                    LOG_DEBUG(" cloud current size: {} \n", map->getPointCloud()->size());
+                    LOG_DEBUG(" cloud current size: {} \n", map->getPointCloud().size());
                 }
                 else
                 {
@@ -343,7 +343,7 @@ int main(int argc, char **argv) {
             }
 
             // display point cloud
-            if (viewer3DPoints->display(*(map->getPointCloud()), lastPose, keyframePoses, framePoses) == FrameworkReturnCode::_STOP)
+            if (viewer3DPoints->display(map->getPointCloud(), lastPose, keyframePoses, framePoses) == FrameworkReturnCode::_STOP)
                 break;
 
         }
