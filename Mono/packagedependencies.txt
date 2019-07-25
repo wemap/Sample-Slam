@@ -10,4 +10,3 @@ spdlog|0.14.0|spdlog|thirdParties|https://github.com/SolarFramework/binaries/rel
 eigen|3.3.5|eigen|thirdParties|https://github.com/SolarFramework/binaries/releases/download
 freeglut|3.0.0|freeglut|thirdParties|https://github.com/SolarFramework/binaries/releases/download
 fbow|0.0.1|fbow|thirdParties|https://github.com/SolarFramework/binaries/releases/download
-
