@@ -7,6 +7,8 @@ SolARModuleTools|0.5.2|SolARModuleTools|bcomBuild|https://github.com/SolarFramew
 SolARPipelineManager|0.5.2|SolARPipelineManager|bcomBuild|https://github.com/SolarFramework/SolARPipelineManager/releases/download
 PipelineSlam|0.5.2|PipelineSlam|bcomBuild|https://github.com/SolarFramework/Sample-Slam/releases/download
 xpcf|2.2.0|xpcf|thirdParties|https://github.com/SolarFramework/binaries/releases/download
+boost|1.70.0|boost|thirdParties|https://github.com/SolarFramework/binaries/releases/download
+opencv|3.4.3|opencv|thirdParties|https://github.com/SolarFramework/binaries/releases/download
 spdlog|0.14.0|spdlog|thirdParties|https://github.com/SolarFramework/binaries/releases/download
 eigen|3.3.5|eigen|thirdParties|https://github.com/SolarFramework/binaries/releases/download
 freeglut|3.0.0|freeglut|thirdParties|https://github.com/SolarFramework/binaries/releases/download

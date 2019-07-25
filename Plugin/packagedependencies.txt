@@ -3,5 +3,6 @@ SolARModuleOpenCV|0.5.2|SolARModuleOpenCV|bcomBuild|https://github.com/SolarFram
 SolARModuleFBOW|0.5.2|SolARModuleFBOW|bcomBuild|https://github.com/SolarFramework/SolARModuleFBOW/releases/download
 SolARModuleTools|0.5.2|SolARModuleTools|bcomBuild|https://github.com/SolarFramework/SolARModuleTools/releases/download
 xpcf|2.2.0|xpcf|thirdParties|https://github.com/SolarFramework/binaries/releases/download
+boost|1.70.0|boost|thirdParties|https://github.com/SolarFramework/binaries/releases/download
 spdlog|0.14.0|spdlog|thirdParties|https://github.com/SolarFramework/binaries/releases/download
 eigen|3.3.5|eigen|thirdParties|https://github.com/SolarFramework/binaries/releases/download
