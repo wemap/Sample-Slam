@@ -1,0 +1,12 @@
+libname=PipelineSlam
+prefix=/usr/local
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/interfaces
+Name: PipelineSlam
+Description:
+Version: 0.5.2
+Requires:
+Libs: -L${libdir} -l${libname}
+Libs.private: ${libdir}/${pfx}${libname}.${lext}
+Cflags: -I${includedir}
