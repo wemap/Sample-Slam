@@ -5,6 +5,7 @@ set (VERSION_NUMBER "0.6.0")
 project("PipelineSlam")
 set (SOURCES 
     src/PipeLineSlam.cpp
+	src/component.cpp
 )
 
 set (HEADERS
