@@ -6,3 +6,4 @@ Do not forget to add the pre-trained descriptors from https://github.com/SolarFr
 
 An ongoing implementation of a slam using SolAR
 
+
