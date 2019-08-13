@@ -170,7 +170,7 @@ private:
     SRef<Map>                                           m_map;
     Transform3Df                                        poseFrame1;
     SRef<Keyframe>                                      keyframe1;
-    std::vector<SRef<Keypoint>>                         keypointsView1;
+    std::vector<Keypoint>								keypointsView1;
     SRef<DescriptorBuffer>                              descriptorsView1;
     std::vector<DescriptorMatch>                        matches;
 
@@ -211,9 +211,9 @@ private:
     xpcf::DelegateTask* m_taskMapUpdate;
 
     xpcf::DropBuffer< SRef<Image> >  m_CameraImagesBuffer;
-    xpcf::DropBuffer< std::pair< SRef<Image>,std::vector<SRef<Keypoint>> > > m_outBufferKeypoints;
+    xpcf::DropBuffer< std::pair< SRef<Image>,std::vector<Keypoint> >> m_outBufferKeypoints;
     xpcf::DropBuffer< SRef<Frame > > m_outBufferDescriptors;
-    xpcf::DropBuffer< std::tuple<SRef<Keyframe>, SRef<Keyframe>, std::vector<DescriptorMatch>, std::vector<DescriptorMatch>, std::vector<SRef<CloudPoint>>  > >  m_outBufferTriangulation;
+    xpcf::DropBuffer< std::tuple<SRef<Keyframe>, SRef<Keyframe>, std::vector<DescriptorMatch>, std::vector<DescriptorMatch>, std::vector<CloudPoint>  > >  m_outBufferTriangulation;
     xpcf::DropBuffer< std::tuple<SRef<Frame>,SRef<Keyframe>,std::vector<DescriptorMatch>,std::vector<DescriptorMatch> > >  m_keyFrameBuffer;
     xpcf::DropBuffer< SRef<Image> > m_displayMatches;   // matches images should be displayed in the main thread
     xpcf::DropBuffer< SRef<Keyframe>> m_keyframeRelocBuffer;

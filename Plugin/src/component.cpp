@@ -110,9 +110,9 @@ FrameworkReturnCode PipelineSlam::init(SRef<xpcf::IComponentManager> xpcfCompone
         LOG_INFO("MARKER IMAGE LOADED");
 
         m_patternDescriptorExtractor->extract(m_binaryMarker->getPattern(), m_markerPatternDescriptor);
-        LOG_INFO ("Marker pattern:\n {}", m_binaryMarker->getPattern()->getPatternMatrix())
-
-        int patternSize = m_binaryMarker->getPattern()->getSize();
+		LOG_INFO("Marker pattern:\n {}", m_binaryMarker->getPattern().getPatternMatrix());
+		
+        int patternSize = m_binaryMarker->getPattern().getSize();
 
         m_patternDescriptorExtractor->bindTo<xpcf::IConfigurable>()->getProperty("patternSize")->setIntegerValue(patternSize);
         m_patternReIndexer->bindTo<xpcf::IConfigurable>()->getProperty("sbPatternSize")->setIntegerValue(patternSize);
@@ -169,15 +169,15 @@ void PipelineSlam::getCameraImages(){
 bool PipelineSlam::detectFiducialMarkerCore(SRef<Image>& image)
 {
     SRef<Image>                     greyImage, binaryImage;
-    std::vector<SRef<Contour2Df>>   contours;
-    std::vector<SRef<Contour2Df>>   filtered_contours;
+    std::vector<Contour2Df>			contours;
+    std::vector<Contour2Df>			filtered_contours;
     std::vector<SRef<Image>>        patches;
-    std::vector<SRef<Contour2Df>>   recognizedContours;
+    std::vector<Contour2Df>			recognizedContours;
     SRef<DescriptorBuffer>          recognizedPatternsDescriptors;
     std::vector<DescriptorMatch>    patternMatches;
-    std::vector<SRef<Point2Df>>     pattern2DPoints;
-    std::vector<SRef<Point2Df>>     img2DPoints;
-    std::vector<SRef<Point3Df>>     pattern3DPoints;
+    std::vector<Point2Df>			pattern2DPoints;
+    std::vector<Point2Df>			img2DPoints;
+    std::vector<Point3Df>			pattern3DPoints;
 
 
     bool poseComputed = false;
@@ -196,12 +196,11 @@ bool PipelineSlam::detectFiducialMarkerCore(SRef<Image>& image)
 
     // Create one warpped and cropped image by contour
     m_perspectiveController->correct(binaryImage, filtered_contours, patches);
-
     // test if this last image is really a squared binary marker, and if it is the case, extract its descriptor
     if (m_patternDescriptorExtractor->extract(patches, filtered_contours, recognizedPatternsDescriptors, recognizedContours) != FrameworkReturnCode::_ERROR_)
     {
         // From extracted squared binary pattern, match the one corresponding to the squared binary marker
-        if (m_patternMatcher->match(m_markerPatternDescriptor, recognizedPatternsDescriptors, patternMatches) == features::DescriptorMatcher::DESCRIPTORS_MATCHER_OK)
+        if (m_patternMatcher->match(m_markerPatternDescriptor, recognizedPatternsDescriptors, patternMatches) == features::IDescriptorMatcher::DESCRIPTORS_MATCHER_OK)
         {
             // Reindex the pattern to create two vector of points, the first one corresponding to marker corner, the second one corresponding to the poitsn of the contour
             m_patternReIndexer->reindex(recognizedContours, patternMatches, pattern2DPoints, img2DPoints);
@@ -267,7 +266,7 @@ void PipelineSlam::doBootStrap()
     SRef<Image>  camImage;
     Transform3Df poseFrame2;
     SRef<Keyframe>                                      keyframe2;
-    std::vector<SRef<Keypoint>>                         keypointsView2;
+    std::vector<Keypoint>                         keypointsView2;
     SRef<DescriptorBuffer>                              descriptorsView2;
     std::vector<SRef<CloudPoint>>                       cloud, filteredCloud;
 
@@ -332,7 +331,7 @@ void PipelineSlam::getKeyPoints(){
     if (!m_CameraImagesBuffer.tryPop(camImage))
         return  ;
 
-    std::vector< SRef<Keypoint>> kp;
+    std::vector<Keypoint> kp;
     m_keypointsDetector->detect(camImage, kp);
     if(m_outBufferKeypoints.empty())
         m_outBufferKeypoints.push(std::make_pair(camImage,kp));
@@ -343,7 +342,7 @@ void PipelineSlam::getKeyPoints(){
 // compute descriptors
 void PipelineSlam::getDescriptors(){
 
-    std::pair<SRef<Image>, std::vector<SRef<Keypoint> > > kp ;
+    std::pair<SRef<Image>, std::vector<Keypoint> > kp ;
     SRef<DescriptorBuffer> camDescriptors;
     SRef<Frame> frame;
 
@@ -369,10 +368,10 @@ void PipelineSlam::getDescriptors(){
 // - the Map is updated accordingly
 //
 void PipelineSlam::mapUpdate(){
-    std::tuple<SRef<Keyframe>, SRef<Keyframe>, std::vector<DescriptorMatch>, std::vector<DescriptorMatch>, std::vector<SRef<CloudPoint>>  >   element;
+    std::tuple<SRef<Keyframe>, SRef<Keyframe>, std::vector<DescriptorMatch>, std::vector<DescriptorMatch>, std::vector<CloudPoint>  >   element;
     std::vector<DescriptorMatch>                        foundMatches, remainingMatches;
-    std::vector<SRef<CloudPoint>>                       newCloud;
-    std::vector<SRef<CloudPoint>>                       filteredCloud;
+    std::vector<CloudPoint>                       newCloud;
+    std::vector<CloudPoint>                       filteredCloud;
 
     if (m_stopFlag || !m_initOK || !m_startedOK)
         return ;
@@ -391,7 +390,7 @@ void PipelineSlam::mapUpdate(){
     remainingMatches=std::get<3>(element);
     newCloud=std::get<4>(element);
 
-    std::map<unsigned int, SRef<CloudPoint>> frameVisibility = newKeyframe->getReferenceKeyframe()->getVisibleMapPoints();
+    std::map<unsigned int, CloudPoint> frameVisibility = newKeyframe->getReferenceKeyframe()->getVisibleMapPoints();
     std::map<unsigned int, unsigned int> visibleKeypoints= newKeyframe->getReferenceKeyframe()->getVisibleKeypoints();
     frameVisibility = newKeyframe->getVisibleMapPoints();
 
@@ -409,7 +408,7 @@ void PipelineSlam::mapUpdate(){
     m_frameToTrack->setReferenceKeyframe(m_referenceKeyframe);
     m_kfRetriever->addKeyframe(m_referenceKeyframe); // add keyframe for reloc
     m_keyframePoses.push_back(newKeyframe->getPose());
-    LOG_DEBUG(" cloud current size: {} \n", m_map->getPointCloud()->size());
+    LOG_DEBUG(" cloud current size: {} \n", m_map->getPointCloud().size());
 
     m_keyFrameDetectionOn = true;					// re - allow keyframe detection
 
@@ -428,7 +427,7 @@ void PipelineSlam::doTriangulation(){
     SRef<Keyframe>                                      refKeyFrame;
     std::vector<DescriptorMatch>                        foundMatches;
     std::vector<DescriptorMatch>                        remainingMatches;
-    std::vector<SRef<CloudPoint>>                       newCloud;
+    std::vector<CloudPoint>								newCloud;
 
     if (m_stopFlag || !m_initOK || !m_startedOK)
         return ;
@@ -447,7 +446,7 @@ void PipelineSlam::doTriangulation(){
     remainingMatches=std::get<3>(element);
 
     newKeyframe = xpcf::utils::make_shared<Keyframe>(newFrame);
-
+	
     if(remainingMatches.size())
             m_triangulator->triangulate(newKeyframe, remainingMatches, newCloud);
     //triangulator->triangulate(refKeyFrame->getKeypoints(), newFrame->getKeypoints(), remainingMatches,std::make_pair<int,int>((int)refKeyFrame->m_idx+0,(int)(refKeyFrame->m_idx+1)),
@@ -470,18 +469,18 @@ void PipelineSlam::processFrames(){
      SRef<Frame> newFrame;
      SRef<Keyframe> refKeyFrame;
      SRef<Image> camImage;
-     std::vector< SRef<Keypoint> > keypoints;
+     std::vector< Keypoint > keypoints;
      SRef<DescriptorBuffer> descriptors;
      SRef<DescriptorBuffer> refDescriptors;
      std::vector<DescriptorMatch> matches;
 
-     std::vector<SRef<Point2Df>> pt2d;
-     std::vector<SRef<Point3Df>> pt3d;
-     std::vector<SRef<CloudPoint>> foundPoints;
+     std::vector<Point2Df> pt2d;
+     std::vector<Point3Df> pt3d;
+     std::vector<CloudPoint> foundPoints;
      std::vector<DescriptorMatch> foundMatches;
      std::vector<DescriptorMatch> remainingMatches;
-     std::vector<SRef<Point2Df>> imagePoints_inliers;
-     std::vector<SRef<Point3Df>> worldPoints_inliers;
+     std::vector<Point2Df> imagePoints_inliers;
+     std::vector<Point3Df> worldPoints_inliers;
 
      std::vector < SRef <Keyframe>> ret_keyframes;
 
@@ -528,7 +527,7 @@ void PipelineSlam::processFrames(){
      m_basicMatchesFilter->filter(matches, matches, m_frameToTrack->getKeypoints(), keypoints);
      m_geomMatchesFilter->filter(matches, matches, m_frameToTrack->getKeypoints(), keypoints);
 
-     std::map<unsigned int, SRef<CloudPoint>> frameVisibility = m_frameToTrack->getReferenceKeyframe()->getVisibleMapPoints();
+     std::map<unsigned int, CloudPoint> frameVisibility = m_frameToTrack->getReferenceKeyframe()->getVisibleMapPoints();
      m_corr2D3DFinder->find(m_frameToTrack, newFrame, matches, foundPoints, pt3d, pt2d, foundMatches, remainingMatches);
 
      if (m_PnPSAC->estimate(pt2d, pt3d, imagePoints_inliers, worldPoints_inliers, m_pose , m_lastPose) == FrameworkReturnCode::_SUCCESS){
@@ -536,10 +535,10 @@ void PipelineSlam::processFrames(){
         LOG_DEBUG(" pnp inliers size: {} / {}",worldPoints_inliers.size(), pt3d.size());
 
         m_lastPose = m_pose;
-        std::vector<SRef<Point2Df>> point2D;
-        SRef<std::vector<SRef<CloudPoint>>> cloud;
+        std::vector<Point2Df>	point2D;
+        std::vector<CloudPoint> cloud;
         cloud=m_map->getPointCloud();
-        m_projector->project(*cloud, point2D, m_pose);
+        m_projector->project(cloud, point2D, m_pose);
         m_i2DOverlay->drawCircles(point2D,camImage);
         // update new frame
         newFrame->setPose(m_pose);

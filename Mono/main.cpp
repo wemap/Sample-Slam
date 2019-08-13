@@ -137,7 +137,7 @@ int main(int argc, char **argv) {
         SRef<Image>                                         view1, view2, view;
         SRef<Keyframe>                                      keyframe1;
         SRef<Keyframe>                                      keyframe2;
-        std::vector<Keypoint>                         keypointsView1, keypointsView2, keypoints;
+        std::vector<Keypoint>								keypointsView1, keypointsView2, keypoints;
         SRef<DescriptorBuffer>                              descriptorsView1, descriptorsView2, descriptors;
         std::vector<DescriptorMatch>                        matches;
 
@@ -146,7 +146,7 @@ int main(int argc, char **argv) {
         Transform3Df                                        newFramePose;
         Transform3Df                                        lastPose;
 
-        std::vector<CloudPoint>                       cloud, filteredCloud;
+        std::vector<CloudPoint>								cloud, filteredCloud;
 
         std::vector<Transform3Df>                           keyframePoses;
         std::vector<Transform3Df>                           framePoses;
