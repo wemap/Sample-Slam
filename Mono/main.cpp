@@ -29,6 +29,8 @@
 #include "SolARModuleOpengl_traits.h"
 #include "SolARModuleTools_traits.h"
 #include "SolARModuleFBOW_traits.h"
+#include "SolARModuleCeres_traits.h"
+
 
 #ifndef USE_FREE
 #include "SolARModuleNonFreeOpencv_traits.h"
@@ -47,6 +49,7 @@
 #include "api/solver/map/IMapper.h"
 #include "api/solver/map/IKeyframeSelector.h"
 #include "api/solver/map/IMapFilter.h"
+#include "api/solver/map/IBundler.h"
 #include "api/solver/pose/I2D3DCorrespondencesFinder.h"
 #include "api/solver/pose/I3DTransformSACFinderFrom2D3D.h"
 #include "api/features/IMatchesFilter.h"
@@ -58,11 +61,14 @@
 #include "api/reloc/IKeyframeRetriever.h"
 #include "core/Log.h"
 
+#include "opencv2/highgui.hpp"
+
 using namespace SolAR;
 using namespace SolAR::datastructure;
 using namespace SolAR::api;
 using namespace SolAR::MODULES::OPENCV;
 using namespace SolAR::MODULES::FBOW;
+using namespace SolAR::MODULES::CERES;
 #ifndef USE_FREE
 using namespace SolAR::MODULES::NONFREEOPENCV;
 #endif
@@ -73,6 +79,7 @@ namespace xpcf = org::bcom::xpcf;
 
 int main(int argc, char **argv) {
 
+	cv::namedWindow("toto", 0);
 #if NDEBUG
 	boost::log::core::get()->set_logging_enabled(false);
 #endif
@@ -95,43 +102,60 @@ int main(int argc, char **argv) {
         }
 
         // declare and create components
-        LOG_INFO("Start creating components");
+        //LOG_INFO("Start creating components fro");
+		std::cout << "Start creating components from: " << configxml << std::endl;
+
 
         // component creation
 #ifdef USE_IMAGES_SET
         auto camera = xpcfComponentManager->create<SolARImagesAsCameraOpencv>()->bindTo<input::devices::ICamera>();
 #else
-        auto camera = xpcfComponentManager->create<SolARCameraOpencv>()->bindTo<input::devices::ICamera>();
+		auto camera = xpcfComponentManager->create<SolARCameraOpencv>()->bindTo<input::devices::ICamera>();
+		LOG_INFO("	-<SolARCameraOpencv: loaded>-");
 #endif
 #ifdef USE_FREE
         auto keypointsDetector = xpcfComponentManager->create<SolARKeypointDetectorOpencv>()->bindTo<features::IKeypointDetector>();
+		LOG_INFO("	-<SolARKeypointDetectorOpencv: loaded>-");
         auto descriptorExtractor = xpcfComponentManager->create<SolARDescriptorsExtractorAKAZE2Opencv>()->bindTo<features::IDescriptorsExtractor>();
+		LOG_INFO("	-<SolARDescriptorsExtractorAKAZE2Opencv: loaded>-");
 #else
         auto  keypointsDetector = xpcfComponentManager->create<SolARKeypointDetectorNonFreeOpencv>()->bindTo<features::IKeypointDetector>();
         auto descriptorExtractor = xpcfComponentManager->create<SolARDescriptorsExtractorSURF64Opencv>()->bindTo<features::IDescriptorsExtractor>();
 #endif
 
-        //   auto descriptorExtractorORB =xpcfComponentManager->create<SolARDescriptorsExtractorORBOpencv>()->bindTo<features::IDescriptorsExtractor>();
+        //   auto descriptorExtractorORB =xpcfComponentManager->create<olARDescriptorsExtractorORBOpencv>()->bindTo<features::IDescriptorsExtractor>();
         SRef<features::IDescriptorMatcher> matcher = xpcfComponentManager->create<SolARDescriptorMatcherKNNOpencv>()->bindTo<features::IDescriptorMatcher>();
+		LOG_INFO("	-<SolARDescriptorMatcherKNNOpencv: loaded>-");
         SRef<solver::pose::I3DTransformFinderFrom2D2D> poseFinderFrom2D2D = xpcfComponentManager->create<SolARPoseFinderFrom2D2DOpencv>()->bindTo<solver::pose::I3DTransformFinderFrom2D2D>();
+		LOG_INFO("	-<SolARPoseFinderFrom2D2DOpencv: loaded>-");
         SRef<solver::map::ITriangulator> triangulator = xpcfComponentManager->create<SolARSVDTriangulationOpencv>()->bindTo<solver::map::ITriangulator>();
+		LOG_INFO("	-<SolARPoseFinderFrom2D2DOpencv: loaded>-");
         SRef<features::IMatchesFilter> matchesFilter = xpcfComponentManager->create<SolARGeometricMatchesFilterOpencv>()->bindTo<features::IMatchesFilter>();
+		LOG_INFO("	-<SolARGeometricMatchesFilterOpencv: loaded>-");
         SRef<solver::pose::I3DTransformSACFinderFrom2D3D> PnP = xpcfComponentManager->create<SolARPoseEstimationSACPnpOpencv>()->bindTo<solver::pose::I3DTransformSACFinderFrom2D3D>();
+		LOG_INFO("	-<SolARPoseEstimationSACPnpOpencv: loaded>-");
         SRef<solver::pose::I2D3DCorrespondencesFinder> corr2D3DFinder = xpcfComponentManager->create<SolAR2D3DCorrespondencesFinderOpencv>()->bindTo<solver::pose::I2D3DCorrespondencesFinder>();
+		LOG_INFO("	-<SolAR2D3DCorrespondencesFinderOpencv: loaded>-");
         SRef<solver::map::IMapFilter> mapFilter = xpcfComponentManager->create<SolARMapFilter>()->bindTo<solver::map::IMapFilter>();
+		LOG_INFO("	-<SolARMapFilter: loaded>-");
         SRef<solver::map::IMapper> mapper = xpcfComponentManager->create<SolARMapper>()->bindTo<solver::map::IMapper>();
+		LOG_INFO("	-<SolARMapper: loaded>-");
         SRef<solver::map::IKeyframeSelector> keyframeSelector = xpcfComponentManager->create<SolARKeyframeSelector>()->bindTo<solver::map::IKeyframeSelector>();
-
+		LOG_INFO("	-<SolARKeyframeSelector: loaded>-");
         SRef<display::IMatchesOverlay> matchesOverlay = xpcfComponentManager->create<SolARMatchesOverlayOpencv>()->bindTo<display::IMatchesOverlay>();
+		LOG_INFO("	-<SolARMatchesOverlayOpencv: loaded>-");
         SRef<display::IMatchesOverlay> matchesOverlayBlue = xpcfComponentManager->create<SolARMatchesOverlayOpencv>("matchesBlue")->bindTo<display::IMatchesOverlay>();
+		LOG_INFO("	-<SolARMatchesOverlayOpencv: loaded>-");
         SRef<display::IMatchesOverlay> matchesOverlayRed = xpcfComponentManager->create<SolARMatchesOverlayOpencv>("matchesRed")->bindTo<display::IMatchesOverlay>();
-
+		LOG_INFO("	-<SolARMatchesOverlayOpencv: loaded>-");
         SRef<display::IImageViewer> imageViewer = xpcfComponentManager->create<SolARImageViewerOpencv>()->bindTo<display::IImageViewer>();
+		LOG_INFO("	-<SolARImageViewerOpencv: loaded>-");
         SRef<display::I3DPointsViewer> viewer3DPoints = xpcfComponentManager->create<SolAR3DPointsViewerOpengl>()->bindTo<display::I3DPointsViewer>();
-
-        // KeyframeRetriever component to relocalize
+		LOG_INFO("	-<SolAR3DPointsViewerOpengl: loaded>-");
         SRef<reloc::IKeyframeRetriever> kfRetriever = xpcfComponentManager->create<SolARKeyframeRetrieverFBOW>()->bindTo<reloc::IKeyframeRetriever>();
-
+		LOG_INFO("	-<SolARKeyframeRetrieverFBOW: loaded>-");
+		SRef<solver::map::IBundler> bundler = xpcfComponentManager->create<SolARBundlerCeres>()->bindTo<solver::map::IBundler>();
+		LOG_INFO("-<SolARBundlerCeres loaded>-");
 
         // declarations
         SRef<Image>                                         view1, view2, view;
@@ -233,6 +257,41 @@ int main(int argc, char **argv) {
                 kfRetriever->addKeyframe(keyframe2); // add keyframe for reloc
 				keyframe1->addNeighborKeyframe(keyframe2->m_idx, filteredCloud.size());
 				keyframe2->addNeighborKeyframe(keyframe1->m_idx, filteredCloud.size());
+
+
+				std::vector<SRef<Keyframe>> kFramesToBundle = mapper->getKeyframes();
+				std::vector<CloudPoint>cloudToBundle = mapper->getGlobalMap()->getPointCloud();
+				CamCalibration cameraToBundle = camera->getIntrinsicsParameters();
+				CamDistortion distToBundle = camera->getDistorsionParameters();
+
+				// I need to save the others  cloud points :)! changes solver method... !
+				std::vector<SRef<Keyframe>>correctedKeyframes;
+				std::vector<CloudPoint>correctedCloud;
+				CamCalibration correctedCalib;
+				CamDistortion correctedDist;
+				correctedKeyframes.resize(mapper->getKeyframes().size());
+				for (unsigned i = 0; i < mapper->getKeyframes().size(); ++i) {
+					Transform3Df tt = Transform3Df::Identity();
+					correctedKeyframes[i] = xpcf::utils::make_shared<Keyframe>(mapper->getKeyframe(i)->getKeypoints(),
+																			   mapper->getKeyframe(i)->getDescriptors(),
+																			   mapper->getKeyframe(i)->getView(),
+																			   tt);
+				}
+
+				std::vector<int>selectedKeyframes; // = {1,7};
+				double reproj_errorFinal = 0.f;
+				reproj_errorFinal = bundler->solve(mapper->getKeyframes(),
+												   mapper->getGlobalMap()->getPointCloud(),
+												   camera->getIntrinsicsParameters(),
+												   camera->getDistorsionParameters(),
+												   selectedKeyframes,
+												   correctedKeyframes,
+												   correctedCloud,
+												   correctedCalib,
+												   correctedDist);
+
+				mapper->update(correctedCloud, correctedKeyframes);
+				LOG_INFO("reproj error after bundle: {}", reproj_errorFinal);
                 bootstrapOk = true;
             }
         }
