@@ -102,15 +102,14 @@ int main(int argc, char **argv) {
         }
 
         // declare and create components
-        //LOG_INFO("Start creating components fro");
-		std::cout << "Start creating components from: " << configxml << std::endl;
+        LOG_INFO("Start creating components from: {}", configxml);
 
 
         // component creation
 #ifdef USE_IMAGES_SET
         auto camera = xpcfComponentManager->create<SolARImagesAsCameraOpencv>()->bindTo<input::devices::ICamera>();
 #else
-		auto camera = xpcfComponentManager->create<SolARCameraOpencv>()->bindTo<input::devices::ICamera>();
+        auto camera = xpcfComponentManager->create<SolARCameraOpencv>()->bindTo<input::devices::ICamera>();
 		LOG_INFO("	-<SolARCameraOpencv: loaded>-");
 #endif
 #ifdef USE_FREE
@@ -241,7 +240,7 @@ int main(int argc, char **argv) {
 
             if (keyframeSelector->select(frame2, matches))
             {
-                // Estimate the pose of of the second frame (the first frame being the reference of our coordinate system)
+                // Estimate the pose of the second frame (the first frame being the reference of our coordinate system)
                 poseFinderFrom2D2D->estimate(keypointsView1, keypointsView2, poseFrame1, poseFrame2, matches);
                 LOG_INFO("Nb matches for triangulation: {}\\{}", matches.size(), nbOriginalMatches);
                 LOG_INFO("Estimate pose of the camera for the frame 2: \n {}", poseFrame2.matrix());
@@ -250,49 +249,64 @@ int main(int argc, char **argv) {
                 // Triangulate
                 keyframe2 = xpcf::utils::make_shared<Keyframe>(frame2);
                 triangulator->triangulate(keyframe2, matches, cloud);
-                //double reproj_error = triangulator->triangulate(keypointsView1, keypointsView2, matches, std::make_pair(0, 1), poseFrame1, poseFrame2, cloud);
-                mapFilter->filter(poseFrame1, poseFrame2, cloud, filteredCloud);
-                keyframePoses.push_back(poseFrame2); // used for display
-                mapper->update(map, keyframe2, filteredCloud, matches);
-                kfRetriever->addKeyframe(keyframe2); // add keyframe for reloc
-				keyframe1->addNeighborKeyframe(keyframe2->m_idx, filteredCloud.size());
-				keyframe2->addNeighborKeyframe(keyframe1->m_idx, filteredCloud.size());
+
+                // Ensure translation is sufficent compared to model scale, to avoid pure rotations
+                //auto translation = poseFrame2.translation().norm(); // Always equal to 1,
+                auto cloudCenter = Point3Df();
+                for (auto point : cloud) {
+                    cloudCenter += (const Point3Df) point;
+                }
+                cloudCenter /= cloud.size();
+                auto cloudScale = cloudCenter.norm();
+                LOG_INFO("cloudScale: {}", cloudScale);
+                if(cloud.empty() || cloudScale > 10) { //TODO Found a correct constant
+                    cloud.clear();
+                    LOG_INFO("Keyframe rejected as disparity mainly due to rotation");
+                } else {
+                    //double reproj_error = triangulator->triangulate(keypointsView1, keypointsView2, matches, std::make_pair(0, 1), poseFrame1, poseFrame2, cloud);
+                    mapFilter->filter(poseFrame1, poseFrame2, cloud, filteredCloud);
+                    keyframePoses.push_back(poseFrame2); // used for display
+                    mapper->update(map, keyframe2, filteredCloud, matches);
+                    kfRetriever->addKeyframe(keyframe2); // add keyframe for reloc
+                    keyframe1->addNeighborKeyframe(keyframe2->m_idx, filteredCloud.size());
+                    keyframe2->addNeighborKeyframe(keyframe1->m_idx, filteredCloud.size());
 
 
-				std::vector<SRef<Keyframe>> kFramesToBundle = mapper->getKeyframes();
-				std::vector<CloudPoint>cloudToBundle = mapper->getGlobalMap()->getPointCloud();
-				CamCalibration cameraToBundle = camera->getIntrinsicsParameters();
-				CamDistortion distToBundle = camera->getDistorsionParameters();
+                    std::vector<SRef<Keyframe>> kFramesToBundle = mapper->getKeyframes();
+                    std::vector<CloudPoint>cloudToBundle = mapper->getGlobalMap()->getPointCloud();
+                    CamCalibration cameraToBundle = camera->getIntrinsicsParameters();
+                    CamDistortion distToBundle = camera->getDistorsionParameters();
 
-				// I need to save the others  cloud points :)! changes solver method... !
-				std::vector<SRef<Keyframe>>correctedKeyframes;
-				std::vector<CloudPoint>correctedCloud;
-				CamCalibration correctedCalib;
-				CamDistortion correctedDist;
-				correctedKeyframes.resize(mapper->getKeyframes().size());
-				for (unsigned i = 0; i < mapper->getKeyframes().size(); ++i) {
-					Transform3Df tt = Transform3Df::Identity();
-					correctedKeyframes[i] = xpcf::utils::make_shared<Keyframe>(mapper->getKeyframe(i)->getKeypoints(),
-																			   mapper->getKeyframe(i)->getDescriptors(),
-																			   mapper->getKeyframe(i)->getView(),
-																			   tt);
-				}
+                    // I need to save the others  cloud points :)! changes solver method... !
+                    std::vector<SRef<Keyframe>>correctedKeyframes;
+                    std::vector<CloudPoint>correctedCloud;
+                    CamCalibration correctedCalib;
+                    CamDistortion correctedDist;
+                    correctedKeyframes.resize(mapper->getKeyframes().size());
+                    for (unsigned i = 0; i < mapper->getKeyframes().size(); ++i) {
+                        Transform3Df tt = Transform3Df::Identity();
+                        correctedKeyframes[i] = xpcf::utils::make_shared<Keyframe>(mapper->getKeyframe(i)->getKeypoints(),
+                                                                                   mapper->getKeyframe(i)->getDescriptors(),
+                                                                                   mapper->getKeyframe(i)->getView(),
+                                                                                   tt);
+                    }
 
-				std::vector<int>selectedKeyframes; // = {1,7};
-				double reproj_errorFinal = 0.f;
-				reproj_errorFinal = bundler->solve(mapper->getKeyframes(),
-												   mapper->getGlobalMap()->getPointCloud(),
-												   camera->getIntrinsicsParameters(),
-												   camera->getDistorsionParameters(),
-												   selectedKeyframes,
-												   correctedKeyframes,
-												   correctedCloud,
-												   correctedCalib,
-												   correctedDist);
+                    std::vector<int>selectedKeyframes; // = {1,7};
+                    double reproj_errorFinal = 0.f;
+                    reproj_errorFinal = bundler->solve(mapper->getKeyframes(),
+                                                       mapper->getGlobalMap()->getPointCloud(),
+                                                       camera->getIntrinsicsParameters(),
+                                                       camera->getDistorsionParameters(),
+                                                       selectedKeyframes,
+                                                       correctedKeyframes,
+                                                       correctedCloud,
+                                                       correctedCalib,
+                                                       correctedDist);
 
-				mapper->update(correctedCloud, correctedKeyframes);
-				LOG_INFO("reproj error after bundle: {}", reproj_errorFinal);
-                bootstrapOk = true;
+                    mapper->update(correctedCloud, correctedKeyframes);
+                    LOG_INFO("reproj error after bundle: {}", reproj_errorFinal);
+                    bootstrapOk = true;
+                }
             }
         }
 
@@ -425,6 +439,7 @@ int main(int argc, char **argv) {
 				return false;
 		};
 
+		/*
 		/// process to add a new keyframe
 		auto processNewKeyframe = [&kfRetriever, &mapper, &localMap, &referenceKeyframe, &frameToTrack, &newKeyframe](SRef<Frame> newFrame) {
 			// Some principal tasks for add a new keyframe
@@ -454,6 +469,7 @@ int main(int argc, char **argv) {
 			localMap.clear();
 			mapper->getLocalMap(referenceKeyframe, localMap);			
 		};
+		*/
 
         while (true)
         {
@@ -524,36 +540,36 @@ int main(int argc, char **argv) {
 						mapper->getLocalMap(referenceKeyframe, localMap);
 					}
 					else {
-						LOG_INFO("Create new keyframe");
-						// create a new keyframe from the current frame
-						newKeyframe = xpcf::utils::make_shared<Keyframe>(newFrame);
+                        LOG_INFO("Create new keyframe");
+                        // create a new keyframe from the current frame
+                        newKeyframe = xpcf::utils::make_shared<Keyframe>(newFrame);
 
-						// triangulate with the reference keyframe
-						std::vector<CloudPoint>newCloud, filteredCloud;
-						triangulator->triangulate(newKeyframe, remainingMatches, newCloud);
+                        // triangulate with the reference keyframe
+                        std::vector<CloudPoint>newCloud, filteredCloud;
+                        triangulator->triangulate(newKeyframe, remainingMatches, newCloud);
 
-						// remove abnormal 3D points from the new cloud
-						mapFilter->filter(referenceKeyframe->getPose(), newFramePose, newCloud, filteredCloud);
-						LOG_DEBUG("Number of matches: {}, number of 3D points:{}", remainingMatches.size(), filteredCloud.size());
+                        // remove abnormal 3D points from the new cloud
+                        mapFilter->filter(referenceKeyframe->getPose(), newFramePose, newCloud, filteredCloud);
+                        LOG_DEBUG("Number of matches: {}, number of 3D points:{}", remainingMatches.size(), filteredCloud.size());
 
-						// Add neighborhood
-						newKeyframe->addNeighborKeyframe(referenceKeyframe->m_idx, filteredCloud.size());
-						referenceKeyframe->addNeighborKeyframe(newKeyframe->m_idx, filteredCloud.size());
-						
-						//  Add new keyframe with the cloud to the mapper
-						mapper->update(map, newKeyframe, filteredCloud, remainingMatches, foundMatches);
-						keyframePoses.push_back(newKeyframe->getPose());
-						referenceKeyframe = newKeyframe;
-						frameToTrack = xpcf::utils::make_shared<Frame>(referenceKeyframe);
-						frameToTrack->setReferenceKeyframe(referenceKeyframe);
-						kfRetriever->addKeyframe(referenceKeyframe); // add keyframe for reloc
+                        // Add neighborhood
+                        newKeyframe->addNeighborKeyframe(referenceKeyframe->m_idx, filteredCloud.size());
+                        referenceKeyframe->addNeighborKeyframe(newKeyframe->m_idx, filteredCloud.size());
 
-						// update local map
-						localMap.clear();
-						mapper->getLocalMap(referenceKeyframe, localMap);
+                        //  Add new keyframe with the cloud to the mapper
+                        mapper->update(map, newKeyframe, filteredCloud, remainingMatches, foundMatches);
+                        keyframePoses.push_back(newKeyframe->getPose());
+                        referenceKeyframe = newKeyframe;
+                        frameToTrack = xpcf::utils::make_shared<Frame>(referenceKeyframe);
+                        frameToTrack->setReferenceKeyframe(referenceKeyframe);
+                        kfRetriever->addKeyframe(referenceKeyframe); // add keyframe for reloc
 
-						LOG_DEBUG(" cloud current size: {} \n", map->getPointCloud().size());
-					}
+                        // update local map
+                        localMap.clear();
+                        mapper->getLocalMap(referenceKeyframe, localMap);
+
+                        LOG_DEBUG(" cloud current size: {} \n", map->getPointCloud().size());
+                    }
                 }
                 else
                 {
@@ -604,7 +620,7 @@ int main(int argc, char **argv) {
     }
     catch (xpcf::Exception &e)
     {
-        LOG_DEBUG("{}", e.what());
+        LOG_DEBUG("Exception: {}", e.what());
         return -1;
     }
 
