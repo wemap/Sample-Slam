@@ -15,7 +15,7 @@ main.cpp)
 ##################################################
 
 # various macros
-include("$ENV{BCOMDEVROOT}/bcomBuild/SolARFramework/solarmacros.cmake")
+include("$ENV{BCOMDEVROOT}/SolARFramework/solarmacros.cmake")
 # config setup
 setup()
 # process packagedependencies.txt
@@ -23,6 +23,7 @@ processPackagedependencies()
 
 # define the list of files to copy to build directory
 set(FILES_TO_COPY
+
 	$ENV{BCOMDEVROOT}/thirdParties/opencv/${OPENCV_VERSION}/lib/x86_64/shared/${BUILDCONFIG}/${LIBPREFIX}opencv_world${OPENCVVERSIONSUFFIX}.${LIBEXTENSION}*
 
 	$ENV{BCOMDEVROOT}/thirdParties/boost/${BOOST_VERSION}/lib/x86_64/shared/${BUILDCONFIG}/${LIBPREFIX}boost_filesystem.${LIBEXTENSION}*
