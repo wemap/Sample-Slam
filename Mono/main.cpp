@@ -15,7 +15,7 @@
  */
 
 #define USE_FREE
-//#define USE_IMAGES_SET
+#define USE_IMAGES_SET
 
 #include <iostream>
 #include <string>
@@ -59,6 +59,21 @@
 #include "api/reloc/IKeyframeRetriever.h"
 #include "api/geom/IProject.h"
 #include "core/Log.h"
+
+#include "api/input/files/IMarker2DSquaredBinary.h"
+#include "api/image/IImageFilter.h"
+#include "api/image/IImageConvertor.h"
+#include "api/features/IContoursExtractor.h"
+#include "api/features/IContoursFilter.h"
+#include "api/image/IPerspectiveController.h"
+#include "api/features/IDescriptorsExtractorSBPattern.h"
+#include "api/features/ISBPatternReIndexer.h"
+#include "api/geom/IImage2WorldMapper.h"
+
+#define MIN_THRESHOLD -1
+#define MAX_THRESHOLD 220
+#define NB_THRESHOLD 8
+
 
 using namespace SolAR;
 using namespace SolAR::datastructure;
@@ -132,6 +147,20 @@ int main(int argc, char **argv) {
 		SRef<reloc::IKeyframeRetriever> kfRetriever = xpcfComponentManager->create<SolARKeyframeRetrieverFBOW>()->bindTo<reloc::IKeyframeRetriever>();
 		SRef<geom::IProject> projector = xpcfComponentManager->create<SolARProjectOpencv>()->bindTo<geom::IProject>();
 
+		// marker fiducial
+		auto binaryMarker = xpcfComponentManager->create<SolARMarker2DSquaredBinaryOpencv>()->bindTo<input::files::IMarker2DSquaredBinary>();
+		auto imageFilterBinary = xpcfComponentManager->create<SolARImageFilterBinaryOpencv>()->bindTo<image::IImageFilter>();
+		auto imageConvertor = xpcfComponentManager->create<SolARImageConvertorOpencv>()->bindTo<image::IImageConvertor>();
+		auto contoursExtractor = xpcfComponentManager->create<SolARContoursExtractorOpencv>()->bindTo<features::IContoursExtractor>();
+		auto contoursFilter = xpcfComponentManager->create<SolARContoursFilterBinaryMarkerOpencv>()->bindTo<features::IContoursFilter>(); 
+		auto perspectiveController = xpcfComponentManager->create<SolARPerspectiveControllerOpencv>()->bindTo<image::IPerspectiveController>();
+		auto patternDescriptorExtractor = xpcfComponentManager->create<SolARDescriptorsExtractorSBPatternOpencv>()->bindTo<features::IDescriptorsExtractorSBPattern>();
+		auto patternMatcher = xpcfComponentManager->create<SolARDescriptorMatcherRadiusOpencv>()->bindTo<features::IDescriptorMatcher>();
+		auto patternReIndexer = xpcfComponentManager->create<SolARSBPatternReIndexer>()->bindTo<features::ISBPatternReIndexer>();
+		auto img2worldMapper = xpcfComponentManager->create<SolARImage2WorldMapper4Marker2D>()->bindTo<geom::IImage2WorldMapper>();
+		auto overlay3D = xpcfComponentManager->create<SolAR3DOverlayBoxOpencv>()->bindTo<display::I3DOverlay>();
+
+
 		// declarations
 		SRef<Image>                                         view1, view2, view;
 		SRef<Keyframe>                                      keyframe1;
@@ -163,6 +192,27 @@ int main(int argc, char **argv) {
 
 		bool												isLostTrack = false;
 
+
+		// components initialisation for marker detection
+		SRef<DescriptorBuffer> markerPatternDescriptor;
+		binaryMarker->loadMarker();
+		patternDescriptorExtractor->extract(binaryMarker->getPattern(), markerPatternDescriptor);
+		LOG_DEBUG("Marker pattern:\n {}", binaryMarker->getPattern().getPatternMatrix())
+		// Set the size of the box to display according to the marker size in world unit
+		overlay3D->bindTo<xpcf::IConfigurable>()->getProperty("size")->setFloatingValue(binaryMarker->getSize().width, 0);
+		overlay3D->bindTo<xpcf::IConfigurable>()->getProperty("size")->setFloatingValue(binaryMarker->getSize().height, 1);
+		overlay3D->bindTo<xpcf::IConfigurable>()->getProperty("size")->setFloatingValue(binaryMarker->getSize().height / 2.0f, 2);
+		int patternSize = binaryMarker->getPattern().getSize();
+		patternDescriptorExtractor->bindTo<xpcf::IConfigurable>()->getProperty("patternSize")->setIntegerValue(patternSize);
+		patternReIndexer->bindTo<xpcf::IConfigurable>()->getProperty("sbPatternSize")->setIntegerValue(patternSize);
+		img2worldMapper->bindTo<xpcf::IConfigurable>()->getProperty("digitalWidth")->setIntegerValue(patternSize);
+		img2worldMapper->bindTo<xpcf::IConfigurable>()->getProperty("digitalHeight")->setIntegerValue(patternSize);
+		img2worldMapper->bindTo<xpcf::IConfigurable>()->getProperty("worldWidth")->setFloatingValue(binaryMarker->getSize().width);
+		img2worldMapper->bindTo<xpcf::IConfigurable>()->getProperty("worldHeight")->setFloatingValue(binaryMarker->getSize().height);
+		overlay3D->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
+
+
+
 		// initialize pose estimation with the camera intrinsic parameters (please refeer to the use of intrinsec parameters file)
 		pnpRansac->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
 		pnp->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
@@ -177,17 +227,80 @@ int main(int argc, char **argv) {
 			return -1;
 		}
 
+		auto detectFiducialMarker = [&imageConvertor, &imageFilterBinary, &contoursExtractor, &contoursFilter, &perspectiveController,
+			&patternDescriptorExtractor, &patternMatcher, &markerPatternDescriptor, &patternReIndexer, &img2worldMapper, &pnp, &overlay3D](SRef<Image>& image, Transform3Df &pose){
+			SRef<Image>                     greyImage, binaryImage;
+			std::vector<Contour2Df>   contours;
+			std::vector<Contour2Df>   filtered_contours;
+			std::vector<SRef<Image>>        patches;
+			std::vector<Contour2Df>   recognizedContours;
+			SRef<DescriptorBuffer>          recognizedPatternsDescriptors;
+			std::vector<DescriptorMatch>    patternMatches;
+			std::vector<Point2Df>     pattern2DPoints;
+			std::vector<Point2Df>     img2DPoints;
+			std::vector<Point3Df>     pattern3DPoints;
+
+			bool marker_found = false;
+			// Convert Image from RGB to grey
+			imageConvertor->convert(image, greyImage, Image::ImageLayout::LAYOUT_GREY);
+			for (int num_threshold = 0; !marker_found && num_threshold < NB_THRESHOLD; num_threshold++)
+			{
+				// Compute the current Threshold valu for image binarization
+				int threshold = MIN_THRESHOLD + (MAX_THRESHOLD - MIN_THRESHOLD)*((float)num_threshold / (float)(NB_THRESHOLD - 1));
+				// Convert Image from grey to black and white
+				imageFilterBinary->bindTo<xpcf::IConfigurable>()->getProperty("min")->setIntegerValue(threshold);
+				imageFilterBinary->bindTo<xpcf::IConfigurable>()->getProperty("max")->setIntegerValue(255);
+				// Convert Image from grey to black and white
+				imageFilterBinary->filter(greyImage, binaryImage);
+				// Extract contours from binary image
+				contoursExtractor->extract(binaryImage, contours);
+				// Filter 4 edges contours to find those candidate for marker contours
+				contoursFilter->filter(contours, filtered_contours);
+				// Create one warpped and cropped image by contour
+				perspectiveController->correct(binaryImage, filtered_contours, patches);
+				// test if this last image is really a squared binary marker, and if it is the case, extract its descriptor
+				if (patternDescriptorExtractor->extract(patches, filtered_contours, recognizedPatternsDescriptors, recognizedContours) != FrameworkReturnCode::_ERROR_)
+				{
+					// From extracted squared binary pattern, match the one corresponding to the squared binary marker
+					if (patternMatcher->match(markerPatternDescriptor, recognizedPatternsDescriptors, patternMatches) == features::IDescriptorMatcher::DESCRIPTORS_MATCHER_OK)
+					{
+						// Reindex the pattern to create two vector of points, the first one corresponding to marker corner, the second one corresponding to the poitsn of the contour
+						patternReIndexer->reindex(recognizedContours, patternMatches, pattern2DPoints, img2DPoints);
+						// Compute the 3D position of each corner of the marker
+						img2worldMapper->map(pattern2DPoints, pattern3DPoints);
+						// Compute the pose of the camera using a Perspective n Points algorithm using only the 4 corners of the marker
+						if (pnp->estimate(img2DPoints, pattern3DPoints, pose) == FrameworkReturnCode::_SUCCESS)
+						{							
+							//overlay3D->draw(pose, image);
+							marker_found = true;
+						}
+					}
+				}
+			}
+
+			return marker_found;
+
+		};
+
 		// Here, Capture the two first keyframe view1, view2
 		bool imageCaptured = false;
+		bool fiducialDetectStart = false;
 		while (!imageCaptured)
 		{
 			if (camera->getNextImage(view1) == SolAR::FrameworkReturnCode::_ERROR_)
 				break;
 #ifdef USE_IMAGES_SET
-			imageViewer->display(view1);
+			fiducialDetectStart = true;
+			if (imageViewer->display(view1) == SolAR::FrameworkReturnCode::_STOP)
+				return 1;
 #else
 			if (imageViewer->display(view1) == SolAR::FrameworkReturnCode::_STOP)
+				if (!fiducialDetectStart)
+					fiducialDetectStart = true;
+				else
+					return 1;
 #endif
+			if (fiducialDetectStart && detectFiducialMarker(view1, poseFrame1))
 			{
 				keypointsDetector->detect(view1, keypointsView1);
 				descriptorExtractor->extract(view1, keypointsView1, descriptorsView1);
@@ -196,6 +309,7 @@ int main(int argc, char **argv) {
 				keyframePoses.push_back(poseFrame1); // used for display
 				kfRetriever->addKeyframe(keyframe1); // add keyframe for reloc
 				imageCaptured = true;
+				LOG_INFO("Pose of keyframe 1: \n {}", poseFrame1.matrix());
 			}
 		}
 
@@ -205,8 +319,21 @@ int main(int argc, char **argv) {
 			if (camera->getNextImage(view2) == SolAR::FrameworkReturnCode::_ERROR_)
 				break;
 
-			keypointsDetector->detect(view2, keypointsView2);
+			if (!detectFiducialMarker(view2, poseFrame2)) {
+				if (imageViewer->display(view2) == SolAR::FrameworkReturnCode::_STOP)
+					return 1;
+				continue;
+			}			
+			float disTwoKeyframes = std::sqrtf(std::powf(poseFrame1(0, 3) - poseFrame2(0, 3), 2.f) + std::powf(poseFrame1(1, 3) - poseFrame2(1, 3), 2.f) + 
+				std::powf(poseFrame1(2, 3) - poseFrame2(2, 3), 2.f));
 
+			if (disTwoKeyframes < 0.1) {
+				if (imageViewer->display(view2) == SolAR::FrameworkReturnCode::_STOP)
+					return 1;
+				continue;
+			}
+
+			keypointsDetector->detect(view2, keypointsView2);
 			descriptorExtractor->extract(view2, keypointsView2, descriptorsView2);
 			SRef<Frame> frame2 = xpcf::utils::make_shared<Frame>(keypointsView2, descriptorsView2, view2, keyframe1);
 			matcher->match(descriptorsView1, descriptorsView2, matches);
@@ -218,13 +345,10 @@ int main(int argc, char **argv) {
 				return 1;
 
 			if (keyframeSelector->select(frame2, matches))
-			{
-				// Estimate the pose of of the second frame (the first frame being the reference of our coordinate system)
-				poseFinderFrom2D2D->estimate(keypointsView1, keypointsView2, poseFrame1, poseFrame2, matches);
-				LOG_INFO("Nb matches for triangulation: {}\\{}", matches.size(), nbOriginalMatches);
-				LOG_INFO("Estimate pose of the camera for the frame 2: \n {}", poseFrame2.matrix());
+			{				
+				LOG_INFO("Pose of keyframe 2: \n {}", poseFrame2.matrix());
 				frame2->setPose(poseFrame2);
-
+				LOG_INFO("Nb matches for triangulation: {}\\{}", matches.size(), nbOriginalMatches);
 				// Triangulate
 				keyframe2 = xpcf::utils::make_shared<Keyframe>(frame2);
 				triangulator->triangulate(keyframe2, matches, cloud);
@@ -251,7 +375,6 @@ int main(int argc, char **argv) {
 		std::function<bool(const SRef<Frame>&)> checkNeedNewKfwithSomeKfs = [&referenceKeyframe, &mapper, &kfRetriever](const SRef<Frame>& newFrame) -> bool {
 			// get all neighbor of referencekeyframe
 			std::map<unsigned int, unsigned int> refKfNeighbors = referenceKeyframe->getNeighborKeyframes();
-
 			std::set<unsigned int> allNeighbors;
 
 			for (auto it = refKfNeighbors.begin(); it != refKfNeighbors.end(); it++) {
@@ -263,7 +386,6 @@ int main(int argc, char **argv) {
 			}
 
 			std::vector < SRef <Keyframe>> ret_keyframes;
-
 			if (kfRetriever->retrieve(newFrame, allNeighbors, ret_keyframes) == FrameworkReturnCode::_SUCCESS) {
 				if (ret_keyframes[0]->m_idx != referenceKeyframe->m_idx) {
 					referenceKeyframe = ret_keyframes[0];
@@ -401,12 +523,8 @@ int main(int argc, char **argv) {
 			// find matches between unmatching keypoints in the new keyframe and the best neighboring keyframes
 			std::vector<std::tuple<unsigned int, int, unsigned int>> infoMatches; // first: index of kp in newKf, second: index of Kf, third: index of kp in Kf.
 			std::vector<CloudPoint> newCloudPoint;
-			auto t_start = std::chrono::high_resolution_clock::now();
 			findMatchesAndTriangulation(newKeyframe, idxBestNeigborKfs, infoMatches, newCloudPoint);
 			LOG_INFO("Number of new 3D points: {}", newCloudPoint.size());
-			auto t_end = std::chrono::high_resolution_clock::now();
-			auto t_duration = std::chrono::duration_cast<std::chrono::milliseconds>(t_end - t_start).count();
-			LOG_INFO("========> Time find matches and triangulation: {}", t_duration);
 
 			// mapper update
 			mapper->update(map, newKeyframe, newCloudPoint, infoMatches);
