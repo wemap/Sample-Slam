@@ -326,21 +326,17 @@ int main(int argc, char **argv) {
 			std::map<unsigned int, unsigned int> newkf_mapVisibility = newKf->getVisibleMapPoints();
 			for (auto it = newkf_mapVisibility.begin(); it != newkf_mapVisibility.end(); it++) {
 				CloudPoint &cp = map->getAPoint(it->second);
-				//SRef<DescriptorBuffer> des_cp = cp.getDescriptor();
-				//Descriptor8U des_kp = allDes_kf->getDescriptor<DescriptorDataType::TYPE_8U>(it->first);
-				//SRef<DescriptorBuffer> des_buf = xpcf::utils::make_shared<DescriptorBuffer>(des_kp);
 				///// update descriptor of cp: des_cp = ((des_cp * cp.getVisibility().size()) + des_buf) / (cp.getVisibility().size() + 1)
 				//// TO DO
-
 				/// update keypoint visibility
 				cp.visibilityAddKeypoint(newKf->m_idx, it->first);
 			}
 		};
 
 		// find matches between unmatching keypoints in the new keyframe and the best neighboring keyframes
-		auto findMatchesAndTriangulation = [&matcher, &matchesFilter, &triangulator, &mapper, &mapFilter](SRef<Keyframe> & newKf, std::vector<unsigned int> &idxBestNeigborKfs, std::vector<std::tuple<unsigned int, int, unsigned int>> &infoMatches, std::vector<CloudPoint> &cloudPoint) {
+		auto findMatchesAndTriangulation = [&matcher, &matchesFilter, &triangulator, &mapper, &mapFilter, &kfRetriever, &camera](SRef<Keyframe> & newKf, std::vector<unsigned int> &idxBestNeigborKfs, std::vector<std::tuple<unsigned int, int, unsigned int>> &infoMatches, std::vector<CloudPoint> &cloudPoint) {
 			const std::map<unsigned int, unsigned int> &newkf_mapVisibility = newKf->getVisibleMapPoints();
-			SRef<DescriptorBuffer> newkf_des = newKf->getDescriptors();
+			const SRef<DescriptorBuffer> &newkf_des = newKf->getDescriptors();
 			const std::vector<Keypoint> & newkf_kp = newKf->getKeypoints();
 
 			std::vector<bool> checkMatches(newkf_kp.size(), true);
@@ -350,26 +346,27 @@ int main(int argc, char **argv) {
 					checkMatches[i] = false;
 				}
 
-			const std::vector<SRef<Keyframe>> &allKeyframes = mapper->getKeyframes();
 			for (int i = 0; i < idxBestNeigborKfs.size(); ++i) {
-				SRef<Keyframe> tmpKf = allKeyframes[idxBestNeigborKfs[i]];
-				const std::map<unsigned int, unsigned int> & tmpMapVisibility = tmpKf->getVisibleMapPoints();
+				// Matching based on BoW
+				std::vector<int> indexKeypoints;
+				for (int j = 0; j < checkMatches.size(); ++j)
+					if (!checkMatches[j])
+						indexKeypoints.push_back(j);
+
+				SRef<Keyframe> &tmpKf = mapper->getKeyframe(idxBestNeigborKfs[i]);
+
 				std::vector < DescriptorMatch> tmpMatches, goodMatches;
-				const std::vector<Keypoint> & tmp_kp = tmpKf->getKeypoints();
-				SRef<DescriptorBuffer> tmp_des = tmpKf->getDescriptors();
-
-				/// matching
-				matcher->match(newkf_des, tmp_des, tmpMatches);
-				matchesFilter->filter(tmpMatches, tmpMatches, newkf_kp, tmp_kp);
-
-				/// find info to triangulate
+				kfRetriever->match(indexKeypoints, newkf_des, idxBestNeigborKfs[i], tmpMatches);
+				matchesFilter->filter(tmpMatches, tmpMatches, newkf_kp, tmpKf->getKeypoints(), newKf->getPose(), tmpKf->getPose(), camera->getIntrinsicsParameters());
+				/// find info to triangulate				
 				std::vector<std::tuple<unsigned int, int, unsigned int>> tmpInfoMatches;
+				const std::map<unsigned int, unsigned int> & tmpMapVisibility = tmpKf->getVisibleMapPoints();
 				for (int j = 0; j < tmpMatches.size(); ++j) {
 					unsigned int idx_newKf = tmpMatches[j].getIndexInDescriptorA();
 					unsigned int idx_tmpKf = tmpMatches[j].getIndexInDescriptorB();
 					if ((!checkMatches[idx_newKf]) && (tmpMapVisibility.find(idx_tmpKf) == tmpMapVisibility.end())) {
-						tmpInfoMatches.push_back(std::make_tuple(idx_newKf, tmpKf->m_idx, idx_tmpKf));
-						checkMatches[idx_newKf] = false;
+						tmpInfoMatches.push_back(std::make_tuple(idx_newKf, idxBestNeigborKfs[i], idx_tmpKf));
+						//checkMatches[idx_newKf] = true;
 						goodMatches.push_back(tmpMatches[j]);
 					}
 				}
@@ -377,10 +374,11 @@ int main(int argc, char **argv) {
 				std::vector<CloudPoint> tmpCloudPoint, tmpFilteredCloudPoint;
 				std::vector<int> indexFiltered;
 				if (goodMatches.size() > 0)
-					triangulator->triangulate(newkf_kp, tmp_kp, newkf_des, tmp_des, goodMatches, std::make_pair(newKf->m_idx, tmpKf->m_idx), newKf->getPose(), tmpKf->getPose(), tmpCloudPoint);
+					triangulator->triangulate(newkf_kp, tmpKf->getKeypoints(), newkf_des, tmpKf->getDescriptors(), goodMatches, std::make_pair(newKf->m_idx, idxBestNeigborKfs[i]), newKf->getPose(), tmpKf->getPose(), tmpCloudPoint);
 
 				mapFilter->filter(newKf->getPose(), tmpKf->getPose(), tmpCloudPoint, tmpFilteredCloudPoint, indexFiltered);
 				for (int i = 0; i < indexFiltered.size(); ++i) {
+					checkMatches[std::get<0>(tmpInfoMatches[indexFiltered[i]])] = true;
 					infoMatches.push_back(tmpInfoMatches[indexFiltered[i]]);
 					cloudPoint.push_back(tmpFilteredCloudPoint[i]);
 				}
@@ -479,7 +477,7 @@ int main(int argc, char **argv) {
 						desAllLocalMap.push_back(it_cp.getDescriptor());
 					}
 					std::vector<DescriptorMatch> allMatches;
-					matcher->matchInRegion(projected2DPts, desAllLocalMap, newFrame, allMatches, 3.f);
+					matcher->matchInRegion(projected2DPts, desAllLocalMap, newFrame, allMatches, 5.f);
 
 					std::vector<Point2Df> pt2d;
 					std::vector<Point3Df> pt3d;
@@ -499,6 +497,7 @@ int main(int argc, char **argv) {
 
 					// update map visibility of current frame
 					newFrame->addVisibleMapPoints(newMapVisibility);
+					LOG_INFO("Number of map visibility of frame to track: {}", newMapVisibility.size());
 				}
 				LOG_INFO("Refined pose: \n {}", newFrame->getPose().matrix());
 				lastPose = newFrame->getPose();
@@ -507,7 +506,6 @@ int main(int argc, char **argv) {
 				if (keyframeSelector->select(newFrame, checkDisparityDistance))
 				{
 					if (keyframeSelector->select(newFrame, checkNeedNewKfWithAllKfs)) {
-						LOG_INFO("Update new reference keyframe with id {}", referenceKeyframe->m_idx);
 						frameToTrack = xpcf::utils::make_shared<Frame>(referenceKeyframe);
 						frameToTrack->setReferenceKeyframe(referenceKeyframe);
 						updateLocalMap(referenceKeyframe);
