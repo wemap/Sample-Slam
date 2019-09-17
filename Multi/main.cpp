@@ -183,7 +183,7 @@ int main(int argc, char **argv) {
 		SRef<Frame>                                         newFrame;
 		SRef<Frame>											frameToTrack;
 
-		SRef<Keyframe>                                      referenceKeyframe;
+		SRef<Keyframe>                                      referenceKeyframe, updatedRefKf;
 		SRef<Keyframe>                                      newKeyframe;
 
 		SRef<Image>                                         imageMatches, imageMatches2;
@@ -398,12 +398,12 @@ int main(int argc, char **argv) {
 		};
 
 		// check need to make a new keyframe based on all existed keyframes
-		std::function<bool(const SRef<Frame>&)> checkNeedNewKfWithAllKfs = [&referenceKeyframe, &mapper, &kfRetriever](const SRef<Frame>& newFrame) -> bool {
+		std::function<bool(const SRef<Frame>&)> checkNeedNewKfWithAllKfs = [&referenceKeyframe, &mapper, &kfRetriever, &updatedRefKf](const SRef<Frame>& newFrame) -> bool {
 			std::vector < SRef <Keyframe>> ret_keyframes;
 			if (kfRetriever->retrieve(newFrame, ret_keyframes) == FrameworkReturnCode::_SUCCESS) {
 				if (ret_keyframes[0]->m_idx != referenceKeyframe->m_idx) {
-					referenceKeyframe = ret_keyframes[0];
-					LOG_INFO("Update new reference keyframe with id {}", referenceKeyframe->m_idx);
+					updatedRefKf = ret_keyframes[0];
+					LOG_INFO("Update new reference keyframe with id {}", updatedRefKf->m_idx);
 					return true;
 				}
 				LOG_INFO("Find same reference keyframe, need make new keyframe");
@@ -507,9 +507,9 @@ int main(int argc, char **argv) {
 		};
 
 		// process to add a new keyframe
-		auto processNewKeyframe = [&findMatchesAndTriangulation, &updateAssociateCloudPoint, &map, &kfRetriever, &mapper, &localMap, &referenceKeyframe, &frameToTrack, &newKeyframe](SRef<Frame> &newFrame) {
+		auto processNewKeyframe = [&findMatchesAndTriangulation, &updateAssociateCloudPoint, &map, &kfRetriever, &mapper](SRef<Frame> &newFrame) -> SRef<Keyframe> {
 			// create a new keyframe from the current frame
-			newKeyframe = xpcf::utils::make_shared<Keyframe>(newFrame);
+			SRef<Keyframe> newKeyframe = xpcf::utils::make_shared<Keyframe>(newFrame);
 			// Add to BOW retrieval			
 			kfRetriever->addKeyframe(newKeyframe);
 			// Update keypoint visibility, descriptor in cloud point
@@ -528,6 +528,7 @@ int main(int argc, char **argv) {
 			mapper->update(map, newKeyframe, newCloudPoint, infoMatches);
 
 			// Check and fuse cloud point
+			return newKeyframe;
 		};
 
 		// Prepare for tracking
@@ -546,6 +547,22 @@ int main(int argc, char **argv) {
 		xpcf::DropBuffer<SRef<Image>>   m_dropBufferCamImageCapture;
 		xpcf::DropBuffer<SRef<Frame>>   m_dropBufferAddKeyframe;
 		xpcf::DropBuffer<SRef<Image>>   m_dropBufferDisplay;
+
+		std::mutex globalVarsMutex;
+
+		auto updateData = [&mapper, &globalVarsMutex](const SRef<Keyframe> refKf, std::vector<CloudPoint> &localMap, std::vector<unsigned int> &idxLocalMap, SRef<Keyframe> & referenceKeyframe, SRef<Frame> &frameToTrack)
+		{
+			std::unique_lock<std::mutex> lock(globalVarsMutex);
+			referenceKeyframe = refKf;
+			LOG_INFO("Update new reference keyframe with id {}", referenceKeyframe->m_idx);
+			frameToTrack = xpcf::utils::make_shared<Frame>(referenceKeyframe);
+			frameToTrack->setReferenceKeyframe(referenceKeyframe);
+			idxLocalMap.clear();
+			localMap.clear();
+			mapper->getLocalMapIndex(referenceKeyframe, idxLocalMap);
+			for (auto it : idxLocalMap)
+				localMap.push_back(mapper->getGlobalMap()->getAPoint(it));
+		};
 
 		// Camera image capture task
 		auto fnCamImageCapture = [&]()
@@ -646,7 +663,7 @@ int main(int argc, char **argv) {
 				// check need new keyframe
 				m_dropBufferAddKeyframe.push(newFrame);
 
-				framePoses.push_back(newFramePose); // used for display
+				framePoses.push_back(newFrame->getPose()); // used for display
 
 				isLostTrack = false;	// tracking is good
 
@@ -658,14 +675,8 @@ int main(int argc, char **argv) {
 				// reloc
 				std::vector < SRef <Keyframe>> ret_keyframes;
 				if (kfRetriever->retrieve(newFrame, ret_keyframes) == FrameworkReturnCode::_SUCCESS) {
-					referenceKeyframe = ret_keyframes[0];
-					frameToTrack = xpcf::utils::make_shared<Frame>(referenceKeyframe);
-					frameToTrack->setReferenceKeyframe(referenceKeyframe);
+					updateData(ret_keyframes[0], localMap, idxLocalMap, referenceKeyframe, frameToTrack);
 					lastPose = referenceKeyframe->getPose();
-
-					// update local map
-					updateLocalMap(referenceKeyframe);
-
 					LOG_INFO("Retrieval Success");
 				}
 				else
@@ -677,7 +688,7 @@ int main(int argc, char **argv) {
 			// display point cloud
 			if (viewer3DPoints->display(map->getPointCloud(), lastPose, keyframePoses, framePoses, localMap) == FrameworkReturnCode::_STOP)
 				stop = true;
-		};
+		};		
 
 		// check need new keyframe
 		auto fnCheckForNewKeyframe = [&]()
@@ -690,28 +701,20 @@ int main(int argc, char **argv) {
 			if (keyframeSelector->select(newFrame, checkDisparityDistance))
 			{
 				if (keyframeSelector->select(newFrame, checkNeedNewKfWithAllKfs)) {
-					LOG_INFO("Update new reference keyframe with id {}", referenceKeyframe->m_idx);
-					frameToTrack = xpcf::utils::make_shared<Frame>(referenceKeyframe);
-					frameToTrack->setReferenceKeyframe(referenceKeyframe);
-					updateLocalMap(referenceKeyframe);
+					updateData(updatedRefKf,localMap, idxLocalMap, referenceKeyframe,frameToTrack);
 				}
 				else {
-					processNewKeyframe(newFrame);
-					// Update reference keyframe
-					referenceKeyframe = newKeyframe;
-					// Update frame to track
-					frameToTrack = xpcf::utils::make_shared<Frame>(newKeyframe);
-					frameToTrack->setReferenceKeyframe(referenceKeyframe);
-					// update local map
-					updateLocalMap(referenceKeyframe);
+					SRef<Keyframe> newKeyframe2 =  processNewKeyframe(newFrame);
+					updateData(newKeyframe2, localMap, idxLocalMap, referenceKeyframe, frameToTrack);
 					// add keyframe pose to display
-					keyframePoses.push_back(newKeyframe->getPose());
+					keyframePoses.push_back(newKeyframe2->getPose());
 					LOG_INFO(" cloud current size: {} \n", map->getPointCloud().size());
 				}
 			}
 			else
 			{
 				// update frame to track
+				std::unique_lock<std::mutex> lock(globalVarsMutex);
 				frameToTrack = newFrame;
 			}
 		};
@@ -723,12 +726,9 @@ int main(int argc, char **argv) {
 			if (!m_dropBufferDisplay.tryPop(view))
 				return;
 
-			//if (m_dropBufferDisplay.pop(view)) 
+			if (imageViewer->display(view) == SolAR::FrameworkReturnCode::_STOP)
 			{
-				if (imageViewer->display(view) != SolAR::FrameworkReturnCode::_SUCCESS)
-				{
-					stop = true;
-				}
+				stop = true;
 			}
 		};
 
