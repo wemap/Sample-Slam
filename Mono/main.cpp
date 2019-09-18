@@ -15,7 +15,7 @@
  */
 
 #define USE_FREE
-//#define USE_IMAGES_SET
+#define USE_IMAGES_SET
 
 #include <iostream>
 #include <string>
@@ -29,6 +29,7 @@
 #include "SolARModuleOpengl_traits.h"
 #include "SolARModuleTools_traits.h"
 #include "SolARModuleFBOW_traits.h"
+#include "SolARModuleCeres_traits.h"
 
 #ifndef USE_FREE
 #include "SolARModuleNonFreeOpencv_traits.h"
@@ -47,6 +48,7 @@
 #include "api/solver/map/IMapper.h"
 #include "api/solver/map/IKeyframeSelector.h"
 #include "api/solver/map/IMapFilter.h"
+#include "api/solver/map/IBundler.h"
 #include "api/solver/pose/I2D3DCorrespondencesFinder.h"
 #include "api/solver/pose/I3DTransformSACFinderFrom2D3D.h"
 #include "api/solver/pose/I3DTransformFinderFrom2D3D.h"
@@ -80,6 +82,8 @@ using namespace SolAR::datastructure;
 using namespace SolAR::api;
 using namespace SolAR::MODULES::OPENCV;
 using namespace SolAR::MODULES::FBOW;
+using namespace SolAR::MODULES::CERES;
+
 #ifndef USE_FREE
 using namespace SolAR::MODULES::NONFREEOPENCV;
 #endif
@@ -146,6 +150,7 @@ int main(int argc, char **argv) {
 		SRef<display::I3DPointsViewer> viewer3DPoints = xpcfComponentManager->create<SolAR3DPointsViewerOpengl>()->bindTo<display::I3DPointsViewer>();
 		SRef<reloc::IKeyframeRetriever> kfRetriever = xpcfComponentManager->create<SolARKeyframeRetrieverFBOW>()->bindTo<reloc::IKeyframeRetriever>();
 		SRef<geom::IProject> projector = xpcfComponentManager->create<SolARProjectOpencv>()->bindTo<geom::IProject>();
+		SRef <solver::map::IBundler> bundler = xpcfComponentManager->create<SolARBundlerCeres>()->bindTo<api::solver::map::IBundler>();
 
 		// marker fiducial
 		auto binaryMarker = xpcfComponentManager->create<SolARMarker2DSquaredBinaryOpencv>()->bindTo<input::files::IMarker2DSquaredBinary>();
@@ -191,6 +196,30 @@ int main(int argc, char **argv) {
 		std::vector<unsigned int>							idxLocalMap;
 
 		bool												isLostTrack = false;
+		bool												bundling = false;
+		double												bundleReprojError;
+		std::vector<int>									windowIdxBundling;
+
+
+		auto localBundleAdjuster = [&bundler, &camera, &mapper](std::vector<int>&framesIdxToBundle, double& reprojError) {
+			std::vector<Transform3Df>correctedPoses;
+			std::vector<CloudPoint>correctedCloud;
+			CamCalibration correctedCalib;
+			CamDistortion correctedDist;
+			reprojError = bundler->solve(mapper->getKeyframes(),
+										 mapper->getGlobalMap()->getPointCloud(),
+										 camera->getIntrinsicsParameters(),
+										 camera->getDistorsionParameters(),
+										 framesIdxToBundle,
+										 correctedPoses,
+										 correctedCloud,
+										 correctedCalib,
+										 correctedDist);
+
+			mapper->update(correctedPoses, correctedCloud);
+			LOG_INFO("reproj error after bundling: {}", reprojError);
+		};
+
 
 
 		// components initialisation for marker detection
@@ -357,6 +386,10 @@ int main(int argc, char **argv) {
 				keyframePoses.push_back(poseFrame2); // used for display
 				mapper->update(map, keyframe2, filteredCloud, matches, {});
 				kfRetriever->addKeyframe(keyframe2); // add keyframe for reloc
+				if (bundling) {
+					std::vector<int>firstIdxKFs = { 0,1 };
+					localBundleAdjuster(firstIdxKFs, bundleReprojError);
+				}
 				bootstrapOk = true;
 			}
 		}
@@ -630,6 +663,12 @@ int main(int argc, char **argv) {
 					}
 					else {
 						processNewKeyframe(newFrame);
+						if (bundling) {
+							int currentIdxKF = mapper->getKeyframes()[mapper->getKeyframes().size() - 1]->m_idx;
+							// ajust a sliding window (here size of 2)
+							windowIdxBundling = { currentIdxKF - 1, currentIdxKF };
+							localBundleAdjuster(windowIdxBundling, bundleReprojError);
+						}
 						// Update reference keyframe
 						referenceKeyframe = newKeyframe;
 						// Update frame to track
