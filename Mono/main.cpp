@@ -15,7 +15,7 @@
  */
 
 #define USE_FREE
-#define USE_IMAGES_SET
+//#define USE_IMAGES_SET
 
 #include <iostream>
 #include <string>
@@ -355,7 +355,7 @@ int main(int argc, char **argv) {
 				//double reproj_error = triangulator->triangulate(keypointsView1, keypointsView2, matches, std::make_pair(0, 1), poseFrame1, poseFrame2, cloud);
 				mapFilter->filter(poseFrame1, poseFrame2, cloud, filteredCloud);
 				keyframePoses.push_back(poseFrame2); // used for display
-				mapper->update(map, keyframe2, filteredCloud, matches);
+				mapper->update(map, keyframe2, filteredCloud, matches, {});
 				kfRetriever->addKeyframe(keyframe2); // add keyframe for reloc
 				bootstrapOk = true;
 			}

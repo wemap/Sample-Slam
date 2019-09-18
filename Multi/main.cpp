@@ -162,16 +162,11 @@ int main(int argc, char **argv) {
 		auto overlay3D = xpcfComponentManager->create<SolAR3DOverlayBoxOpencv>()->bindTo<display::I3DOverlay>();
 
 
-		// declarations
-		SRef<Image>                                         view1, view2, view;
-		SRef<Keyframe>                                      keyframe1;
-		SRef<Keyframe>                                      keyframe2;
-		std::vector<Keypoint>								keypointsView1, keypointsView2, keypoints;
-		SRef<DescriptorBuffer>                              descriptorsView1, descriptorsView2, descriptors;
+		// declarations						
+		std::vector<Keypoint>								keypoints;
+		SRef<DescriptorBuffer>								descriptors;
 		std::vector<DescriptorMatch>                        matches;
-
-		Transform3Df                                        poseFrame1 = Transform3Df::Identity();
-		Transform3Df                                        poseFrame2;
+		
 		Transform3Df                                        newFramePose;
 		Transform3Df                                        lastPose;
 
@@ -179,12 +174,10 @@ int main(int argc, char **argv) {
 
 		std::vector<Transform3Df>                           keyframePoses;
 		std::vector<Transform3Df>                           framePoses;
-
-		SRef<Frame>                                         newFrame;
+		
 		SRef<Frame>											frameToTrack;
 
 		SRef<Keyframe>                                      referenceKeyframe, updatedRefKf;
-		SRef<Keyframe>                                      newKeyframe;
 
 		SRef<Image>                                         imageMatches, imageMatches2;
 		SRef<Map>                                           map;
@@ -225,6 +218,7 @@ int main(int argc, char **argv) {
 			return -1;
 		}
 
+		// Pose estimation using fiducial marker
 		auto detectFiducialMarker = [&imageConvertor, &imageFilterBinary, &contoursExtractor, &contoursFilter, &perspectiveController,
 			&patternDescriptorExtractor, &patternMatcher, &markerPatternDescriptor, &patternReIndexer, &img2worldMapper, &pnp, &overlay3D](SRef<Image>& image, Transform3Df &pose) {
 			SRef<Image>                     greyImage, binaryImage;
@@ -275,14 +269,18 @@ int main(int argc, char **argv) {
 					}
 				}
 			}
-
 			return marker_found;
-
 		};
 
 		// Here, Capture the two first keyframe view1, view2
 		bool imageCaptured = false;
 		bool fiducialDetectStart = false;
+		SRef<Image>	view1;
+		SRef<Keyframe> keyframe1, keyframe2;
+		std::vector<Keypoint> keypointsView1, keypointsView2;
+		SRef<DescriptorBuffer> descriptorsView1, descriptorsView2;
+		Transform3Df poseFrame1 = Transform3Df::Identity();
+		Transform3Df poseFrame2;
 		while (!imageCaptured)
 		{
 			if (camera->getNextImage(view1) == SolAR::FrameworkReturnCode::_ERROR_)
@@ -311,6 +309,7 @@ int main(int argc, char **argv) {
 			}
 		}
 
+		SRef<Image> view2;
 		bool bootstrapOk = false;
 		while (!bootstrapOk)
 		{
@@ -353,21 +352,13 @@ int main(int argc, char **argv) {
 				//double reproj_error = triangulator->triangulate(keypointsView1, keypointsView2, matches, std::make_pair(0, 1), poseFrame1, poseFrame2, cloud);
 				mapFilter->filter(poseFrame1, poseFrame2, cloud, filteredCloud);
 				keyframePoses.push_back(poseFrame2); // used for display
-				mapper->update(map, keyframe2, filteredCloud, matches);
+				mapper->update(map, keyframe2, filteredCloud, matches, {});
 				kfRetriever->addKeyframe(keyframe2); // add keyframe for reloc
 				bootstrapOk = true;
 			}
 		}
 
-		LOG_INFO("Number of initial point cloud: {}", filteredCloud.size());
-
-		auto updateLocalMap = [&mapper, &map, &idxLocalMap, &localMap](SRef<Keyframe> &kf) {
-			idxLocalMap.clear();
-			localMap.clear();
-			mapper->getLocalMapIndex(kf, idxLocalMap);
-			for (auto it : idxLocalMap)
-				localMap.push_back(map->getAPoint(it));
-		};		
+		LOG_INFO("Number of initial point cloud: {}", filteredCloud.size());		
 
 		// check need to make a new keyframe based on neighboring keyframes
 		std::function<bool(const SRef<Frame>&)> checkNeedNewKfwithSomeKfs = [&referenceKeyframe, &mapper, &kfRetriever](const SRef<Frame>& newFrame) -> bool {
@@ -529,27 +520,9 @@ int main(int argc, char **argv) {
 
 			// Check and fuse cloud point
 			return newKeyframe;
-		};
-
-		// Prepare for tracking
-		referenceKeyframe = keyframe2;
-		lastPose = poseFrame2;
-		updateLocalMap(referenceKeyframe);
-		frameToTrack = xpcf::utils::make_shared<Frame>(referenceKeyframe);
-		frameToTrack->setReferenceKeyframe(referenceKeyframe);
-
-		// Start tracking
-		clock_t start, end;
-		int count = 0;
-		start = clock();
-
-		bool stop = false;
-		xpcf::DropBuffer<SRef<Image>>   m_dropBufferCamImageCapture;
-		xpcf::DropBuffer<SRef<Frame>>   m_dropBufferAddKeyframe;
-		xpcf::DropBuffer<SRef<Image>>   m_dropBufferDisplay;
+		};		
 
 		std::mutex globalVarsMutex;
-
 		auto updateData = [&mapper, &globalVarsMutex](const SRef<Keyframe> refKf, std::vector<CloudPoint> &localMap, std::vector<unsigned int> &idxLocalMap, SRef<Keyframe> & referenceKeyframe, SRef<Frame> &frameToTrack)
 		{
 			std::unique_lock<std::mutex> lock(globalVarsMutex);
@@ -564,6 +537,21 @@ int main(int argc, char **argv) {
 				localMap.push_back(mapper->getGlobalMap()->getAPoint(it));
 		};
 
+		// Prepare for tracking
+		lastPose = poseFrame2;
+		updateData(keyframe2, localMap, idxLocalMap, referenceKeyframe, frameToTrack);
+
+		// Start tracking
+		clock_t start, end;
+		int count = 0;
+		start = clock();
+
+		bool stop = false;
+		xpcf::DropBuffer<SRef<Image>>		m_dropBufferCamImageCapture;
+		xpcf::DropBuffer<SRef<Frame>>		m_dropBufferAddKeyframe;
+		xpcf::DropBuffer<SRef<Keyframe>>	m_dropBufferNewKeyframe;
+		xpcf::DropBuffer<SRef<Image>>		m_dropBufferDisplay;
+
 		// Camera image capture task
 		auto fnCamImageCapture = [&]()
 		{
@@ -574,22 +562,30 @@ int main(int argc, char **argv) {
 				return;
 			}
 
-			m_dropBufferCamImageCapture.push(view);
-			++count;
+			m_dropBufferCamImageCapture.push(view);			
 
 #ifdef USE_IMAGES_SET
 			std::this_thread::sleep_for(std::chrono::milliseconds(40));
 #endif
 		};
+		
 
+		SRef<Frame> newFrame;
+		// Tracking task
 		auto fnTracking = [&]()
 		{
 			SRef<Image> view;
-			if (!m_dropBufferCamImageCapture.tryPop(view))
-			{
+			if (!m_dropBufferCamImageCapture.tryPop(view)){
+				xpcf::DelegateTask::yield();
 				return;
 			}
 
+			SRef<Keyframe> newKeyframe;
+			if (m_dropBufferNewKeyframe.tryPop(newKeyframe))
+			{
+				updateData(newKeyframe, localMap, idxLocalMap, referenceKeyframe, frameToTrack);
+			}
+			
 			keypointsDetector->detect(view, keypoints);
 			descriptorExtractor->extract(view, keypoints, descriptors);
 			newFrame = xpcf::utils::make_shared<Frame>(keypoints, descriptors, view, referenceKeyframe);
@@ -661,7 +657,22 @@ int main(int argc, char **argv) {
 				lastPose = newFrame->getPose();
 
 				// check need new keyframe
-				m_dropBufferAddKeyframe.push(newFrame);
+				if (keyframeSelector->select(newFrame, checkDisparityDistance))
+				{
+					if (keyframeSelector->select(newFrame, checkNeedNewKfWithAllKfs)) {
+						updateData(updatedRefKf, localMap, idxLocalMap, referenceKeyframe, frameToTrack);
+					}
+					else {
+						// create new keyframe
+						m_dropBufferAddKeyframe.push(newFrame);						
+						LOG_INFO(" cloud current size: {} \n", map->getPointCloud().size());
+					}
+				}
+				else
+				{
+					// update frame to track
+					frameToTrack = newFrame;
+				}				
 
 				framePoses.push_back(newFrame->getPose()); // used for display
 
@@ -688,43 +699,33 @@ int main(int argc, char **argv) {
 			// display point cloud
 			if (viewer3DPoints->display(map->getPointCloud(), lastPose, keyframePoses, framePoses, localMap) == FrameworkReturnCode::_STOP)
 				stop = true;
+
+			++count;
 		};		
 
 		// check need new keyframe
-		auto fnCheckForNewKeyframe = [&]()
+		auto fnMapping = [&]()
 		{
 			SRef<Frame> newFrame;
-			if (!m_dropBufferAddKeyframe.tryPop(newFrame))
+			if (!m_dropBufferAddKeyframe.tryPop(newFrame)) {
+				xpcf::DelegateTask::yield();
 				return;
+			}
 
-			// check need new keyframe
-			if (keyframeSelector->select(newFrame, checkDisparityDistance))
-			{
-				if (keyframeSelector->select(newFrame, checkNeedNewKfWithAllKfs)) {
-					updateData(updatedRefKf,localMap, idxLocalMap, referenceKeyframe,frameToTrack);
-				}
-				else {
-					SRef<Keyframe> newKeyframe2 =  processNewKeyframe(newFrame);
-					updateData(newKeyframe2, localMap, idxLocalMap, referenceKeyframe, frameToTrack);
-					// add keyframe pose to display
-					keyframePoses.push_back(newKeyframe2->getPose());
-					LOG_INFO(" cloud current size: {} \n", map->getPointCloud().size());
-				}
-			}
-			else
-			{
-				// update frame to track
-				std::unique_lock<std::mutex> lock(globalVarsMutex);
-				frameToTrack = newFrame;
-			}
+			SRef<Keyframe> newKeyframe = processNewKeyframe(newFrame);
+			keyframePoses.push_back(newKeyframe->getPose());
+			LOG_INFO(" cloud current size: {} \n", map->getPointCloud().size());
+			m_dropBufferNewKeyframe.push(newKeyframe);
 		};
 
 		// Display task
 		auto fnDisplay = [&]()
 		{
 			SRef<Image> view;
-			if (!m_dropBufferDisplay.tryPop(view))
+			if (!m_dropBufferDisplay.tryPop(view)) {
+				xpcf::DelegateTask::yield();
 				return;
+			}
 
 			if (imageViewer->display(view) == SolAR::FrameworkReturnCode::_STOP)
 			{
@@ -735,14 +736,13 @@ int main(int argc, char **argv) {
 		// instantiate and start tasks
 		xpcf::DelegateTask taskCamImageCapture(fnCamImageCapture);
 		//xpcf::DelegateTask taskTracking(fnTracking);
-		xpcf::DelegateTask taskCheckForNewKeyframe(fnCheckForNewKeyframe);
+		xpcf::DelegateTask taskMapping(fnMapping);
 		xpcf::DelegateTask taskDisplay(fnDisplay);
 
 		taskCamImageCapture.start();
 		//taskTracking.start();
-		taskCheckForNewKeyframe.start();
+		taskMapping.start();
 		taskDisplay.start();
-
 		while (!stop)
 		{
 			fnTracking();
@@ -752,7 +752,7 @@ int main(int argc, char **argv) {
 		// Stop tasks
 		taskCamImageCapture.stop();
 		//taskTracking.stop();
-		taskCheckForNewKeyframe.stop();
+		taskMapping.stop();
 		taskDisplay.stop();
 
 		// display stats on frame rate
