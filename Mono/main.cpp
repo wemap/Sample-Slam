@@ -373,8 +373,7 @@ int main(int argc, char **argv) {
 			if (imageViewer->display(imageMatches) == SolAR::FrameworkReturnCode::_STOP)
 				return 1;
 
-			if (keyframeSelector->select(frame2, matches))
-			{				
+			if (keyframeSelector->select(frame2, matches)){				
 				LOG_INFO("Pose of keyframe 2: \n {}", poseFrame2.matrix());
 				frame2->setPose(poseFrame2);
 				LOG_INFO("Nb matches for triangulation: {}\\{}", matches.size(), nbOriginalMatches);
@@ -512,7 +511,7 @@ int main(int argc, char **argv) {
 
 				std::vector < DescriptorMatch> tmpMatches, goodMatches;
 				kfRetriever->match(indexKeypoints, newkf_des, idxBestNeigborKfs[i], tmpMatches);
-				matchesFilter->filter(tmpMatches, tmpMatches, newkf_kp, tmpKf->getKeypoints(), newKf->getPose(), tmpKf->getPose(), camera->getIntrinsicsParameters());
+			//	matchesFilter->filter(tmpMatches, tmpMatches, newkf_kp, tmpKf->getKeypoints(), newKf->getPose(), tmpKf->getPose(), camera->getIntrinsicsParameters());
 				/// find info to triangulate				
 				std::vector<std::tuple<unsigned int, int, unsigned int>> tmpInfoMatches;
 				const std::map<unsigned int, unsigned int> & tmpMapVisibility = tmpKf->getVisibleMapPoints();
@@ -640,7 +639,6 @@ int main(int argc, char **argv) {
 						pt3d.push_back(Point3Df(localMap[idx_3d].getX(), localMap[idx_3d].getY(), localMap[idx_3d].getZ()));
 						newMapVisibility[idx_2d] = idxLocalMap[idx_3d];
 					}
-
 					// pnp optimization
 					Transform3Df refinedPose;
 					pnp->estimate(pt2d, pt3d, refinedPose, newFrame->getPose());
@@ -664,9 +662,13 @@ int main(int argc, char **argv) {
 					else {
 						processNewKeyframe(newFrame);
 						if (bundling) {
+							// get current keyframe idx
 							int currentIdxKF = mapper->getKeyframes()[mapper->getKeyframes().size() - 1]->m_idx;
-							// ajust a sliding window (here size of 2)
-							windowIdxBundling = { currentIdxKF - 1, currentIdxKF };
+							// get keyfram connected graph
+							std::vector<unsigned int>bestIdx = mapper->getKeyframes()[currentIdxKF]->getBestNeighborKeyframes(2);
+							// define 2 best keyframes + current keyframe
+							windowIdxBundling = { static_cast<int>(bestIdx[0]),static_cast<int>(bestIdx[1]),currentIdxKF };
+						//	windowIdxBundling = { currentIdxKF - 1, currentIdxKF }; // temporal sliding window
 							localBundleAdjuster(windowIdxBundling, bundleReprojError);
 						}
 						// Update reference keyframe
