@@ -360,34 +360,6 @@ int main(int argc, char **argv) {
 
 		LOG_INFO("Number of initial point cloud: {}", filteredCloud.size());		
 
-		// check need to make a new keyframe based on neighboring keyframes
-		std::function<bool(const SRef<Frame>&)> checkNeedNewKfwithSomeKfs = [&referenceKeyframe, &mapper, &kfRetriever](const SRef<Frame>& newFrame) -> bool {
-			// get all neighbor of referencekeyframe
-			std::map<unsigned int, unsigned int> refKfNeighbors = referenceKeyframe->getNeighborKeyframes();
-			std::set<unsigned int> allNeighbors;
-
-			for (auto it = refKfNeighbors.begin(); it != refKfNeighbors.end(); it++) {
-				allNeighbors.insert(it->first);
-				SRef<Keyframe> tmpKf = mapper->getKeyframe(it->first);
-				std::map<unsigned int, unsigned int> posNeighbors = tmpKf->getNeighborKeyframes();
-				for (auto it_tmp = posNeighbors.begin(); it_tmp != posNeighbors.end(); it_tmp++)
-					allNeighbors.insert(it_tmp->first);
-			}
-
-			std::vector < SRef <Keyframe>> ret_keyframes;
-			if (kfRetriever->retrieve(newFrame, allNeighbors, ret_keyframes) == FrameworkReturnCode::_SUCCESS) {
-				if (ret_keyframes[0]->m_idx != referenceKeyframe->m_idx) {
-					referenceKeyframe = ret_keyframes[0];
-					LOG_INFO("Update new reference keyframe with id {}", referenceKeyframe->m_idx);
-					return true;
-				}
-				LOG_INFO("Find same reference keyframe, need make new keyframe");
-				return false;
-			}
-			else
-				return false;
-		};
-
 		// check need to make a new keyframe based on all existed keyframes
 		std::function<bool(const SRef<Frame>&)> checkNeedNewKfWithAllKfs = [&referenceKeyframe, &mapper, &kfRetriever, &updatedRefKf](const SRef<Frame>& newFrame) -> bool {
 			std::vector < SRef <Keyframe>> ret_keyframes;
@@ -445,49 +417,64 @@ int main(int argc, char **argv) {
 		};
 
 		// find matches between unmatching keypoints in the new keyframe and the best neighboring keyframes
-		auto findMatchesAndTriangulation = [&matcher, &matchesFilter, &triangulator, &mapper, &mapFilter, &kfRetriever, &camera](SRef<Keyframe> & newKf, std::vector<unsigned int> &idxBestNeigborKfs, std::vector<std::tuple<unsigned int, int, unsigned int>> &infoMatches, std::vector<CloudPoint> &cloudPoint) {
-			const std::map<unsigned int, unsigned int> &newkf_mapVisibility = newKf->getVisibleMapPoints();
-			const SRef<DescriptorBuffer> &newkf_des = newKf->getDescriptors();
-			const std::vector<Keypoint> & newkf_kp = newKf->getKeypoints();
+		auto findMatchesAndTriangulation = [&matcher, &matchesFilter, &triangulator, &mapper, &mapFilter, &kfRetriever, &camera](SRef<Keyframe> & newKf, std::vector<unsigned int> &idxBestNeighborKfs, std::vector<std::tuple<unsigned int, int, unsigned int>> &infoMatches, std::vector<CloudPoint> &cloudPoint) {
+			const std::map<unsigned int, unsigned int> &newKf_mapVisibility = newKf->getVisibleMapPoints();
+			const SRef<DescriptorBuffer> &newKf_des = newKf->getDescriptors();
+			const std::vector<Keypoint> & newKf_kp = newKf->getKeypoints();
+			Transform3Df newKf_pose = newKf->getPose();
 
-			std::vector<bool> checkMatches(newkf_kp.size(), true);
+			std::vector<bool> checkMatches(newKf_kp.size(), false);
 
-			for (int i = 0; i < newkf_kp.size(); ++i)
-				if (newkf_mapVisibility.find(i) == newkf_mapVisibility.end()) {
-					checkMatches[i] = false;
+			for (int i = 0; i < newKf_kp.size(); ++i)
+				if (newKf_mapVisibility.find(i) != newKf_mapVisibility.end()) {
+					checkMatches[i] = true;
 				}
 
-			for (int i = 0; i < idxBestNeigborKfs.size(); ++i) {
-				// Matching based on BoW
-				std::vector<int> indexKeypoints;
+			for (int i = 0; i < idxBestNeighborKfs.size(); ++i) {
+				std::vector<int> newKf_indexKeypoints;
 				for (int j = 0; j < checkMatches.size(); ++j)
 					if (!checkMatches[j])
-						indexKeypoints.push_back(j);
+						newKf_indexKeypoints.push_back(j);
 
-				SRef<Keyframe> &tmpKf = mapper->getKeyframe(idxBestNeigborKfs[i]);
+				// get neighbor keyframe i
+				SRef<Keyframe> &tmpKf = mapper->getKeyframe(idxBestNeighborKfs[i]);
+				Transform3Df tmpPose = tmpKf->getPose();
 
+				// check distance between two keyframes
+				float distPose = std::sqrtf(std::powf(newKf_pose(0, 3) - tmpPose(0, 3), 2.f) + std::powf(newKf_pose(1, 3) - tmpPose(1, 3), 2.f) +
+					std::powf(newKf_pose(2, 3) - tmpPose(2, 3), 2.f));
+				if (distPose < 0.05)
+					continue;
+
+				// Matching based on BoW
 				std::vector < DescriptorMatch> tmpMatches, goodMatches;
-				kfRetriever->match(indexKeypoints, newkf_des, idxBestNeigborKfs[i], tmpMatches);
-				matchesFilter->filter(tmpMatches, tmpMatches, newkf_kp, tmpKf->getKeypoints(), newKf->getPose(), tmpKf->getPose(), camera->getIntrinsicsParameters());
-				/// find info to triangulate				
+				kfRetriever->match(newKf_indexKeypoints, newKf_des, idxBestNeighborKfs[i], tmpMatches);
+
+				// matches filter based epipolar lines
+				matchesFilter->filter(tmpMatches, tmpMatches, newKf_kp, tmpKf->getKeypoints(), newKf->getPose(), tmpKf->getPose(), camera->getIntrinsicsParameters());
+
+				// find info to triangulate				
 				std::vector<std::tuple<unsigned int, int, unsigned int>> tmpInfoMatches;
 				const std::map<unsigned int, unsigned int> & tmpMapVisibility = tmpKf->getVisibleMapPoints();
 				for (int j = 0; j < tmpMatches.size(); ++j) {
 					unsigned int idx_newKf = tmpMatches[j].getIndexInDescriptorA();
 					unsigned int idx_tmpKf = tmpMatches[j].getIndexInDescriptorB();
 					if ((!checkMatches[idx_newKf]) && (tmpMapVisibility.find(idx_tmpKf) == tmpMapVisibility.end())) {
-						tmpInfoMatches.push_back(std::make_tuple(idx_newKf, idxBestNeigborKfs[i], idx_tmpKf));
-						//checkMatches[idx_newKf] = true;
+						tmpInfoMatches.push_back(std::make_tuple(idx_newKf, idxBestNeighborKfs[i], idx_tmpKf));
 						goodMatches.push_back(tmpMatches[j]);
 					}
 				}
 
+				// triangulation
 				std::vector<CloudPoint> tmpCloudPoint, tmpFilteredCloudPoint;
 				std::vector<int> indexFiltered;
 				if (goodMatches.size() > 0)
-					triangulator->triangulate(newkf_kp, tmpKf->getKeypoints(), newkf_des, tmpKf->getDescriptors(), goodMatches, std::make_pair(newKf->m_idx, idxBestNeigborKfs[i]), newKf->getPose(), tmpKf->getPose(), tmpCloudPoint);
+					triangulator->triangulate(newKf_kp, tmpKf->getKeypoints(), newKf_des, tmpKf->getDescriptors(), goodMatches,
+						std::make_pair(newKf->m_idx, idxBestNeighborKfs[i]), newKf->getPose(), tmpKf->getPose(), tmpCloudPoint);
 
-				mapFilter->filter(newKf->getPose(), tmpKf->getPose(), tmpCloudPoint, tmpFilteredCloudPoint, indexFiltered);
+				// filter cloud points
+				if (tmpCloudPoint.size() > 0)
+					mapFilter->filter(newKf->getPose(), tmpKf->getPose(), tmpCloudPoint, tmpFilteredCloudPoint, indexFiltered);
 				for (int i = 0; i < indexFiltered.size(); ++i) {
 					checkMatches[std::get<0>(tmpInfoMatches[indexFiltered[i]])] = true;
 					infoMatches.push_back(tmpInfoMatches[indexFiltered[i]]);
@@ -497,8 +484,66 @@ int main(int argc, char **argv) {
 
 		};
 
+		// check and fuse cloud point
+		auto fuseCloudPoint = [&mapper, &projector, &matcher, &map](SRef<Keyframe> &newKeyframe, std::vector<unsigned int> &idxNeigborKfs, std::vector<std::tuple<unsigned int, int, unsigned int>> &infoMatches, std::vector<CloudPoint> &newCloudPoint) {
+			std::vector<bool> checkMatches(newCloudPoint.size(), true);
+			std::vector<SRef<DescriptorBuffer>> desNewCloudPoint;
+			for (auto &it_cp : newCloudPoint) {
+				desNewCloudPoint.push_back(it_cp.getDescriptor());
+			}
+
+			for (int i = 0; i < idxNeigborKfs.size(); ++i) {
+				// get a neighbor
+				SRef<Keyframe> &neighborKf = mapper->getKeyframe(idxNeigborKfs[i]);
+				const std::map<unsigned int, unsigned int> mapVisibilitiesNeighbor = neighborKf->getVisibleMapPoints();
+
+				//  projection points
+				std::vector< Point2Df > projected2DPts;
+				projector->project(newCloudPoint, projected2DPts, neighborKf->getPose());
+
+				std::vector<DescriptorMatch> allMatches;
+				matcher->matchInRegion(projected2DPts, desNewCloudPoint, neighborKf, allMatches, 5.f);
+
+				for (int j = 0; j < allMatches.size(); ++j) {
+					int idxNewCloudPoint = allMatches[j].getIndexInDescriptorA();
+					int idxKpNeighbor = allMatches[j].getIndexInDescriptorB();
+					if (!checkMatches[idxNewCloudPoint])
+						continue;
+					std::tuple<unsigned int, int, unsigned int> infoMatch = infoMatches[idxNewCloudPoint];
+
+					// check this cloud point is created from the same neighbor keyframe
+					if (std::get<1>(infoMatch) == idxNeigborKfs[i])
+						continue;
+
+					// check if have a cloud point in the neighbor keyframe is coincide with this cloud point.
+					auto it_cp = mapVisibilitiesNeighbor.find(idxKpNeighbor);
+					if (it_cp != mapVisibilitiesNeighbor.end()) {
+						// fuse
+						CloudPoint &old_cp = map->getAPoint(it_cp->second);
+						old_cp.visibilityAddKeypoint(newKeyframe->m_idx, std::get<0>(infoMatch));
+						old_cp.visibilityAddKeypoint(std::get<1>(infoMatch), std::get<2>(infoMatch));
+
+						newKeyframe->addVisibleMapPoint(std::get<0>(infoMatch), it_cp->second);
+						mapper->getKeyframe(std::get<1>(infoMatch))->addVisibleMapPoint(std::get<2>(infoMatch), it_cp->second);
+
+						checkMatches[idxNewCloudPoint] = false;
+					}
+				}
+			}
+
+			std::vector<std::tuple<unsigned int, int, unsigned int>> tmpInfoMatches;
+			std::vector<CloudPoint> tmpNewCloudPoint;
+			for (int i = 0; i < checkMatches.size(); ++i)
+				if (checkMatches[i]) {
+					tmpInfoMatches.push_back(infoMatches[i]);
+					tmpNewCloudPoint.push_back(newCloudPoint[i]);
+				}
+			tmpInfoMatches.swap(infoMatches);
+			tmpNewCloudPoint.swap(newCloudPoint);
+		};
+
 		// process to add a new keyframe
-		auto processNewKeyframe = [&findMatchesAndTriangulation, &updateAssociateCloudPoint, &map, &kfRetriever, &mapper](SRef<Frame> &newFrame) -> SRef<Keyframe> {
+		auto processNewKeyframe = [&findMatchesAndTriangulation, &updateAssociateCloudPoint, &fuseCloudPoint, &map, &kfRetriever, &mapper](SRef<Frame> &newFrame) -> SRef<Keyframe> {
 			// create a new keyframe from the current frame
 			SRef<Keyframe> newKeyframe = xpcf::utils::make_shared<Keyframe>(newFrame);
 			// Add to BOW retrieval			
@@ -508,17 +553,19 @@ int main(int argc, char **argv) {
 			// Update neighbor connections between new keyframe with other keyframes
 			mapper->updateNeighborConnections(newKeyframe, 20);
 			// get best neighbor keyframes
-			std::vector<unsigned int> idxBestNeigborKfs = newKeyframe->getBestNeighborKeyframes(3);
+			std::vector<unsigned int> idxBestNeighborKfs = newKeyframe->getBestNeighborKeyframes(3);
 			// find matches between unmatching keypoints in the new keyframe and the best neighboring keyframes
 			std::vector<std::tuple<unsigned int, int, unsigned int>> infoMatches; // first: index of kp in newKf, second: index of Kf, third: index of kp in Kf.
 			std::vector<CloudPoint> newCloudPoint;
-			findMatchesAndTriangulation(newKeyframe, idxBestNeigborKfs, infoMatches, newCloudPoint);
+			findMatchesAndTriangulation(newKeyframe, idxBestNeighborKfs, infoMatches, newCloudPoint);
+			if (newCloudPoint.size() > 0) {
+				// fuse duplicate points
+				std::vector<unsigned int> idxNeigborKfs = newKeyframe->getBestNeighborKeyframes(10);
+				fuseCloudPoint(newKeyframe, idxNeigborKfs, infoMatches, newCloudPoint);
+			}
 			LOG_INFO("Number of new 3D points: {}", newCloudPoint.size());
-
 			// mapper update
 			mapper->update(map, newKeyframe, newCloudPoint, infoMatches);
-
-			// Check and fuse cloud point
 			return newKeyframe;
 		};		
 
@@ -605,8 +652,8 @@ int main(int argc, char **argv) {
 			}
 			else {
 				matchesOverlayBlue->draw(view, imageMatches, frameToTrack->getKeypoints(), keypoints, foundMatches);
-				matchesOverlayRed->draw(imageMatches, imageMatches2, frameToTrack->getKeypoints(), keypoints, remainingMatches);
-				m_dropBufferDisplay.push(imageMatches2);
+				//matchesOverlayRed->draw(imageMatches, imageMatches2, frameToTrack->getKeypoints(), keypoints, remainingMatches);
+				m_dropBufferDisplay.push(imageMatches);
 			}
 
 			std::vector<Point2Df> imagePoints_inliers;
@@ -694,7 +741,7 @@ int main(int argc, char **argv) {
 					LOG_INFO("Retrieval Failed");
 			}
 
-			LOG_INFO("Nb of Local Map: {}", localMap.size());
+			LOG_INFO("Nb of Local Map / World Map: {} / {}", localMap.size(), map->getPointCloud().size());
 			LOG_INFO("Index of current reference keyframe: {}", referenceKeyframe->m_idx);
 			// display point cloud
 			if (viewer3DPoints->display(map->getPointCloud(), lastPose, keyframePoses, framePoses, localMap) == FrameworkReturnCode::_STOP)
