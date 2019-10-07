@@ -262,8 +262,7 @@ int main(int argc, char **argv) {
 						img2worldMapper->map(pattern2DPoints, pattern3DPoints);
 						// Compute the pose of the camera using a Perspective n Points algorithm using only the 4 corners of the marker
 						if (pnp->estimate(img2DPoints, pattern3DPoints, pose) == FrameworkReturnCode::_SUCCESS)
-						{
-							//overlay3D->draw(pose, image);
+						{							
 							marker_found = true;
 						}
 					}
@@ -553,7 +552,7 @@ int main(int argc, char **argv) {
 			// Update neighbor connections between new keyframe with other keyframes
 			mapper->updateNeighborConnections(newKeyframe, 20);
 			// get best neighbor keyframes
-			std::vector<unsigned int> idxBestNeighborKfs = newKeyframe->getBestNeighborKeyframes(3);
+			std::vector<unsigned int> idxBestNeighborKfs = newKeyframe->getBestNeighborKeyframes(4);
 			// find matches between unmatching keypoints in the new keyframe and the best neighboring keyframes
 			std::vector<std::tuple<unsigned int, int, unsigned int>> infoMatches; // first: index of kp in newKf, second: index of Kf, third: index of kp in Kf.
 			std::vector<CloudPoint> newCloudPoint;
@@ -587,17 +586,15 @@ int main(int argc, char **argv) {
 		// Prepare for tracking
 		lastPose = poseFrame2;
 		updateData(keyframe2, localMap, idxLocalMap, referenceKeyframe, frameToTrack);
-
-		// Start tracking
-		clock_t start, end;
-		int count = 0;
-		start = clock();
+		
 
 		bool stop = false;
-		xpcf::DropBuffer<SRef<Image>>		m_dropBufferCamImageCapture;
-		xpcf::DropBuffer<SRef<Frame>>		m_dropBufferAddKeyframe;
-		xpcf::DropBuffer<SRef<Keyframe>>	m_dropBufferNewKeyframe;
-		xpcf::DropBuffer<SRef<Image>>		m_dropBufferDisplay;
+		xpcf::DropBuffer<SRef<Image>>												m_dropBufferCamImageCapture;
+		xpcf::DropBuffer<SRef<Frame>>												m_dropBufferAddKeyframe;
+		xpcf::DropBuffer<SRef<Keyframe>>											m_dropBufferNewKeyframe;
+		xpcf::DropBuffer<SRef<Image>>												m_dropBufferDisplay;
+		xpcf::DropBuffer< std::pair<SRef<Image>, std::vector<Keypoint>>>			m_dropBufferKeypoints;
+		xpcf::DropBuffer<SRef<Frame>>												m_dropBufferFrameDescriptors;
 
 		// Camera image capture task
 		auto fnCamImageCapture = [&]()
@@ -615,14 +612,41 @@ int main(int argc, char **argv) {
 			std::this_thread::sleep_for(std::chrono::milliseconds(40));
 #endif
 		};
+
+		// Keypoint detection task
+		auto fnDetection = [&]() 
+		{			
+			SRef<Image> frame;
+			if (!m_dropBufferCamImageCapture.tryPop(frame)) {
+				xpcf::DelegateTask::yield();
+				return;
+			}
+
+			keypointsDetector->detect(frame, keypoints);
+			m_dropBufferKeypoints.push(std::make_pair(frame, keypoints));
+		};		
+
+		// Feature extraction task
+		auto fnExtraction = [&]()
+		{
+			std::pair<SRef<Image>, std::vector<Keypoint>> frameKeypoints;
+			if (!m_dropBufferKeypoints.tryPop(frameKeypoints)) {
+				xpcf::DelegateTask::yield();
+				return;
+			}
+
+			descriptorExtractor->extract(frameKeypoints.first, frameKeypoints.second, descriptors);
+			SRef<Frame> frame = xpcf::utils::make_shared<Frame>(frameKeypoints.second, descriptors, frameKeypoints.first);
+			m_dropBufferFrameDescriptors.push(frame);
+		};
 		
 
 		SRef<Frame> newFrame;
+		int count = 0;
 		// Tracking task
 		auto fnTracking = [&]()
 		{
-			SRef<Image> view;
-			if (!m_dropBufferCamImageCapture.tryPop(view)){
+			if (!m_dropBufferFrameDescriptors.tryPop(newFrame)) {
 				xpcf::DelegateTask::yield();
 				return;
 			}
@@ -632,13 +656,10 @@ int main(int argc, char **argv) {
 			{
 				updateData(newKeyframe, localMap, idxLocalMap, referenceKeyframe, frameToTrack);
 			}
-			
-			keypointsDetector->detect(view, keypoints);
-			descriptorExtractor->extract(view, keypoints, descriptors);
-			newFrame = xpcf::utils::make_shared<Frame>(keypoints, descriptors, view, referenceKeyframe);
-			// match current keypoints with the keypoints of the Keyframe
-			matcher->match(frameToTrack->getDescriptors(), descriptors, matches);
-			matchesFilter->filter(matches, matches, frameToTrack->getKeypoints(), keypoints);
+
+			newFrame->setReferenceKeyframe(referenceKeyframe);
+			matcher->match(frameToTrack->getDescriptors(), newFrame->getDescriptors(), matches);
+			matchesFilter->filter(matches, matches, frameToTrack->getKeypoints(), newFrame->getKeypoints());
 
 			std::vector<Point2Df> pt2d;
 			std::vector<Point3Df> pt3d;
@@ -647,13 +668,10 @@ int main(int argc, char **argv) {
 			std::vector<DescriptorMatch> remainingMatches;
 			corr2D3DFinder->find(frameToTrack, newFrame, matches, map, pt3d, pt2d, foundMatches, remainingMatches);
 			// display matches
-			if (isLostTrack) {
-				m_dropBufferDisplay.push(view);
-			}
-			else {
-				matchesOverlayBlue->draw(view, imageMatches, frameToTrack->getKeypoints(), keypoints, foundMatches);
-				//matchesOverlayRed->draw(imageMatches, imageMatches2, frameToTrack->getKeypoints(), keypoints, remainingMatches);
-				m_dropBufferDisplay.push(imageMatches);
+			imageMatches = newFrame->getView()->copy();
+			if (!isLostTrack) {
+				matchesOverlayBlue->draw(newFrame->getView(), imageMatches, frameToTrack->getKeypoints(), newFrame->getKeypoints(), foundMatches);
+				//matchesOverlayRed->draw(imageMatches, imageMatches2, frameToTrack->getKeypoints(), keypoints, remainingMatches);	
 			}
 
 			std::vector<Point2Df> imagePoints_inliers;
@@ -699,6 +717,8 @@ int main(int argc, char **argv) {
 					// update map visibility of current frame
 					newFrame->addVisibleMapPoints(newMapVisibility);
 					LOG_INFO("Number of map visibility of frame to track: {}", newMapVisibility.size());
+
+					overlay3D->draw(refinedPose, imageMatches);
 				}
 				LOG_INFO("Refined pose: \n {}", newFrame->getPose().matrix());
 				lastPose = newFrame->getPose();
@@ -741,11 +761,18 @@ int main(int argc, char **argv) {
 					LOG_INFO("Retrieval Failed");
 			}
 
+			//m_dropBufferDisplay.push(imageMatches);
+
 			LOG_INFO("Nb of Local Map / World Map: {} / {}", localMap.size(), map->getPointCloud().size());
 			LOG_INFO("Index of current reference keyframe: {}", referenceKeyframe->m_idx);
+
+			// display matches and a cube on the fiducial marker
+			if (imageViewer->display(imageMatches) == SolAR::FrameworkReturnCode::_STOP)
+				stop = true;
+
 			// display point cloud
 			if (viewer3DPoints->display(map->getPointCloud(), lastPose, keyframePoses, framePoses, localMap) == FrameworkReturnCode::_STOP)
-				stop = true;
+				stop = true;	
 
 			++count;
 		};		
@@ -764,7 +791,7 @@ int main(int argc, char **argv) {
 			LOG_INFO(" cloud current size: {} \n", map->getPointCloud().size());
 			m_dropBufferNewKeyframe.push(newKeyframe);
 		};
-
+		
 		// Display task
 		auto fnDisplay = [&]()
 		{
@@ -772,35 +799,44 @@ int main(int argc, char **argv) {
 			if (!m_dropBufferDisplay.tryPop(view)) {
 				xpcf::DelegateTask::yield();
 				return;
-			}
-
+			}			
 			if (imageViewer->display(view) == SolAR::FrameworkReturnCode::_STOP)
 			{
 				stop = true;
-			}
+			}			
 		};
 
 		// instantiate and start tasks
 		xpcf::DelegateTask taskCamImageCapture(fnCamImageCapture);
 		//xpcf::DelegateTask taskTracking(fnTracking);
+		xpcf::DelegateTask taskDetection(fnDetection);
+		xpcf::DelegateTask taskExtraction(fnExtraction);
 		xpcf::DelegateTask taskMapping(fnMapping);
-		xpcf::DelegateTask taskDisplay(fnDisplay);
+		//xpcf::DelegateTask taskDisplay(fnDisplay);
 
 		taskCamImageCapture.start();
+		taskDetection.start();
+		taskExtraction.start();
 		//taskTracking.start();
 		taskMapping.start();
-		taskDisplay.start();
+		//taskDisplay.start();
+
+		// Start tracking
+		clock_t start, end;		
+		start = clock();
 		while (!stop)
 		{
 			fnTracking();
-			//std::this_thread::sleep_for(std::chrono::milliseconds(1));
+			//std::this_thread::sleep_for(std::chrono::milliseconds(1));		
 		}
 
 		// Stop tasks
 		taskCamImageCapture.stop();
+		taskDetection.stop();
+		taskExtraction.stop();
 		//taskTracking.stop();
 		taskMapping.stop();
-		taskDisplay.stop();
+		//taskDisplay.stop();
 
 		// display stats on frame rate
 		end = clock();

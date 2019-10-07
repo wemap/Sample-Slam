@@ -305,8 +305,7 @@ int main(int argc, char **argv) {
 						img2worldMapper->map(pattern2DPoints, pattern3DPoints);
 						// Compute the pose of the camera using a Perspective n Points algorithm using only the 4 corners of the marker
 						if (pnp->estimate(img2DPoints, pattern3DPoints, pose) == FrameworkReturnCode::_SUCCESS)
-						{							
-							//overlay3D->draw(pose, image);
+						{														
 							marker_found = true;
 						}
 					}
@@ -607,7 +606,7 @@ int main(int argc, char **argv) {
 			// Update neighbor connections between new keyframe with other keyframes
 			mapper->updateNeighborConnections(newKeyframe, 20);
 			// get best neighbor keyframes
-			std::vector<unsigned int> idxBestNeighborKfs = newKeyframe->getBestNeighborKeyframes(3);
+			std::vector<unsigned int> idxBestNeighborKfs = newKeyframe->getBestNeighborKeyframes(4);
 			// find matches between unmatching keypoints in the new keyframe and the best neighboring keyframes
 			std::vector<std::tuple<unsigned int, int, unsigned int>> infoMatches; // first: index of kp in newKf, second: index of Kf, third: index of kp in Kf.
 			std::vector<CloudPoint> newCloudPoint;
@@ -623,7 +622,7 @@ int main(int argc, char **argv) {
 			return newKeyframe;
 		};		
 
-		// Prepare for tracking		
+		// Prepare for tracking
 		lastPose = poseFrame2;
 		updateData(keyframe2, localMap, idxLocalMap, referenceKeyframe, frameToTrack);
 
@@ -636,7 +635,6 @@ int main(int argc, char **argv) {
 			LOG_INFO("\n \n");
 			// Get current image
 			camera->getNextImage(view);
-			count++;
 			keypointsDetector->detect(view, keypoints);
 			LOG_INFO("Number of keypoints: {}", keypoints.size());
 			descriptorExtractor->extract(view, keypoints, descriptors);		
@@ -652,15 +650,10 @@ int main(int argc, char **argv) {
 			std::vector<DescriptorMatch> remainingMatches;
 			corr2D3DFinder->find(frameToTrack, newFrame, matches, map, pt3d, pt2d, foundMatches, remainingMatches);						
 			// display matches
-			if (isLostTrack) {
-				if (imageViewer->display(view) == FrameworkReturnCode::_STOP)
-					break;
-			}
-			else {
+			imageMatches = view->copy();
+			if (!isLostTrack) {
 				matchesOverlayBlue->draw(view, imageMatches, frameToTrack->getKeypoints(), keypoints, foundMatches);
-				//matchesOverlayRed->draw(imageMatches, imageMatches2, frameToTrack->getKeypoints(), keypoints, remainingMatches);
-				if (imageViewer->display(imageMatches) == FrameworkReturnCode::_STOP)
-					break;
+				//matchesOverlayRed->draw(imageMatches, imageMatches2, frameToTrack->getKeypoints(), keypoints, remainingMatches);				
 			}
 
 			std::vector<Point2Df> imagePoints_inliers;
@@ -710,6 +703,8 @@ int main(int argc, char **argv) {
 					// update map visibility of current frame
 					newFrame->addVisibleMapPoints(newMapVisibility);
 					LOG_INFO("Number of map visibility of frame to track: {}", newMapVisibility.size());
+
+					overlay3D->draw(refinedPose, imageMatches);
 				}
 				LOG_INFO("Refined pose: \n {}", newFrame->getPose().matrix());
 				lastPose = newFrame->getPose();
@@ -768,9 +763,15 @@ int main(int argc, char **argv) {
 			LOG_INFO("Nb of Local Map / World Map: {} / {}", localMap.size(), map->getPointCloud().size());
 			LOG_INFO("Index of current reference keyframe: {}", referenceKeyframe->m_idx);
 
+			// display matches and a cube on the fiducial marker
+			if (imageViewer->display(imageMatches) == FrameworkReturnCode::_STOP)
+				break;
+
 			// display point cloud
 			if (viewer3DPoints->display(map->getPointCloud(), lastPose, keyframePoses, framePoses, localMap) == FrameworkReturnCode::_STOP)
 				break;
+
+			count++;
 		}
 
 		// display stats on frame rate
