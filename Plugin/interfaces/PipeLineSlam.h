@@ -36,13 +36,8 @@
 #include "api/display/IImageViewer.h"
 #include "api/display/I3DPointsViewer.h"
 #include "api/reloc/IKeyframeRetriever.h"
-
-#include "api/input/files/IMarker2DNaturalImage.h"
-#include "api/solver/pose/I2DTransformFinder.h"
-#include "api/solver/pose/IHomographyValidation.h"
-#include "api/features/IKeypointsReIndexer.h"
-#include "api/geom/IImage2WorldMapper.h"
-#include "api/geom/I2DTransform.h"
+#include "api/geom/IProject.h"
+#include "core/Log.h"
 
 #include "api/input/files/IMarker2DSquaredBinary.h"
 #include "api/image/IImageFilter.h"
@@ -52,14 +47,7 @@
 #include "api/image/IPerspectiveController.h"
 #include "api/features/IDescriptorsExtractorSBPattern.h"
 #include "api/features/ISBPatternReIndexer.h"
-
-#include "api/solver/pose/I2DTransformFinder.h"
-#include "api/solver/pose/IHomographyValidation.h"
-#include "api/features/IKeypointsReIndexer.h"
 #include "api/geom/IImage2WorldMapper.h"
-#include "api/geom/I2DTransform.h"
-#include "api/geom/IProject.h"
-#include "api/features/IMatchesFilter.h"
 
 #ifdef USE_OPENGL
     #include "api/sink/ISinkPoseTextureBuffer.h"
@@ -70,9 +58,6 @@
 #include "xpcf/threading/SharedBuffer.h"
 #include "xpcf/threading/DropBuffer.h"
 #include "xpcf/threading/BaseTask.h"
-
-
-#include "SolAR2DOverlayOpencv.h"
 
 namespace SolAR {
 using namespace datastructure;
@@ -116,110 +101,145 @@ public:
 
     void unloadComponent () override final;
 
+private:	
+	// Image capture task
+	void getCameraImages();
+
+	// First keyframe detection task
+	void detectFirstKeyframe();
+
+	// Bootstrap task
+	void doBootStrap();
+
+	// Keypoint detection task
+	void getKeyPoints();
+
+	// Feature extraction task
+	void getDescriptors();
+
+	// tracking  task
+	void tracking();
+
+	// mapping task
+	void mapping();	
+
+
+	// detect fiducial marker
+	bool detectFiducialMarker(SRef<Image>& image, Transform3Df &pose);
+
+	// update data to track
+	void updateData(const SRef<Keyframe> refKf);
+
+	// update reference keyframe
+	void updateReferenceKeyframe(const SRef<Keyframe> refKf);
+
+	// check need new keyframe based on FBoW
+	bool checkNeedNewKfWithAllKfs(const SRef<Frame>& newFrame);
+
+	// check need new keyframe based on disparity distance
+	bool checkDisparityDistance(const SRef<Frame>& newFrame);
+
+	// process to add a new keyframe
+	SRef<Keyframe> processNewKeyframe(SRef<Frame> newFrame);
+
+	// Update keypoint visibility, descriptor in cloud point
+	void updateAssociateCloudPoint(SRef<Keyframe> & newKf);
+
+	// find matches between unmatching keypoints in the new keyframe and the best neighboring keyframes
+	void findMatchesAndTriangulation(SRef<Keyframe> & newKf, std::vector<unsigned int> &idxBestNeighborKfs, std::vector<std::tuple<unsigned int, int, unsigned int>> &infoMatches, std::vector<CloudPoint> &cloudPoint);
+
+	// check and fuse cloud point
+	void fuseCloudPoint(SRef<Keyframe> &newKeyframe, std::vector<unsigned int> &idxNeigborKfs, std::vector<std::tuple<unsigned int, int, unsigned int>> &infoMatches, std::vector<CloudPoint> &newCloudPoint);
+
 private:
 
-    SRef<input::devices::ICamera> m_camera;
-    SRef<input::files::IMarker2DSquaredBinary> m_binaryMarker;
-    SRef<DescriptorBuffer> m_markerPatternDescriptor;
-    SRef<features::IDescriptorsExtractorSBPattern> m_patternDescriptorExtractor;
-    SRef<image::IImageFilter> m_imageFilterBinary;
-    SRef<image::IImageConvertor> m_imageConvertor;
-    SRef<features::IContoursExtractor> m_contoursExtractor ;
-    SRef<features::IContoursFilter> m_contoursFilter;
-    SRef<image::IPerspectiveController> m_perspectiveController;
-    SRef<features::IDescriptorMatcher> m_patternMatcher;
-    SRef<features::ISBPatternReIndexer> m_patternReIndexer;
-    SRef<geom::IImage2WorldMapper> m_img2worldMapper;
+	// State flag of the pipeline
+	bool m_stopFlag, m_initOK, m_startedOK;
 
-    SRef<features::IKeypointDetector> m_keypointsDetector;
-    SRef<features::IDescriptorsExtractor> m_descriptorExtractor;
-    SRef<features::IDescriptorMatcher> m_matcher;
-    SRef<features::IMatchesFilter> m_basicMatchesFilter;
-    SRef<features::IMatchesFilter> m_geomMatchesFilter;
-    SRef<solver::pose::I3DTransformFinderFrom2D2D> m_poseFinderFrom2D2D;
-	SRef<solver::map::ITriangulator>  m_triangulator;
-    SRef<solver::pose::I3DTransformFinderFrom2D3D> m_PnP;
-    SRef<solver::pose::I3DTransformSACFinderFrom2D3D> m_PnPSAC;
-    SRef<solver::pose::I2D3DCorrespondencesFinder> m_corr2D3DFinder;
-    SRef<geom::IProject> m_projector;
-    SRef<solver::map::IMapFilter> m_mapFilter;
-    SRef<solver::map::IMapper> m_mapper;
-    SRef<solver::map::IKeyframeSelector> m_keyframeSelector;
-    SRef<reloc::IKeyframeRetriever> m_kfRetriever;
+	// mutex
+	std::mutex globalVarsMutex;
+
+	// components
+    SRef<input::devices::ICamera>						m_camera;
+    SRef<input::files::IMarker2DSquaredBinary>			m_binaryMarker;
+    SRef<DescriptorBuffer>								m_markerPatternDescriptor;
+    SRef<features::IDescriptorsExtractorSBPattern>		m_patternDescriptorExtractor;
+    SRef<image::IImageFilter>							m_imageFilterBinary;
+    SRef<image::IImageConvertor>						m_imageConvertor;
+    SRef<features::IContoursExtractor>					m_contoursExtractor ;
+    SRef<features::IContoursFilter>						m_contoursFilter;
+    SRef<image::IPerspectiveController>					m_perspectiveController;
+    SRef<features::IDescriptorMatcher>					m_patternMatcher;
+    SRef<features::ISBPatternReIndexer>					m_patternReIndexer;
+    SRef<geom::IImage2WorldMapper>						m_img2worldMapper;
+
+    SRef<features::IKeypointDetector>					m_keypointsDetector;
+    SRef<features::IDescriptorsExtractor>				m_descriptorExtractor;
+    SRef<features::IDescriptorMatcher>					m_matcher;
+    SRef<features::IMatchesFilter>						m_matchesFilter;
+    SRef<solver::pose::I3DTransformFinderFrom2D2D>		m_poseFinderFrom2D2D;
+	SRef<solver::pose::I3DTransformFinderFrom2D3D>		m_pnp;
+	SRef<solver::pose::I3DTransformSACFinderFrom2D3D>	m_pnpRansac;
+	SRef<solver::map::ITriangulator>					m_triangulator;    
+    SRef<solver::pose::I2D3DCorrespondencesFinder>		m_corr2D3DFinder;
+    SRef<geom::IProject>								m_projector;
+    SRef<solver::map::IMapFilter>						m_mapFilter;
+    SRef<solver::map::IMapper>							m_mapper;
+    SRef<solver::map::IKeyframeSelector>				m_keyframeSelector;
+    SRef<reloc::IKeyframeRetriever>						m_kfRetriever;
 
     // display stuff
-    SRef<api::display::I2DOverlay> m_i2DOverlay;
+    SRef<api::display::I2DOverlay>						m_i2DOverlay;
 
 
 #ifdef USE_OPENGL
-    SRef<sink::ISinkPoseTextureBuffer> m_sink;
+    SRef<sink::ISinkPoseTextureBuffer>					m_sink;
 #else
-    SRef<sink::ISinkPoseImage> m_sink;
-#endif
+    SRef<sink::ISinkPoseImage>							m_sink;
+#endif    
 
-    // State flag of the pipeline
-    bool m_stopFlag, m_initOK, m_startedOK;
-
-
-//    bool m_FiducialMarkerDetected;
-    bool m_bootstrapOk;
-    bool m_firstImageCaptured;
-    SRef<Image> m_firstImage;
-    Transform3Df m_firstPose;
-
+	// SLAM variables
+	Transform3Df										m_pose;
+	SRef<Image>											m_camImage;
     SRef<Map>                                           m_map;
-    Transform3Df                                        poseFrame1;
-    SRef<Keyframe>                                      keyframe1;
-    std::vector<Keypoint>								keypointsView1;
-    SRef<DescriptorBuffer>                              descriptorsView1;
-    std::vector<DescriptorMatch>                        matches;
-
-
+    Transform3Df                                        m_poseKeyframe1, m_poseKeyframe2;
+    SRef<Keyframe>                                      m_keyframe1, m_keyframe2;
+    std::vector<Keypoint>								m_keypointsView1, m_keypointsView2;
+    SRef<DescriptorBuffer>                              m_descriptorsView1, m_descriptorsView2;
+	bool												m_firstKeyframeCaptured = false;
+	bool												m_bootstrapOk = false;
+    
+	std::vector<Keypoint>								m_keypoints;
+	SRef<DescriptorBuffer>								m_descriptors;
+	std::vector<DescriptorMatch>                        m_matches;
+	std::vector<CloudPoint>								m_cloud, m_filteredCloud;
     SRef<Keyframe>                                      m_referenceKeyframe;
+    SRef<Keyframe>                                      m_updatedRefKf;
     SRef<Frame>											m_frameToTrack;
     Transform3Df                                        m_lastPose;
     std::vector<Transform3Df>                           m_keyframePoses;
-    bool                                                m_keyFrameDetectionOn;   // if true, keyFrames can be detected
+    std::vector<Transform3Df>                           m_framePoses;
     bool                                                m_isLostTrack;
 
+	std::vector<CloudPoint>								m_localMap;
+	std::vector<unsigned int>							m_idxLocalMap;
 
 
 
-    bool detectFiducialMarkerCore(SRef<SolAR::datastructure::Image>& image);
-    // Threads
+	xpcf::DropBuffer< SRef<Image>>						m_CameraImagesBuffer;
+	xpcf::DropBuffer< std::pair< SRef<Image>, std::vector<Keypoint> >> m_keypointsBuffer;
+	xpcf::DropBuffer< SRef<Frame >>						m_descriptorsBuffer;
+	xpcf::DropBuffer<SRef<Frame>>						m_addKeyframeBuffer;
+	xpcf::DropBuffer<SRef<Keyframe>>					m_newKeyframeBuffer;
 
-    void getCameraImages();
-    void detectFiducialMarker();
-    void doBootStrap();
-    void getKeyPoints();
-    void getDescriptors();
-    void mapUpdate();
-    void doTriangulation();
-    void processFrames();
-
-    void allTasks();
-
-    xpcf::DelegateTask* m_taskAll;
-
-    xpcf::DelegateTask* m_taskGetCameraImages;
-    xpcf::DelegateTask* m_taskDetectFiducialMarker;
-    xpcf::DelegateTask* m_taskDoBootStrap;
-    xpcf::DelegateTask* m_taskGetKeyPoints;
-    xpcf::DelegateTask* m_taskGetDescriptors;
-    xpcf::DelegateTask* m_taskProcessFrames;
-    xpcf::DelegateTask* m_taskDoTriangulation;
-    xpcf::DelegateTask* m_taskMapUpdate;
-
-    xpcf::DropBuffer< SRef<Image> >  m_CameraImagesBuffer;
-    xpcf::DropBuffer< std::pair< SRef<Image>,std::vector<Keypoint> >> m_outBufferKeypoints;
-    xpcf::DropBuffer< SRef<Frame > > m_outBufferDescriptors;
-    xpcf::DropBuffer< std::tuple<SRef<Keyframe>, SRef<Keyframe>, std::vector<DescriptorMatch>, std::vector<DescriptorMatch>, std::vector<CloudPoint>  > >  m_outBufferTriangulation;
-    xpcf::DropBuffer< std::tuple<SRef<Frame>,SRef<Keyframe>,std::vector<DescriptorMatch>,std::vector<DescriptorMatch> > >  m_keyFrameBuffer;
-    xpcf::DropBuffer< SRef<Image> > m_displayMatches;   // matches images should be displayed in the main thread
-    xpcf::DropBuffer< SRef<Keyframe>> m_keyframeRelocBuffer;
-
-
-    Transform3Df m_pose;
+	// tasks
+    xpcf::DelegateTask*									m_taskGetCameraImages;
+    xpcf::DelegateTask*									m_taskDetectFirstKeyframe;
+    xpcf::DelegateTask*									m_taskDoBootStrap;
+    xpcf::DelegateTask*									m_taskGetKeyPoints;
+    xpcf::DelegateTask*									m_taskGetDescriptors;
+    xpcf::DelegateTask*									m_taskTracking;
+    xpcf::DelegateTask*									m_taskMapping;        
 
 };
 

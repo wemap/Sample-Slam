@@ -56,19 +56,25 @@ int main(){
 
         Transform3Df s_pose;
 
+		clock_t start, end;
+		start = clock();
+		int count = 0;
         if (pipeline->start(camImage->data()) == FrameworkReturnCode::_SUCCESS)
         {
             while (true)
             {
                 Transform3Df pose;
 
-                sink::SinkReturnCode returnCode = pipeline->update(pose);
-                if(returnCode==sink::SinkReturnCode::_ERROR)
-                    break;
+				sink::SinkReturnCode returnCode = pipeline->update(pose);
 
-                if ((returnCode == sink::SinkReturnCode::_NEW_POSE))
+				if (returnCode == SinkReturnCode::_ERROR)
+					break;
+                
+				if (returnCode == sink::SinkReturnCode::_NOTHING)
+					continue;
+
+				if ((returnCode == sink::SinkReturnCode::_NEW_POSE) || (returnCode == sink::SinkReturnCode::_NEW_POSE_AND_IMAGE))
                 {
-//                    LOG_INFO("Camera Pose translation ({}, {}, {})", pose.translation(0), pose.translation(1), pose.translation(2));
                     for(int i=0;i<3;i++)
                          for(int j=0;j<3;j++)
                              s_pose(i,j)=pose(i,j);
@@ -77,7 +83,7 @@ int main(){
                     for(int j=0;j<3;j++)
                         s_pose(3,j)=0;
                     s_pose(3,3)=1;
-                    LOG_INFO("pose.matrix():\n {} \n",s_pose.matrix())
+                    //LOG_INFO("pose.matrix():\n {} \n",s_pose.matrix())
                     overlay3DComponent->draw(s_pose, camImage);
                 }
 
@@ -85,8 +91,14 @@ int main(){
                     pipeline->stop();
                     break;
                 }
+
+				count++;
              }
         }
+		end = clock();
+		double duration = double(end - start) / CLOCKS_PER_SEC;
+		printf("\n\nElasped time is %.2lf seconds.\n", duration);
+		printf("Number of processed frame per second : %8.2f\n", count / duration);
         delete[] r_imageData;
     }
 }
