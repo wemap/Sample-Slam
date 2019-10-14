@@ -4,6 +4,7 @@ CONFIG -= qt
 
 ## global defintions : target lib name, version
 TARGET = PipelineSlam
+INSTALLSUBDIR = SolARBuild
 FRAMEWORK = $$TARGET
 VERSION=0.6.0
 
@@ -22,9 +23,13 @@ CONFIG(release,debug|release) {
     DEFINES += NDEBUG=1
 }
 
-DEPENDENCIESCONFIG = shared recurse
+DEPENDENCIESCONFIG = sharedlib recursive install
 
-include (../../builddefs/qmake/templatelibconfig.pri)
+PROJECTCONFIG = QTVS
+
+#NOTE : CONFIG as staticlib or sharedlib, DEPENDENCIESCONFIG as staticlib or sharedlib, QMAKE_TARGET.arch and PROJECTDEPLOYDIR MUST BE DEFINED BEFORE templatelibconfig.pri inclusion
+include ($$(REMAKEN_RULES_ROOT)/qmake/templatelibconfig.pri)
+
 
 ## DEFINES FOR MSVC/INTEL C++ compilers
 msvc {
@@ -66,4 +71,5 @@ xpcf_xml_files.files=$$files($${PWD}/xpcf*.xml)
 
 INSTALLS += header_files
 INSTALLS += xpcf_xml_files
+include ($$(REMAKEN_RULES_ROOT)/qmake/remaken_install_target.pri))
 
