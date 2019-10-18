@@ -43,6 +43,7 @@ PipelineSlam::PipelineSlam():ConfigurableBase(xpcf::toUUID<PipelineSlam>())
     m_isLostTrack = false;
 	m_stopFlag = false;
 	m_startedOK = false;
+	m_startCaptureFirstKeyframe = false;
 }
 
 
@@ -541,8 +542,11 @@ void PipelineSlam::detectFirstKeyframe()
 		xpcf::DelegateTask::yield();
 		return;
 	}
+
+	int state = GetKeyState('S');
+	m_startCaptureFirstKeyframe = ((state == -127) || (state==-128));
 	
-	if (detectFiducialMarker(m_camImage, m_poseKeyframe1)){
+	if (m_startCaptureFirstKeyframe && detectFiducialMarker(m_camImage, m_poseKeyframe1)){
 		m_keypointsDetector->detect(m_camImage, m_keypointsView1);
 		m_descriptorExtractor->extract(m_camImage, m_keypointsView1, m_descriptorsView1);
 		m_keyframe1 = xpcf::utils::make_shared<Keyframe>(m_keypointsView1, m_descriptorsView1, m_camImage, m_poseKeyframe1);

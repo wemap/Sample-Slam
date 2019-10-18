@@ -208,6 +208,7 @@ private:
     SRef<DescriptorBuffer>                              m_descriptorsView1, m_descriptorsView2;
 	bool												m_firstKeyframeCaptured = false;
 	bool												m_bootstrapOk = false;
+	bool												m_startCaptureFirstKeyframe = false;
     
 	std::vector<Keypoint>								m_keypoints;
 	SRef<DescriptorBuffer>								m_descriptors;
