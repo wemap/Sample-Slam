@@ -450,8 +450,7 @@ int main(int argc, char **argv) {
 			{
 				Point2Df pt1 = ref2DPts[i];
 				Point2Df pt2 = projected2DPts[i];
-
-				totalMatchesDist += (pt1 - pt2).norm() / imageWidth;
+                totalMatchesDist += (pt1 - pt2).norm() / imageWidth;
 			}
 			double meanMatchesDist = totalMatchesDist / projected2DPts.size();
 			LOG_DEBUG("Keyframe Selector Mean Matches Dist: {}", meanMatchesDist);

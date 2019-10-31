@@ -5,7 +5,7 @@
 #include "SolARModuleTools_traits.h"
 #include "SolARModuleFBOW_traits.h"
 #include "core/Log.h"
-
+#include "boost/log/core/core.hpp"
 #define USE_FREE
 //#define USE_IMAGES_SET
 
@@ -54,6 +54,8 @@ PipelineSlam::~PipelineSlam()
 
 FrameworkReturnCode PipelineSlam::init(SRef<xpcf::IComponentManager> xpcfComponentManager)
 {
+    boost::log::core::get()->set_logging_enabled(false);
+    std::freopen("log.txt", "w", stdout);
     // component creation
     try {
     #ifdef USE_IMAGES_SET
@@ -94,7 +96,6 @@ FrameworkReturnCode PipelineSlam::init(SRef<xpcf::IComponentManager> xpcfCompone
 		m_patternReIndexer = xpcfComponentManager->create<SolARSBPatternReIndexer>()->bindTo<features::ISBPatternReIndexer>();
 		m_img2worldMapper = xpcfComponentManager->create<SolARImage2WorldMapper4Marker2D>()->bindTo<geom::IImage2WorldMapper>();
 		m_i2DOverlay = xpcfComponentManager->create<SolAR2DOverlayOpencv>()->bindTo<display::I2DOverlay>();
-
         // load marker
         LOG_INFO("LOAD MARKER IMAGE ");
 		if( m_binaryMarker->loadMarker()==FrameworkReturnCode::_ERROR_){
@@ -555,6 +556,7 @@ void PipelineSlam::detectFirstKeyframe()
 		m_kfRetriever->addKeyframe(m_keyframe1); // add keyframe for reloc
 		m_firstKeyframeCaptured = true;
 		LOG_INFO("Pose of keyframe 1: \n {}", m_poseKeyframe1.matrix());
+        std::cout << "Pose of keyframe 1: \n" << m_poseKeyframe1.matrix() << std::endl;
 		m_sink->set(m_poseKeyframe1, m_camImage);
 	}
 	else
@@ -583,8 +585,10 @@ void PipelineSlam::doBootStrap()
 			if (m_keyframeSelector->select(frame2, m_matches))
 			{
 				LOG_INFO("Pose of keyframe 2: \n {}", m_poseKeyframe2.matrix());
+                std::cout << "Pose of keyframe 2: \n" << m_poseKeyframe2.matrix() << std::endl;
 				frame2->setPose(m_poseKeyframe2);
 				LOG_INFO("Nb matches for triangulation: {}\\{}", m_matches.size(), nbOriginalMatches);
+                std::cout << "Nb matches for triangulation: " << m_matches.size() << "\\" << nbOriginalMatches << std::endl;
 				// Triangulate
 				m_keyframe2 = xpcf::utils::make_shared<Keyframe>(frame2);
 				m_triangulator->triangulate(m_keyframe2, m_matches, m_cloud);
@@ -598,6 +602,7 @@ void PipelineSlam::doBootStrap()
 				updateReferenceKeyframe(m_keyframe2);
 				updateData(m_keyframe2);
 				LOG_INFO("Number of initial point cloud: {}", m_filteredCloud.size());
+                std::cout << "Number of initial point cloud: " << m_filteredCloud.size() << std::endl;
 			}
 		}
 		m_sink->set(m_poseKeyframe2, m_camImage);
