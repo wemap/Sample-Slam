@@ -1,8 +1,7 @@
-SolARFramework|0.6.0|SolARFramework|SolARBuild@github|https://github.com/SolarFramework/SolarFramework/releases/download
-SolARModuleOpenCV|0.6.0|SolARModuleOpenCV|SolARBuild@github|https://github.com/SolarFramework/SolARModuleOpenCV/releases/download
-SolARModuleFBOW|0.6.0|SolARModuleFBOW|SolARBuild@github|https://github.com/SolarFramework/SolARModuleFBOW/releases/download
-SolARModuleNonFreeOpenCV|0.6.0|SolARModuleNonFreeOpenCV|SolARBuild@github|https://github.com/SolarFramework/SolARModuleNonFreeOpenCV/releases/download
-SolARModuleOpenGL|0.6.0|SolARModuleOpenGL|SolARBuild@github|https://github.com/SolarFramework/SolARModuleOpenGL/releases/download
-SolARModuleTools|0.6.0|SolARModuleTools|SolARBuild@github|https://github.com/SolarFramework/SolARModuleTools/releases/download
-SolARPipelineManager|0.6.0|SolARPipelineManager|SolARBuild@github|https://github.com/SolarFramework/SolARPipelineManager/releases/download
-PipelineSlam|0.6.0|PipelineSlam|SolARBuild@github|https://github.com/SolarFramework/Sample-Slam/releases/download
+SolARFramework|0.7.0|SolARFramework|SolARBuild@github|https://github.com/SolarFramework/SolarFramework/releases/download
+SolARModuleOpenCV|0.7.0|SolARModuleOpenCV|SolARBuild@github|https://github.com/SolarFramework/SolARModuleOpenCV/releases/download
+SolARModuleFBOW|0.7.0|SolARModuleFBOW|SolARBuild@github|https://github.com/SolarFramework/SolARModuleFBOW/releases/download
+SolARModuleOpenGL|0.7.0|SolARModuleOpenGL|SolARBuild@github|https://github.com/SolarFramework/SolARModuleOpenGL/releases/download
+SolARModuleTools|0.7.0|SolARModuleTools|SolARBuild@github|https://github.com/SolarFramework/SolARModuleTools/releases/download
+SolARPipelineManager|0.7.0|SolARPipelineManager|SolARBuild@github|https://github.com/SolarFramework/SolARPipelineManager/releases/download
+PipelineSlam||PipelineSlam|SolARBuild@github|https://github.com/SolarFramework/Sample-Slam/releases/download
