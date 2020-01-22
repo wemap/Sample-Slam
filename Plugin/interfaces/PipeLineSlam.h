@@ -11,6 +11,11 @@
 #define SOLARPIPELINESLAM_EXPORT_API
 #endif //_WIN32
 
+#include "SolARModuleOpencv_traits.h"
+#include "SolARModuleTools_traits.h"
+#include "SolARModuleFBOW_traits.h"
+#include "SolARModuleG2O_traits.h"
+
 #include "xpcf/core/traits.h"
 #include "xpcf/component/ConfigurableBase.h"
 #include "api/pipeline/IPipeline.h"
@@ -37,6 +42,7 @@
 #include "api/display/I3DPointsViewer.h"
 #include "api/reloc/IKeyframeRetriever.h"
 #include "api/geom/IProject.h"
+#include "api/solver/map/IBundler.h"
 #include "core/Log.h"
 
 #include "api/input/files/IMarker2DSquaredBinary.h"
@@ -58,6 +64,23 @@
 #include "xpcf/threading/SharedBuffer.h"
 #include "xpcf/threading/DropBuffer.h"
 #include "xpcf/threading/BaseTask.h"
+
+#define USE_FREE
+//#define USE_IMAGES_SET
+//#define VIDEO_INPUT
+
+using namespace SolAR;
+using namespace SolAR::datastructure;
+using namespace SolAR::api;
+using namespace SolAR::MODULES::OPENCV;
+using namespace SolAR::MODULES::FBOW;
+using namespace SolAR::MODULES::G2O;
+#ifndef USE_FREE
+using namespace SolAR::MODULES::NONFREEOPENCV;
+#endif
+using namespace SolAR::MODULES::TOOLS;
+
+namespace xpcf = org::bcom::xpcf;
 
 namespace SolAR {
 using namespace datastructure;
@@ -151,6 +174,9 @@ private:
 	// check and fuse cloud point
 	void fuseCloudPoint(SRef<Keyframe> &newKeyframe, std::vector<unsigned int> &idxNeigborKfs, std::vector<std::tuple<unsigned int, int, unsigned int>> &infoMatches, std::vector<CloudPoint> &newCloudPoint);
 
+	// Local bundle adjustment
+	void localBundleAdjuster(std::vector<int>&framesIdxToBundle, double& reprojError);
+
 private:
 
 	// State flag of the pipeline
@@ -187,6 +213,7 @@ private:
     SRef<solver::map::IMapper>							m_mapper;
     SRef<solver::map::IKeyframeSelector>				m_keyframeSelector;
     SRef<reloc::IKeyframeRetriever>						m_kfRetriever;
+	SRef<solver::map::IBundler>							m_bundler;
 
     // display stuff
     SRef<api::display::I2DOverlay>						m_i2DOverlay;
@@ -224,6 +251,7 @@ private:
 
 	std::vector<CloudPoint>								m_localMap;
 	std::vector<unsigned int>							m_idxLocalMap;
+	double												m_bundleReprojError;
 
 
 

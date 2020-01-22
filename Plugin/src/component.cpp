@@ -1,29 +1,11 @@
 #include "xpcf/module/ModuleFactory.h"
 #include "PipeLineSlam.h"
-
-#include "SolARModuleOpencv_traits.h"
-#include "SolARModuleTools_traits.h"
-#include "SolARModuleFBOW_traits.h"
 #include "core/Log.h"
 #include "boost/log/core/core.hpp"
-#define USE_FREE
-//#define USE_IMAGES_SET
 
 #define MIN_THRESHOLD -1
 #define MAX_THRESHOLD 220
 #define NB_THRESHOLD 2
-
-using namespace SolAR;
-using namespace SolAR::datastructure;
-using namespace SolAR::api;
-using namespace SolAR::MODULES::OPENCV;
-using namespace SolAR::MODULES::FBOW;
-#ifndef USE_FREE
-using namespace SolAR::MODULES::NONFREEOPENCV;
-#endif
-using namespace SolAR::MODULES::TOOLS;
-
-namespace xpcf = org::bcom::xpcf;
 
 // The pipeline component for the fiducial marker
 
@@ -84,6 +66,7 @@ FrameworkReturnCode PipelineSlam::init(SRef<xpcf::IComponentManager> xpcfCompone
 		m_kfRetriever = xpcfComponentManager->create<SolARKeyframeRetrieverFBOW>()->bindTo<reloc::IKeyframeRetriever>();
 		m_projector = xpcfComponentManager->create<SolARProjectOpencv>()->bindTo<geom::IProject>();
         m_sink = xpcfComponentManager->create<MODULES::TOOLS::SolARBasicSink>()->bindTo<sink::ISinkPoseImage>();
+		m_bundler = xpcfComponentManager->create<SolAROptimizationG2O>()->bindTo<api::solver::map::IBundler>();
 		// marker fiducial
 		m_binaryMarker = xpcfComponentManager->create<SolARMarker2DSquaredBinaryOpencv>()->bindTo<input::files::IMarker2DSquaredBinary>();
 		m_imageFilterBinary = xpcfComponentManager->create<SolARImageFilterBinaryOpencv>()->bindTo<image::IImageFilter>();
@@ -415,6 +398,24 @@ void PipelineSlam::fuseCloudPoint(SRef<Keyframe>& newKeyframe, std::vector<unsig
 	tmpNewCloudPoint.swap(newCloudPoint);
 }
 
+void PipelineSlam::localBundleAdjuster(std::vector<int>& framesIdxToBundle, double & reprojError)
+{
+	std::vector<Transform3Df>correctedPoses;
+	std::vector<CloudPoint>correctedCloud;
+	CamCalibration correctedCalib;
+	CamDistortion correctedDist;
+	reprojError = m_bundler->solve(m_mapper->getKeyframes(),
+		m_mapper->getGlobalMap()->getPointCloud(),
+		m_camera->getIntrinsicsParameters(),
+		m_camera->getDistorsionParameters(),
+		framesIdxToBundle,
+		correctedPoses,
+		correctedCloud,
+		correctedCalib,
+		correctedDist);
+	m_mapper->update(correctedPoses, correctedCloud);
+}
+
 FrameworkReturnCode PipelineSlam::start(void* imageDataBuffer)
 {
     if (m_initOK==false)
@@ -597,6 +598,8 @@ void PipelineSlam::doBootStrap()
 				m_keyframePoses.push_back(m_poseKeyframe2); // used for display
 				m_mapper->update(m_map, m_keyframe2, m_filteredCloud, m_matches, {});
 				m_kfRetriever->addKeyframe(m_keyframe2); // add keyframe for reloc
+				std::vector<int>firstIdxKFs = { 0,1 };
+				localBundleAdjuster(firstIdxKFs, m_bundleReprojError); // Bundle adjustment
 				m_bootstrapOk = true;
 				m_lastPose = m_poseKeyframe2;
 				updateReferenceKeyframe(m_keyframe2);
@@ -767,6 +770,14 @@ void PipelineSlam::mapping()
 		}
 		else {
 			SRef<Keyframe> newKeyframe = processNewKeyframe(newFrame);
+			// Local bundle adjustment
+			std::vector<unsigned int>bestIdx = newKeyframe->getBestNeighborKeyframes(10);
+			std::vector<int> windowIdxBundling;
+			for (auto it_best : bestIdx)
+				windowIdxBundling.push_back(it_best);
+			windowIdxBundling.push_back(newKeyframe->m_idx);
+			localBundleAdjuster(windowIdxBundling, m_bundleReprojError);
+			// Update new reference keyframe 
 			updateReferenceKeyframe(newKeyframe);
 			m_keyframePoses.push_back(newKeyframe->getPose());
 			LOG_INFO("Number of keyframe: {} -> cloud current size: {} \n", m_mapper->getKeyframes().size(), m_map->getPointCloud().size());

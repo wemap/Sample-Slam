@@ -3,4 +3,4 @@ SolARModuleOpenCV|0.7.0|SolARModuleOpenCV|SolARBuild@github|https://github.com/S
 SolARModuleFBOW|0.7.0|SolARModuleFBOW|SolARBuild@github|https://github.com/SolarFramework/SolARModuleFBOW/releases/download
 SolARModuleOpenGL|0.7.0|SolARModuleOpenGL|SolARBuild@github|https://github.com/SolarFramework/SolARModuleOpenGL/releases/download
 SolARModuleTools|0.7.0|SolARModuleTools|SolARBuild@github|https://github.com/SolarFramework/SolARModuleTools/releases/download
-SolARModuleCeres|0.7.0|SolARModuleCeres|SolARBuild@github|https://github.com/SolarFramework/SolARModuleCeres/releases/download
+SolARModuleG2O|0.7.0|SolARModuleG2O|SolARBuild@github|https://github.com/SolarFramework/SolARModuleG2O/releases/download

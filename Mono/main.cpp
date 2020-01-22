@@ -29,7 +29,7 @@
 #include "SolARModuleOpengl_traits.h"
 #include "SolARModuleTools_traits.h"
 #include "SolARModuleFBOW_traits.h"
-#include "SolARModuleCeres_traits.h"
+#include "SolARModuleG2O_traits.h"
 
 #ifndef USE_FREE
 #include "SolARModuleNonFreeOpencv_traits.h"
@@ -82,7 +82,7 @@ using namespace SolAR::datastructure;
 using namespace SolAR::api;
 using namespace SolAR::MODULES::OPENCV;
 using namespace SolAR::MODULES::FBOW;
-using namespace SolAR::MODULES::CERES;
+using namespace SolAR::MODULES::G2O;
 
 #ifndef USE_FREE
 using namespace SolAR::MODULES::NONFREEOPENCV;
@@ -131,7 +131,6 @@ int main(int argc, char **argv) {
 		auto  keypointsDetector = xpcfComponentManager->create<SolARKeypointDetectorNonFreeOpencv>()->bindTo<features::IKeypointDetector>();
 		auto descriptorExtractor = xpcfComponentManager->create<SolARDescriptorsExtractorSURF64Opencv>()->bindTo<features::IDescriptorsExtractor>();
 #endif
-
 		//   auto descriptorExtractorORB =xpcfComponentManager->create<SolARDescriptorsExtractorORBOpencv>()->bindTo<features::IDescriptorsExtractor>();
 		SRef<features::IDescriptorMatcher> matcher = xpcfComponentManager->create<SolARDescriptorMatcherKNNOpencv>()->bindTo<features::IDescriptorMatcher>();
 		SRef<solver::pose::I3DTransformFinderFrom2D2D> poseFinderFrom2D2D = xpcfComponentManager->create<SolARPoseFinderFrom2D2DOpencv>()->bindTo<solver::pose::I3DTransformFinderFrom2D2D>();
@@ -150,8 +149,7 @@ int main(int argc, char **argv) {
 		SRef<display::I3DPointsViewer> viewer3DPoints = xpcfComponentManager->create<SolAR3DPointsViewerOpengl>()->bindTo<display::I3DPointsViewer>();
 		SRef<reloc::IKeyframeRetriever> kfRetriever = xpcfComponentManager->create<SolARKeyframeRetrieverFBOW>()->bindTo<reloc::IKeyframeRetriever>();
 		SRef<geom::IProject> projector = xpcfComponentManager->create<SolARProjectOpencv>()->bindTo<geom::IProject>();
-		SRef <solver::map::IBundler> bundler = xpcfComponentManager->create<SolARBundlerCeres>()->bindTo<api::solver::map::IBundler>();
-
+		SRef <solver::map::IBundler> bundler = xpcfComponentManager->create<SolAROptimizationG2O>()->bindTo<api::solver::map::IBundler>();
 		// marker fiducial
 		auto binaryMarker = xpcfComponentManager->create<SolARMarker2DSquaredBinaryOpencv>()->bindTo<input::files::IMarker2DSquaredBinary>();
 		auto imageFilterBinary = xpcfComponentManager->create<SolARImageFilterBinaryOpencv>()->bindTo<image::IImageFilter>();
@@ -196,9 +194,8 @@ int main(int argc, char **argv) {
 		std::vector<unsigned int>							idxLocalMap;
 
 		bool												isLostTrack = false;
-		bool												bundling = false;
-		double												bundleReprojError;
-		std::vector<int>									windowIdxBundling;
+		bool												bundling = true;
+		double												bundleReprojError;		
 
 
 		auto localBundleAdjuster = [&bundler, &camera, &mapper](std::vector<int>&framesIdxToBundle, double& reprojError) {
@@ -206,7 +203,6 @@ int main(int argc, char **argv) {
 			std::vector<CloudPoint>correctedCloud;
 			CamCalibration correctedCalib;
 			CamDistortion correctedDist;
-			auto start = std::chrono::system_clock::now();
 			reprojError = bundler->solve(mapper->getKeyframes(),
 										 mapper->getGlobalMap()->getPointCloud(),
 										 camera->getIntrinsicsParameters(),
@@ -216,16 +212,7 @@ int main(int argc, char **argv) {
 										 correctedCloud,
 										 correctedCalib,
 										 correctedDist);
-
-			auto end = std::chrono::system_clock::now();
-			auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-			LOG_INFO("Time local bundle: {}", duration.count());
-			start = end;
-			mapper->update(correctedPoses, correctedCloud);	
-			end = std::chrono::system_clock::now();
-			duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-			LOG_INFO("Time to update: {}", duration.count());
-			LOG_INFO("reproj error after bundling: {}", reprojError);
+			mapper->update(correctedPoses, correctedCloud);				
 		};
 
 
@@ -721,13 +708,12 @@ int main(int argc, char **argv) {
 					else {
 						SRef<Keyframe> newKeyframe = processNewKeyframe(newFrame);
 						if (bundling) {
-							// get current keyframe idx
-							int currentIdxKF = mapper->getKeyframes()[mapper->getKeyframes().size() - 1]->m_idx;
-							// get keyfram connected graph
-							std::vector<unsigned int>bestIdx = mapper->getKeyframes()[currentIdxKF]->getBestNeighborKeyframes(2);
-							// define 2 best keyframes + current keyframe
-							windowIdxBundling = { static_cast<int>(bestIdx[0]),static_cast<int>(bestIdx[1]),currentIdxKF };
-						//	windowIdxBundling = { currentIdxKF - 1, currentIdxKF }; // temporal sliding window
+							// Local bundle adjustment
+							std::vector<unsigned int>bestIdx = newKeyframe->getBestNeighborKeyframes(10);
+							std::vector<int> windowIdxBundling;
+							for (auto it_best : bestIdx)
+								windowIdxBundling.push_back(it_best);
+							windowIdxBundling.push_back(newKeyframe->m_idx);
 							localBundleAdjuster(windowIdxBundling, bundleReprojError);
 						}
 						// update data

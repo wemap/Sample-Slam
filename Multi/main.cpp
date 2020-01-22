@@ -29,6 +29,7 @@
 #include "SolARModuleOpengl_traits.h"
 #include "SolARModuleTools_traits.h"
 #include "SolARModuleFBOW_traits.h"
+#include "SolARModuleG2O_traits.h"
 
 #ifndef USE_FREE
 #include "SolARModuleNonFreeOpencv_traits.h"
@@ -60,6 +61,7 @@
 #include "api/display/I3DPointsViewer.h"
 #include "api/reloc/IKeyframeRetriever.h"
 #include "api/geom/IProject.h"
+#include "api/solver/map/IBundler.h"
 #include "core/Log.h"
 
 #include "api/input/files/IMarker2DSquaredBinary.h"
@@ -81,6 +83,7 @@ using namespace SolAR::datastructure;
 using namespace SolAR::api;
 using namespace SolAR::MODULES::OPENCV;
 using namespace SolAR::MODULES::FBOW;
+using namespace SolAR::MODULES::G2O;
 #ifndef USE_FREE
 using namespace SolAR::MODULES::NONFREEOPENCV;
 #endif
@@ -146,6 +149,7 @@ int main(int argc, char **argv) {
 		SRef<display::I3DPointsViewer> viewer3DPoints = xpcfComponentManager->create<SolAR3DPointsViewerOpengl>()->bindTo<display::I3DPointsViewer>();
 		SRef<reloc::IKeyframeRetriever> kfRetriever = xpcfComponentManager->create<SolARKeyframeRetrieverFBOW>()->bindTo<reloc::IKeyframeRetriever>();
 		SRef<geom::IProject> projector = xpcfComponentManager->create<SolARProjectOpencv>()->bindTo<geom::IProject>();
+		SRef <solver::map::IBundler> bundler = xpcfComponentManager->create<SolAROptimizationG2O>()->bindTo<api::solver::map::IBundler>();
 		// marker fiducial
 		auto binaryMarker = xpcfComponentManager->create<SolARMarker2DSquaredBinaryOpencv>()->bindTo<input::files::IMarker2DSquaredBinary>();
 		auto imageFilterBinary = xpcfComponentManager->create<SolARImageFilterBinaryOpencv>()->bindTo<image::IImageFilter>();
@@ -184,6 +188,7 @@ int main(int argc, char **argv) {
 		std::vector<unsigned int>							idxLocalMap;
 
 		bool												isLostTrack = false;
+		double												bundleReprojError;
 
 		// components initialisation for marker detection
 		SRef<DescriptorBuffer> markerPatternDescriptor;
@@ -210,6 +215,23 @@ int main(int argc, char **argv) {
 		triangulator->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
 		projector->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
 		LOG_DEBUG("Intrincic parameters : \n {}", camera->getIntrinsicsParameters());
+
+		auto localBundleAdjuster = [&bundler, &camera, &mapper](std::vector<int>&framesIdxToBundle, double& reprojError) {
+			std::vector<Transform3Df>correctedPoses;
+			std::vector<CloudPoint>correctedCloud;
+			CamCalibration correctedCalib;
+			CamDistortion correctedDist;
+			reprojError = bundler->solve(mapper->getKeyframes(),
+				mapper->getGlobalMap()->getPointCloud(),
+				camera->getIntrinsicsParameters(),
+				camera->getDistorsionParameters(),
+				framesIdxToBundle,
+				correctedPoses,
+				correctedCloud,
+				correctedCalib,
+				correctedDist);
+			mapper->update(correctedPoses, correctedCloud);
+		};
 
 		if (camera->start() != FrameworkReturnCode::_SUCCESS)
 		{
@@ -301,7 +323,7 @@ int main(int argc, char **argv) {
 				keyframe1 = xpcf::utils::make_shared<Keyframe>(keypointsView1, descriptorsView1, view1, poseFrame1);
 				mapper->update(map, keyframe1, {}, {}, {});
 				keyframePoses.push_back(poseFrame1); // used for display
-				kfRetriever->addKeyframe(keyframe1); // add keyframe for reloc
+				kfRetriever->addKeyframe(keyframe1); // add keyframe for reloc				
 				imageCaptured = true;
 				LOG_INFO("Pose of keyframe 1: \n {}", poseFrame1.matrix());
 			}
@@ -352,6 +374,8 @@ int main(int argc, char **argv) {
 				keyframePoses.push_back(poseFrame2); // used for display
 				mapper->update(map, keyframe2, filteredCloud, matches, {});
 				kfRetriever->addKeyframe(keyframe2); // add keyframe for reloc
+				std::vector<int>firstIdxKFs = { 0,1 };
+				localBundleAdjuster(firstIdxKFs, bundleReprojError); // Bundle adjustment
 				bootstrapOk = true;
 			}
 		}
@@ -762,6 +786,9 @@ int main(int argc, char **argv) {
 			LOG_DEBUG("Index of current reference keyframe: {}", referenceKeyframe->m_idx);
 
 			// display point cloud
+			keyframePoses.clear();
+			for (auto it : mapper->getKeyframes())
+				keyframePoses.push_back(it->getPose());
 			if (viewer3DPoints->display(map->getPointCloud(), lastPose, keyframePoses, framePoses, localMap) == FrameworkReturnCode::_STOP)
 				stop = true;	
 			++count;
@@ -785,7 +812,16 @@ int main(int argc, char **argv) {
 					LOG_INFO("Update new reference keyframe id: {} \n", updatedRefKf->m_idx);
 				}
 				else {
+					// create new keyframe
 					SRef<Keyframe> newKeyframe = processNewKeyframe(newFrame);
+					// Local bundle adjustment
+					std::vector<unsigned int>bestIdx = newKeyframe->getBestNeighborKeyframes(10);
+					std::vector<int> windowIdxBundling;
+					for (auto it_best : bestIdx)
+						windowIdxBundling.push_back(it_best);
+					windowIdxBundling.push_back(newKeyframe->m_idx);
+					localBundleAdjuster(windowIdxBundling, bundleReprojError);
+					// Update new reference keyframe 
 					updateReferenceKeyframe(newKeyframe);
 					keyframePoses.push_back(newKeyframe->getPose());
 					LOG_INFO("Number of keyframe: {} -> cloud current size: {} \n", mapper->getKeyframes().size(), map->getPointCloud().size());
