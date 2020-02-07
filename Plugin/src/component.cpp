@@ -66,11 +66,13 @@ FrameworkReturnCode PipelineSlam::init(SRef<xpcf::IComponentManager> xpcfCompone
 		m_kfRetriever = xpcfComponentManager->create<SolARKeyframeRetrieverFBOW>()->bindTo<reloc::IKeyframeRetriever>();
 		m_projector = xpcfComponentManager->create<SolARProjectOpencv>()->bindTo<geom::IProject>();
         m_sink = xpcfComponentManager->create<MODULES::TOOLS::SolARBasicSink>()->bindTo<sink::ISinkPoseImage>();
+		m_source = xpcfComponentManager->create<MODULES::TOOLS::SolARBasicSource>()->bindTo<source::ISourceImage>();
 		m_bundler = xpcfComponentManager->create<SolAROptimizationG2O>()->bindTo<api::solver::map::IBundler>();
 		// marker fiducial
 		m_binaryMarker = xpcfComponentManager->create<SolARMarker2DSquaredBinaryOpencv>()->bindTo<input::files::IMarker2DSquaredBinary>();
 		m_imageFilterBinary = xpcfComponentManager->create<SolARImageFilterBinaryOpencv>()->bindTo<image::IImageFilter>();
 		m_imageConvertor = xpcfComponentManager->create<SolARImageConvertorOpencv>()->bindTo<image::IImageConvertor>();
+		m_imageConvertorUnity = xpcfComponentManager->create<SolARImageConvertorUnity>()->bindTo<image::IImageConvertor>();
 		m_contoursExtractor = xpcfComponentManager->create<SolARContoursExtractorOpencv>()->bindTo<features::IContoursExtractor>();
 		m_contoursFilter = xpcfComponentManager->create<SolARContoursFilterBinaryMarkerOpencv>()->bindTo<features::IContoursFilter>();
 		m_perspectiveController = xpcfComponentManager->create<SolARPerspectiveControllerOpencv>()->bindTo<image::IPerspectiveController>();
@@ -105,7 +107,8 @@ FrameworkReturnCode PipelineSlam::init(SRef<xpcf::IComponentManager> xpcfCompone
         m_triangulator->setCameraParameters(m_camera->getIntrinsicsParameters(), m_camera->getDistorsionParameters());
         m_projector->setCameraParameters(m_camera->getIntrinsicsParameters(), m_camera->getDistorsionParameters());   
 
-        m_initOK = true;		
+        m_initOK = true;	
+		m_haveToBeFlip = false;
     }
     catch (xpcf::Exception e)
     {
@@ -427,11 +430,13 @@ FrameworkReturnCode PipelineSlam::start(void* imageDataBuffer)
 
     m_sink->setImageBuffer((unsigned char*)imageDataBuffer);
 
-    if (m_camera->start() != FrameworkReturnCode::_SUCCESS)
-    {
-        LOG_ERROR("Camera cannot start")
-        return FrameworkReturnCode::_ERROR_;
-    }
+	if (!m_haveToBeFlip) {
+		if (m_camera->start() != FrameworkReturnCode::_SUCCESS)
+		{
+			LOG_ERROR("Camera cannot start")
+				return FrameworkReturnCode::_ERROR_;
+		}
+	}
 
     // create and start threads
     auto getCameraImagesThread = [this](){;getCameraImages();};
@@ -459,7 +464,7 @@ FrameworkReturnCode PipelineSlam::start(void* imageDataBuffer)
 	m_taskMapping->start();
 
     LOG_INFO("Threads have started");
-    m_startedOK = true;
+    m_startedOK = true;	
 
     return FrameworkReturnCode::_SUCCESS;
 }
@@ -501,7 +506,8 @@ FrameworkReturnCode PipelineSlam::stop()
 
 SourceReturnCode PipelineSlam::loadSourceImage(void* sourceTextureHandle, int width, int height)
 {
-    return SourceReturnCode::_NOT_IMPLEMENTED;
+	m_haveToBeFlip = true;
+	return m_source->setInputTexture((unsigned char *)sourceTextureHandle, width, height);
 }
 
 SinkReturnCode PipelineSlam::update(Transform3Df& pose)
@@ -527,7 +533,11 @@ void PipelineSlam::getCameraImages() {
 	SRef<Image> view;
 	if (m_stopFlag || !m_initOK || !m_startedOK)
 		return;
-	if (m_camera->getNextImage(view) == SolAR::FrameworkReturnCode::_ERROR_LOAD_IMAGE) {
+	if (m_haveToBeFlip){
+		m_source->getNextImage(view);
+		m_imageConvertorUnity->convert(view, view, Image::ImageLayout::LAYOUT_RGB);
+	}
+	else if (m_camera->getNextImage(view) == SolAR::FrameworkReturnCode::_ERROR_LOAD_IMAGE) {
 		m_stopFlag = true;
 		return;
 	}

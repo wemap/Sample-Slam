@@ -60,6 +60,7 @@
 #else
     #include "api/sink/ISinkPoseImage.h"
 #endif
+#include "api/source/ISourceImage.h"
 
 #include "xpcf/threading/SharedBuffer.h"
 #include "xpcf/threading/DropBuffer.h"
@@ -192,6 +193,7 @@ private:
     SRef<features::IDescriptorsExtractorSBPattern>		m_patternDescriptorExtractor;
     SRef<image::IImageFilter>							m_imageFilterBinary;
     SRef<image::IImageConvertor>						m_imageConvertor;
+    SRef<image::IImageConvertor>						m_imageConvertorUnity;
     SRef<features::IContoursExtractor>					m_contoursExtractor ;
     SRef<features::IContoursFilter>						m_contoursFilter;
     SRef<image::IPerspectiveController>					m_perspectiveController;
@@ -223,7 +225,8 @@ private:
     SRef<sink::ISinkPoseTextureBuffer>					m_sink;
 #else
     SRef<sink::ISinkPoseImage>							m_sink;
-#endif    
+#endif   
+	SRef<source::ISourceImage>							m_source;
 
 	// SLAM variables
 	Transform3Df										m_pose;
@@ -236,6 +239,7 @@ private:
 	bool												m_firstKeyframeCaptured = false;
 	bool												m_bootstrapOk = false;
 	bool												m_startCaptureFirstKeyframe = false;
+	bool												m_haveToBeFlip;
     
 	std::vector<Keypoint>								m_keypoints;
 	SRef<DescriptorBuffer>								m_descriptors;
