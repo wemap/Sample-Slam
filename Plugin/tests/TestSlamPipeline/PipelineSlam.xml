@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <xpcf-registry autoAlias="true" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-  <module uuid="da89a6eb-3233-4dea-afdc-9d918be0bd74" name="PipelineSlam" path="$REMAKENROOT/packages/SolARBuild/win-cl-14.1/PipelineSlam/lib/x86_64/shared" description="The module embedding a pipeline to estimate the pose based on a multithreaded Slam">
+  <module uuid="da89a6eb-3233-4dea-afdc-9d918be0bd74" name="PipelineSlam" path="$REMAKENROOT/packages/SolARBuild/win-cl-14.1/PipelineSlam/0.7.0/lib/x86_64/shared" description="The module embedding a pipeline to estimate the pose based on a multithreaded Slam">
     <component uuid="577ccd2c-de1b-402a-8829-496747598588" name="PipelineSlam" description="A pipeline to estimate the pose based on a multithreaded Slam">
       <interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" name="IComponentIntrospect" description="IComponentIntrospect" />
       <interface uuid="b5a6225e-6a91-4050-b298-886f4c17d9d2" name="IPipeline" description="The interface to define a video see-throuh pipeline" />
@@ -93,6 +93,10 @@
                 <interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" name="IComponentIntrospect" description="IComponentIntrospect"/>
                 <interface uuid="9c982719-6cb4-4831-aa88-9e01afacbd16" name="IImageConvertor" description="IImageConvertor"/>
         </component>
+		<component uuid="65282fb3-6651-4e73-b532-5a64ade0ead0" name="SolARImageConvertorUnity" description="SolARImageConvertorUnity">
+                <interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" name="IComponentIntrospect" description="IComponentIntrospect"/>
+                <interface uuid="9c982719-6cb4-4831-aa88-9e01afacbd16" name="IImageConvertor" description="IImageConvertor"/>
+        </component>
 		<component uuid="6acf8de2-cc63-11e7-abc4-cec278b6b50a" name="SolARContoursExtractorOpencv" description="SolARContoursExtractorOpencv">
                 <interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" name="IComponentIntrospect" description="IComponentIntrospect"/>
                 <interface uuid="42d82ab6-cc62-11e7-abc4-cec278b6b50a" name="IContoursExtractor" description="IContoursExtractor"/>
@@ -125,6 +129,10 @@
 				<interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" name="IComponentIntrospect" description="IComponentIntrospect" />
 				<interface uuid="c0d9fee4-d7d7-4866-a6cd-3bacac23316a" name="ISinkPoseImage" description="An interface allowing to store a synchronized pose and image from the pipeline to make it available to a third party application" />
 		</component>
+		<component uuid="1e43cda9-7850-4a8a-a32b-f3f31ea94902" name="SolARBasicSource" description="A source component for feeding the pipeline with external images">
+				<interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" name="IComponentIntrospect" description="IComponentIntrospect" />
+				<interface uuid="06e2fc5d-39da-4486-b2a6-1d8bd788fa13" name="ISourceImage" description="An interface allowing to store an image from extern source to make it available to the pipeline"/>
+		</component>
 		<component uuid="ad59a5ba-beb8-11e8-a355-529269fb1459" name="SolARKeyframeSelector" description="SolARKeyframeSelector">
                 <interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" name="IComponentIntrospect" description="IComponentIntrospect"/>
                 <interface uuid="4d5f2abe-beb7-11e8-a355-529269fb1459" name="IKeyframeSelector" description="IKeyframeSelector"/>
@@ -152,8 +160,8 @@
                 <interface uuid="f60980ce-bdbd-11e8-a355-529269fb1459" name="IKeyframeRetriever" description="IKeyframeRetriever"/>
         </component>
     </module>   
-  <module uuid="09f4a367-c5bf-4a9f-9f3b-42424d52f717" name="SolARModuleCeres" description="SolARModuleCeres" path="$REMAKENROOT/packages/SolARBuild/win-cl-14.1/SolARModuleCeres/0.7.0/lib/x86_64/shared">
-        <component uuid="4897fc13-682c-4e95-8aba-abd9f7a17193" name="SolARBundlerCeres" description="SolARBundlerCeres">
+  <module uuid="8f94a3c5-79ed-4851-9502-98033eae3a3b" name="SolARModuleG2O" description="SolARModuleG2O" path="$REMAKENROOT/packages/SolARBuild/win-cl-14.1/SolARModuleG2O/0.7.0/lib/x86_64/shared">
+        <component uuid="870d89ba-bb5f-460a-a817-1fcb6473df70" name="SolAROptimizationG2O" description="SolAROptimizationG2O">
                 <interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" name="IComponentIntrospect" description="IComponentIntrospect"/>
                 <interface uuid="35b9bdb7-d23c-4909-984f-ae7f9a292e6c" name="IBundler" description="IBundler"/>
         </component>
@@ -166,7 +174,7 @@
 	<properties>
 		<configure component="SolARCameraOpencv">
 			<property name="calibrationFile" type="string" value="camera_calibration.yml"/>
-			<property name="deviceID" type="UnsignedInteger" value="1"/>
+			<property name="deviceID" type="UnsignedInteger" value="0"/>
 		</configure>
 		<configure component="SolARImagesAsCameraOpencv">
             <property name="calibrationFile" type="string" value="camera_calibration.yml"/>
@@ -206,13 +214,13 @@
 			<property name="epilinesDistance" type="Float" value="1.0"/>			
         </configure>
 		<configure component="SolARPoseEstimationSACPnpOpencv">
-            <property name="iterationsCount" type="Integer" value="1000"/>
-			<property name="reprojError" type="Float" value="2.5"/>
+            <property name="iterationsCount" type="Integer" value="500"/>
+			<property name="reprojError" type="Float" value="3.0"/>
 			<property name="confidence" type="Float" value="0.99"/>
 			<property name="minNbInliers" type="Integer" value="25"/>
         </configure>
 		<configure component="SolARMapFilterOpencv">
-			<property name="reprojErrorThreshold" type="float" value="1.5"/>
+			<property name="reprojErrorThreshold" type="float" value="2.5"/>
 			<property name="cheiralityCheck" type="integer" value ="1"/>
 		</configure>
 		<configure component="SolARKeyframeSelector">
@@ -236,12 +244,10 @@
 			</property>
 			<property name="maxMatches" type="UnsignedInteger" value="-1"/>	
         </configure>
-		<configure component="SolARBundlerCeres"> 
-			<property name="iterationsCount" type="UnsignedInteger" value="25"/>
-			<property name="fixedMap" type="UnsignedInteger" value="0"/>
-			<property name="fixedExtrinsics" type="UnsignedInteger" value="0"/>
-			<property name="fixedIntrinsics" type="UnsignedInteger" value="1"/>
-			<property name="fixedFirstPose" type="UnsignedInteger" value="1"/>
+		<configure component="SolAROptimizationG2O"> 
+			<property name="nbIterations" type="Integer" value="10"/>
+			<property name="setVerbose" type="Integer" value="0"/>
+			<property name="nbMaxFixedKeyframes" type="Integer" value="30"/>
 		</configure>
 		<configure component="SolARImageViewerOpencv"> 
 			<property name="title" type="string" value="Press enter to start the bootstrap"/>

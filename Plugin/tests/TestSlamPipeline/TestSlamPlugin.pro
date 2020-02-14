@@ -57,8 +57,12 @@ win32 {
 DISTFILES += \
     PipelineNaturalImageMarker.xml
 
-xpcf_xml_files.path = $$(HOME)/.xpcf
-xpcf_xml_files.files=$$files($${PWD}/PipelineNaturalImageMarker.xml)
+config_files.path = $${TARGETDEPLOYDIR}
+config_files.files=$$files($${PWD}/PipelineSlam.xml)\
+                    $$files($${PWD}/camera_calibration.yml)\
+                    $$files($${PWD}/fiducialMarker.yml)\
+                    $$files($${PWD}/FiducialMarker.gif)
+INSTALLS += config_files
 
 INSTALLS += xpcf_xml_files
 include ($$(REMAKEN_RULES_ROOT)/qmake/remaken_install_target.pri))
