@@ -15,11 +15,13 @@ CONFIG += console
 
 
 CONFIG(debug,debug|release) {
+    TARGETDEPLOYDIR = $${PWD}/../bin/Debug
     DEFINES += _DEBUG=1
     DEFINES += DEBUG=1
 }
 
 CONFIG(release,debug|release) {
+    TARGETDEPLOYDIR = $${PWD}/../bin/Release
     DEFINES += _NDEBUG=1
     DEFINES += NDEBUG=1
 }
@@ -63,6 +65,10 @@ config_files.files=$$files($${PWD}/PipelineSlam.xml)\
                     $$files($${PWD}/fiducialMarker.yml)\
                     $$files($${PWD}/FiducialMarker.gif)
 INSTALLS += config_files
+
+configfile.path = $${TARGETDEPLOYDIR}/
+configfile.files = $${PWD}/PipelineSlam.xml fiducialMarker.yml camera_calibration.yml akaze.fbow
+INSTALLS += configfile
 
 INSTALLS += xpcf_xml_files
 include ($$(REMAKEN_RULES_ROOT)/qmake/remaken_install_target.pri))

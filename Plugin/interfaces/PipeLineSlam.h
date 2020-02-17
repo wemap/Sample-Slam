@@ -11,11 +11,6 @@
 #define SOLARPIPELINESLAM_EXPORT_API
 #endif //_WIN32
 
-#include "SolARModuleOpencv_traits.h"
-#include "SolARModuleTools_traits.h"
-#include "SolARModuleFBOW_traits.h"
-#include "SolARModuleG2O_traits.h"
-
 #include "xpcf/core/traits.h"
 #include "xpcf/component/ConfigurableBase.h"
 #include "api/pipeline/IPipeline.h"
@@ -73,13 +68,6 @@
 using namespace SolAR;
 using namespace SolAR::datastructure;
 using namespace SolAR::api;
-using namespace SolAR::MODULES::OPENCV;
-using namespace SolAR::MODULES::FBOW;
-using namespace SolAR::MODULES::G2O;
-#ifndef USE_FREE
-using namespace SolAR::MODULES::NONFREEOPENCV;
-#endif
-using namespace SolAR::MODULES::TOOLS;
 
 namespace xpcf = org::bcom::xpcf;
 
