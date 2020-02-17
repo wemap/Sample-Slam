@@ -122,47 +122,47 @@ int main(int argc, char **argv) {
 #ifdef USE_IMAGES_SET
 		auto camera = xpcfComponentManager->create<SolARImagesAsCameraOpencv>()->bindTo<input::devices::ICamera>();
 #else
-		auto camera = xpcfComponentManager->create<SolARCameraOpencv>()->bindTo<input::devices::ICamera>();
+        auto camera = xpcfComponentManager->resolve<input::devices::ICamera>();
 #endif
 #ifdef USE_FREE
-		auto keypointsDetector = xpcfComponentManager->create<SolARKeypointDetectorOpencv>()->bindTo<features::IKeypointDetector>();
-		auto descriptorExtractor = xpcfComponentManager->create<SolARDescriptorsExtractorAKAZE2Opencv>()->bindTo<features::IDescriptorsExtractor>();
+        auto keypointsDetector = xpcfComponentManager->resolve<features::IKeypointDetector>();
+        auto descriptorExtractor = xpcfComponentManager->resolve<features::IDescriptorsExtractor>();
 #else
-		auto  keypointsDetector = xpcfComponentManager->create<SolARKeypointDetectorNonFreeOpencv>()->bindTo<features::IKeypointDetector>();
-		auto descriptorExtractor = xpcfComponentManager->create<SolARDescriptorsExtractorSURF64Opencv>()->bindTo<features::IDescriptorsExtractor>();
+        auto  keypointsDetector = xpcfComponentManager->resolve<features::IKeypointDetector>();
+        auto descriptorExtractor = xpcfComponentManager->resolvebindTo<features::IDescriptorsExtractor>();
 #endif
 		//   auto descriptorExtractorORB =xpcfComponentManager->create<SolARDescriptorsExtractorORBOpencv>()->bindTo<features::IDescriptorsExtractor>();
-		SRef<features::IDescriptorMatcher> matcher = xpcfComponentManager->create<SolARDescriptorMatcherKNNOpencv>()->bindTo<features::IDescriptorMatcher>();
-		SRef<solver::pose::I3DTransformFinderFrom2D2D> poseFinderFrom2D2D = xpcfComponentManager->create<SolARPoseFinderFrom2D2DOpencv>()->bindTo<solver::pose::I3DTransformFinderFrom2D2D>();
-		SRef<solver::map::ITriangulator> triangulator = xpcfComponentManager->create<SolARSVDTriangulationOpencv>()->bindTo<solver::map::ITriangulator>();
-		SRef<features::IMatchesFilter> matchesFilter = xpcfComponentManager->create<SolARGeometricMatchesFilterOpencv>()->bindTo<features::IMatchesFilter>();
-		SRef<solver::pose::I3DTransformSACFinderFrom2D3D> pnpRansac = xpcfComponentManager->create<SolARPoseEstimationSACPnpOpencv>()->bindTo<solver::pose::I3DTransformSACFinderFrom2D3D>();
-		SRef<solver::pose::I3DTransformFinderFrom2D3D> pnp = xpcfComponentManager->create<SolARPoseEstimationPnpOpencv>()->bindTo<solver::pose::I3DTransformFinderFrom2D3D>();
-		SRef<solver::pose::I2D3DCorrespondencesFinder> corr2D3DFinder = xpcfComponentManager->create<SolAR2D3DCorrespondencesFinderOpencv>()->bindTo<solver::pose::I2D3DCorrespondencesFinder>();
-		SRef<solver::map::IMapFilter> mapFilter = xpcfComponentManager->create<SolARMapFilter>()->bindTo<solver::map::IMapFilter>();
-		SRef<solver::map::IMapper> mapper = xpcfComponentManager->create<SolARMapper>()->bindTo<solver::map::IMapper>();
-		SRef<solver::map::IKeyframeSelector> keyframeSelector = xpcfComponentManager->create<SolARKeyframeSelector>()->bindTo<solver::map::IKeyframeSelector>();
-		SRef<display::IMatchesOverlay> matchesOverlay = xpcfComponentManager->create<SolARMatchesOverlayOpencv>()->bindTo<display::IMatchesOverlay>();
-		SRef<display::IMatchesOverlay> matchesOverlayBlue = xpcfComponentManager->create<SolARMatchesOverlayOpencv>("matchesBlue")->bindTo<display::IMatchesOverlay>();
-		SRef<display::IMatchesOverlay> matchesOverlayRed = xpcfComponentManager->create<SolARMatchesOverlayOpencv>("matchesRed")->bindTo<display::IMatchesOverlay>();
-		SRef<display::IImageViewer> imageViewer = xpcfComponentManager->create<SolARImageViewerOpencv>()->bindTo<display::IImageViewer>();
-		SRef<display::I3DPointsViewer> viewer3DPoints = xpcfComponentManager->create<SolAR3DPointsViewerOpengl>()->bindTo<display::I3DPointsViewer>();
-		SRef<reloc::IKeyframeRetriever> kfRetriever = xpcfComponentManager->create<SolARKeyframeRetrieverFBOW>()->bindTo<reloc::IKeyframeRetriever>();
-		SRef<geom::IProject> projector = xpcfComponentManager->create<SolARProjectOpencv>()->bindTo<geom::IProject>();
-		SRef <solver::map::IBundler> bundler = xpcfComponentManager->create<SolAROptimizationG2O>()->bindTo<api::solver::map::IBundler>();
+        SRef<features::IDescriptorMatcher> matcher = xpcfComponentManager->resolve<features::IDescriptorMatcher>();
+        SRef<solver::pose::I3DTransformFinderFrom2D2D> poseFinderFrom2D2D = xpcfComponentManager->resolve<solver::pose::I3DTransformFinderFrom2D2D>();
+        SRef<solver::map::ITriangulator> triangulator = xpcfComponentManager->resolve<solver::map::ITriangulator>();
+        SRef<features::IMatchesFilter> matchesFilter = xpcfComponentManager->resolve<features::IMatchesFilter>();
+        SRef<solver::pose::I3DTransformSACFinderFrom2D3D> pnpRansac = xpcfComponentManager->resolve<solver::pose::I3DTransformSACFinderFrom2D3D>();
+        SRef<solver::pose::I3DTransformFinderFrom2D3D> pnp = xpcfComponentManager->resolve<solver::pose::I3DTransformFinderFrom2D3D>();
+        SRef<solver::pose::I2D3DCorrespondencesFinder> corr2D3DFinder = xpcfComponentManager->resolve<solver::pose::I2D3DCorrespondencesFinder>();
+        SRef<solver::map::IMapFilter> mapFilter = xpcfComponentManager->resolve<solver::map::IMapFilter>();
+        SRef<solver::map::IMapper> mapper = xpcfComponentManager->resolve<solver::map::IMapper>();
+        SRef<solver::map::IKeyframeSelector> keyframeSelector = xpcfComponentManager->resolve<solver::map::IKeyframeSelector>();
+        SRef<display::IMatchesOverlay> matchesOverlay = xpcfComponentManager->resolve<display::IMatchesOverlay>();
+        SRef<display::IMatchesOverlay> matchesOverlayBlue = xpcfComponentManager->resolve<display::IMatchesOverlay>("matchesBlue");
+        SRef<display::IMatchesOverlay> matchesOverlayRed = xpcfComponentManager->resolve<display::IMatchesOverlay>("matchesRed");
+        SRef<display::IImageViewer> imageViewer = xpcfComponentManager->resolve<display::IImageViewer>();
+        SRef<display::I3DPointsViewer> viewer3DPoints = xpcfComponentManager->resolve<display::I3DPointsViewer>();
+        SRef<reloc::IKeyframeRetriever> kfRetriever = xpcfComponentManager->resolve<reloc::IKeyframeRetriever>();
+        SRef<geom::IProject> projector = xpcfComponentManager->resolve<geom::IProject>();
+        SRef <solver::map::IBundler> bundler = xpcfComponentManager->resolve<api::solver::map::IBundler>();
 		// marker fiducial
-		auto binaryMarker = xpcfComponentManager->create<SolARMarker2DSquaredBinaryOpencv>()->bindTo<input::files::IMarker2DSquaredBinary>();
-		auto imageFilterBinary = xpcfComponentManager->create<SolARImageFilterBinaryOpencv>()->bindTo<image::IImageFilter>();
-		auto imageConvertor = xpcfComponentManager->create<SolARImageConvertorOpencv>()->bindTo<image::IImageConvertor>();
-		auto contoursExtractor = xpcfComponentManager->create<SolARContoursExtractorOpencv>()->bindTo<features::IContoursExtractor>();
-		auto contoursFilter = xpcfComponentManager->create<SolARContoursFilterBinaryMarkerOpencv>()->bindTo<features::IContoursFilter>(); 
-		auto perspectiveController = xpcfComponentManager->create<SolARPerspectiveControllerOpencv>()->bindTo<image::IPerspectiveController>();
-		auto patternDescriptorExtractor = xpcfComponentManager->create<SolARDescriptorsExtractorSBPatternOpencv>()->bindTo<features::IDescriptorsExtractorSBPattern>();
-		auto patternMatcher = xpcfComponentManager->create<SolARDescriptorMatcherRadiusOpencv>()->bindTo<features::IDescriptorMatcher>();
-		auto patternReIndexer = xpcfComponentManager->create<SolARSBPatternReIndexer>()->bindTo<features::ISBPatternReIndexer>();
-		auto img2worldMapper = xpcfComponentManager->create<SolARImage2WorldMapper4Marker2D>()->bindTo<geom::IImage2WorldMapper>();
-		auto overlay3D = xpcfComponentManager->create<SolAR3DOverlayBoxOpencv>()->bindTo<display::I3DOverlay>();
-		auto overlay2D = xpcfComponentManager->create<SolAR2DOverlayOpencv>()->bindTo<display::I2DOverlay>();
+        auto binaryMarker = xpcfComponentManager->resolve<input::files::IMarker2DSquaredBinary>();
+        auto imageFilterBinary = xpcfComponentManager->resolve<image::IImageFilter>();
+        auto imageConvertor = xpcfComponentManager->resolve<image::IImageConvertor>();
+        auto contoursExtractor = xpcfComponentManager->resolve<features::IContoursExtractor>();
+        auto contoursFilter = xpcfComponentManager->resolve<features::IContoursFilter>();
+        auto perspectiveController = xpcfComponentManager->resolve<image::IPerspectiveController>();
+        auto patternDescriptorExtractor = xpcfComponentManager->resolve<features::IDescriptorsExtractorSBPattern>();
+        auto patternMatcher = xpcfComponentManager->resolve<features::IDescriptorMatcher>();
+        auto patternReIndexer = xpcfComponentManager->resolve<features::ISBPatternReIndexer>();
+        auto img2worldMapper = xpcfComponentManager->resolve<geom::IImage2WorldMapper>();
+        auto overlay3D = xpcfComponentManager->resolve<display::I3DOverlay>();
+        auto overlay2D = xpcfComponentManager->resolve<display::I2DOverlay>();
 
 
 		// declarations
