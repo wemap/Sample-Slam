@@ -257,7 +257,7 @@
 			<property name="nbMaxFixedKeyframes" type="Integer" value="30"/>
 		</configure>
 		<configure component="SolARImageViewerOpencv"> 
-			<property name="title" type="string" value="Press enter to start the bootstrap"/>
+			<property name="title" type="string" value="Press s to start the bootstrap"/>
 			<property name="exitKey" type="Integer" value="13"/>
 			<property name="width" type="Integer" value="640"/>
 			<property name="height" type="Integer" value="480"/>
