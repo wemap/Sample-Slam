@@ -67,7 +67,7 @@ config_files.files=$$files($${PWD}/PipelineSlam.xml)\
 INSTALLS += config_files
 
 configfile.path = $${TARGETDEPLOYDIR}/
-configfile.files = $${PWD}/PipelineSlam.xml fiducialMarker.yml camera_calibration.yml akaze.fbow
+configfile.files = $${PWD}/PipelineSlam.xml $${PWD}/fiducialMarker.yml $${PWD}/camera_calibration.yml $${PWD}/akaze.fbow
 INSTALLS += configfile
 
 INSTALLS += xpcf_xml_files
