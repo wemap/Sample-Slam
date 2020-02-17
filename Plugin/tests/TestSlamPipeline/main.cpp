@@ -40,7 +40,12 @@ int main(){
     LOG_ADD_LOG_TO_CONSOLE();
     try{
         SRef<xpcf::IComponentManager> componentMgr = xpcf::getComponentManagerInstance();
-        componentMgr->load("PipelineSlam.xml");
+        xpcf::XPCFErrorCode errorLoad = componentMgr->load("PipelineSlam.xml");
+        if (errorLoad != xpcf::_SUCCESS)
+        {
+            LOG_ERROR("The file PipelineSlam.xml has an error");
+        }
+
         auto pipeline = componentMgr->resolve<pipeline::IPipeline>();
 
         if (pipeline->init(componentMgr) == FrameworkReturnCode::_SUCCESS )
