@@ -4,7 +4,7 @@ CONFIG -= qt
 ## global defintions : target lib name, version
 TARGET = TestSlamPlugin
 FRAMEWORK = $$TARGET
-VERSION=0.6.0
+VERSION=0.7.0
 
 DEFINES += MYVERSION=$${VERSION}
 DEFINES += TEMPLATE_LIBRARY
@@ -24,31 +24,16 @@ CONFIG(release,debug|release) {
     DEFINES += NDEBUG=1
 }
 
-DEPENDENCIESCONFIG = shared recurse
+DEPENDENCIESCONFIG = sharedlib install_recurse
 
-include (../../../../builddefs/qmake/templateappconfig.pri)
+PROJECTCONFIG = QTVS
+
+include ($$(REMAKEN_RULES_ROOT)/qmake/templateappconfig.pri)
 
 HEADERS += \
 
 SOURCES += \
     main.cpp
-
-#unix {
-#    LIBS += -ldl
-#    QMAKE_CXXFLAGS += -DBOOST_LOG_DYN_LINK
-#}
-
-#macx {
-#    QMAKE_MAC_SDK= macosx
-#    QMAKE_CXXFLAGS += -fasm-blocks -x objective-c++
-#}
-
-#win32 {
-#    QMAKE_LFLAGS += /MACHINE:X64
-#    DEFINES += WIN64 UNICODE _UNICODE
-#    QMAKE_COMPILER_DEFINES += _WIN64
-#    QMAKE_CXXFLAGS += -wd4250 -wd4251 -wd4244 -wd4275
-#}
 
 unix {
 }
@@ -72,7 +57,12 @@ win32 {
 DISTFILES += \
     PipelineNaturalImageMarker.xml
 
-xpcf_xml_files.path = $$(HOME)/.xpcf
-xpcf_xml_files.files=$$files($${PWD}/PipelineNaturalImageMarker.xml)
+config_files.path = $${TARGETDEPLOYDIR}
+config_files.files=$$files($${PWD}/PipelineSlam.xml)\
+                    $$files($${PWD}/camera_calibration.yml)\
+                    $$files($${PWD}/fiducialMarker.yml)\
+                    $$files($${PWD}/FiducialMarker.gif)
+INSTALLS += config_files
 
 INSTALLS += xpcf_xml_files
+include ($$(REMAKEN_RULES_ROOT)/qmake/remaken_install_target.pri))

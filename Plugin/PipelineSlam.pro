@@ -4,13 +4,15 @@ CONFIG -= qt
 
 ## global defintions : target lib name, version
 TARGET = PipelineSlam
+INSTALLSUBDIR = SolARBuild
 FRAMEWORK = $$TARGET
-VERSION=0.6.0
+VERSION=0.7.0
 
 DEFINES += MYVERSION=$${VERSION}
 DEFINES += TEMPLATE_LIBRARY
 CONFIG += c++1z
 
+include(findremakenrules.pri)
 
 CONFIG(debug,debug|release) {
     DEFINES += _DEBUG=1
@@ -22,9 +24,13 @@ CONFIG(release,debug|release) {
     DEFINES += NDEBUG=1
 }
 
-DEPENDENCIESCONFIG = shared recurse
+DEPENDENCIESCONFIG = sharedlib recursive install
 
-include (../../builddefs/qmake/templatelibconfig.pri)
+PROJECTCONFIG = QTVS
+
+#NOTE : CONFIG as staticlib or sharedlib, DEPENDENCIESCONFIG as staticlib or sharedlib, QMAKE_TARGET.arch and PROJECTDEPLOYDIR MUST BE DEFINED BEFORE templatelibconfig.pri inclusion
+include ($$(REMAKEN_RULES_ROOT)/qmake/templatelibconfig.pri)
+
 
 ## DEFINES FOR MSVC/INTEL C++ compilers
 msvc {
@@ -52,7 +58,7 @@ macx {
 }
 
 win32 {
-
+    LIBS += User32.Lib
     DEFINES += WIN64 UNICODE _UNICODE
     QMAKE_COMPILER_DEFINES += _WIN64
     QMAKE_CXXFLAGS += -wd4250 -wd4251 -wd4244 -wd4275
@@ -61,9 +67,10 @@ win32 {
 header_files.path = $${PROJECTDEPLOYDIR}/interfaces
 header_files.files = $$files($${PWD}/interfaces/*.h*)
 
-xpcf_xml_files.path = $$(HOME)/.xpcf/SolAR
+xpcf_xml_files.path = $${USERHOMEFOLDER}/.xpcf/SolAR
 xpcf_xml_files.files=$$files($${PWD}/xpcf*.xml)
 
 INSTALLS += header_files
 INSTALLS += xpcf_xml_files
+include ($$(REMAKEN_RULES_ROOT)/qmake/remaken_install_target.pri))
 
