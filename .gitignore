@@ -372,6 +372,7 @@ akaze.fbow
 orb.fbow
 sift.fbow
 surf.fbow
+build-SolARSlamSampleMono/
 Mono/data/video_02/frame_1095.png
 Mono/data/video_02/frame_1094.png
 Mono/data/video_02/frame_1093.png
@@ -3997,3 +3998,4 @@ build-SolARSlamSampleMono/
 */*/*/*-packagedependencies-win.txt
 */*/*/*.pc
 */*/*/*.sln
+>>>>>>> feature/SlamExtended
