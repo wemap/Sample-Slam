@@ -61,7 +61,6 @@
 #include "xpcf/threading/DropBuffer.h"
 #include "xpcf/threading/BaseTask.h"
 
-#define USE_FREE
 //#define USE_IMAGES_SET
 //#define VIDEO_INPUT
 

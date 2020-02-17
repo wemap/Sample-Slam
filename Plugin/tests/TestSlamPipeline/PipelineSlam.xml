@@ -171,9 +171,7 @@
 			<bind interface="ICamera" to="SolARCameraOpencv" />
 			<bind name="ImagesAsCamera" interface="ICamera" to="SolARImagesAsCameraOpencv" />
 			<bind interface="IKeypointDetector" to="SolARKeypointDetectorOpencv" />
-			<bind name="KPDetectorNonFree" interface="IKeypointDetector" to="SolARKeypointDetectorNonFreeOpencv" />
 			<bind interface="IDescriptorsExtractor" to="SolARDescriptorsExtractorAKAZE2Opencv" />
-			<bind name="DescExtractorNonFree" interface="IDescriptorsExtractor" to="SolARDescriptorsExtractorSURF64Opencv" />
 			<bind interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" />
 			<bind name="DescMatcherFiducial" interface="IDescriptorMatcher" to="SolARDescriptorMatcherRadiusOpencv" />
 			<bind interface="IImageConvertor" to="SolARImageConvertorOpencv" />
