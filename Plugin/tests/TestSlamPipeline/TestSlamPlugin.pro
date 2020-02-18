@@ -60,15 +60,11 @@ DISTFILES += \
     PipelineNaturalImageMarker.xml
 
 config_files.path = $${TARGETDEPLOYDIR}
-config_files.files=$$files($${PWD}/PipelineSlam.xml)\
+config_files.files= $$files($${PWD}/PipelineSlam.xml)\
                     $$files($${PWD}/camera_calibration.yml)\
                     $$files($${PWD}/fiducialMarker.yml)\
-                    $$files($${PWD}/FiducialMarker.gif)
+                    $$files($${PWD}/FiducialMarker.gif)\
+                    $$files($${PWD}/akaze.fbow)
 INSTALLS += config_files
 
-configfile.path = $${TARGETDEPLOYDIR}/
-configfile.files = $${PWD}/PipelineSlam.xml $${PWD}/fiducialMarker.yml $${PWD}/camera_calibration.yml $${PWD}/akaze.fbow
-INSTALLS += configfile
-
-INSTALLS += xpcf_xml_files
-include ($$(REMAKEN_RULES_ROOT)/qmake/remaken_install_target.pri))
+include ($$shell_quote($$shell_path($$(REMAKEN_RULES_ROOT)/qmake/remaken_install_target.pri)))) # Shell_quote & shell_path required for visual on windows
