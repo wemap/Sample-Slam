@@ -27,80 +27,81 @@ pipeline {
             }
         }
 
-        stage("Parallel build : Get third Parties"){
+
+        stage("Get Third Parties Mono") { 
             when {
-                expression { params.RELEASE == true }
-            } 
-            parallel {
-                    stage("Get Third Parties Mono") {           
-                        steps {
-                            dir("Mono") {
-                                getThirdParties('1.0.0')
-                            }
-                        }
-                    }
-
-                    stage("Get Third Parties Multithread") {           
-                        steps {
-                            dir("Multi") {
-                                getThirdParties('1.0.0')
-                            }
-                        }
-                    }
-            }
-        }     
-
-        stage("Parallel build : Build"){
-            parallel {
-                    stage("Build Mono") {
-                        steps {
-                            withEnv(['REMAKEN_RULES_ROOT=/home/jenkins/.remaken/rules/']) {
-                                sh "qmake Mono/SolARSlamSampleMono.pro"
-                                sh "make"
-                                sh "make install"
-                            }
-                        }
-                    }
-
-                    stage("Build Multi") {
-                        steps {
-                            withEnv(['REMAKEN_RULES_ROOT=/home/jenkins/.remaken/rules/']) {
-                                sh "qmake Multi/SolARSlamSampleMulti.pro"
-                                sh "make"
-                                sh "make install"
-                            }
-                        }
-                    }
+                    expression { params.RELEASE == true }
+            }           
+            steps {
+                dir("Mono") {
+                    getThirdParties('1.0.0')
+                }
             }
         }
 
-        stage("Parallel build : Build Debug"){
+        stage("Build Mono") {
+            when {
+                expression { params.RELEASE == false }
+            }             
+            steps {
+                withEnv(['REMAKEN_RULES_ROOT=/home/jenkins/.remaken/rules/']) {
+                    sh "qmake Mono/SolARSlamSampleMono.pro"
+                    sh "make"
+                    sh "make install"
+                }
+            }
+        }
+
+        stage("Build Debug StandAlone") {
+            when {
+                    expression { params.RELEASE == true }
+            }                    
+            steps {
+                withEnv(['REMAKEN_RULES_ROOT=/home/jenkins/.remaken/rules/']) {
+                    sh "qmake Mono/SolARSlamSampleMono.pro CONFIG+=debug"
+                    sh "make"
+                    sh "make install"
+                }
+            }
+        }                
+
+        stage("Get Third Parties Multithread") {
             when {
                 expression { params.RELEASE == true }
-            }  
-            parallel {
-                    stage("Build Debug StandAlone") {         
-                        steps {
-                            withEnv(['REMAKEN_RULES_ROOT=/home/jenkins/.remaken/rules/']) {
-                                sh "qmake Mono/SolARSlamSampleMono.pro CONFIG+=debug"
-                                sh "make"
-                                sh "make install"
-                            }
-                        }
-                    }
-
-                    stage("Build Debug Multithread") {         
-                        steps {
-                            withEnv(['REMAKEN_RULES_ROOT=/home/jenkins/.remaken/rules/']) {
-                                sh "qmake Multi/SolARSlamSampleMulti.pro CONFIG+=debug"
-                                sh "make"
-                                sh "make install"
-                            }
-                        }
-                    }                      
+            }                 
+            steps {
+                dir("Multi") {
+                    getThirdParties('1.0.0')
+                }
             }
-        }      
+        }
+  
+        stage("Build Multi") {
+            when {
+                expression { params.RELEASE == false }
+            }               
+            steps {
+                withEnv(['REMAKEN_RULES_ROOT=/home/jenkins/.remaken/rules/']) {
+                    sh "qmake Multi/SolARSlamSampleMulti.pro"
+                    sh "make"
+                    sh "make install"
+                }
+            }
+        }
 
+        stage("Build Debug Multithread") {       
+            when {
+                expression { params.RELEASE == true }
+            }                  
+            steps {
+                withEnv(['REMAKEN_RULES_ROOT=/home/jenkins/.remaken/rules/']) {
+                    sh "qmake Multi/SolARSlamSampleMulti.pro CONFIG+=debug"
+                    sh "make"
+                    sh "make install"
+                }
+            }
+        }                      
+   
         stage("Share Binaries") {
             when {
                 expression { params.RELEASE == false }
