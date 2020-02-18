@@ -70,7 +70,14 @@ header_files.files = $$files($${PWD}/interfaces/*.h*)
 xpcf_xml_files.path = $${USERHOMEFOLDER}/.xpcf/SolAR
 xpcf_xml_files.files=$$files($${PWD}/xpcf*.xml)
 
+configuration_files.path = $${PROJECTDEPLOYDIR}/configuration
+configuration_files.files = $$files($${PWD}/tests/TestSlamPipeline/PipelineSlam.xml)
+
 INSTALLS += header_files
 INSTALLS += xpcf_xml_files
-include ($$(REMAKEN_RULES_ROOT)/qmake/remaken_install_target.pri))
+INSTALLS += configuration_files
+
+#NOTE : Must be placed at the end of the .pro
+include ($$shell_quote($$shell_path($$(REMAKEN_RULES_ROOT)/qmake/remaken_install_target.pri)))) # Shell_quote & shell_path required for visual on windows
+
 
