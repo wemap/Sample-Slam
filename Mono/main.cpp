@@ -133,7 +133,7 @@ int main(int argc, char **argv) {
         auto contoursFilter = xpcfComponentManager->resolve<features::IContoursFilter>();
         auto perspectiveController = xpcfComponentManager->resolve<image::IPerspectiveController>();
         auto patternDescriptorExtractor = xpcfComponentManager->resolve<features::IDescriptorsExtractorSBPattern>();
-        auto patternMatcher = xpcfComponentManager->resolve<features::IDescriptorMatcher>();
+        auto patternMatcher = xpcfComponentManager->resolve<features::IDescriptorMatcher>("DescMatcherFiducial");
         auto patternReIndexer = xpcfComponentManager->resolve<features::ISBPatternReIndexer>();
         auto img2worldMapper = xpcfComponentManager->resolve<geom::IImage2WorldMapper>();
         auto overlay3D = xpcfComponentManager->resolve<display::I3DOverlay>();

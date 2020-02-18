@@ -157,6 +157,9 @@
     <factory>
 		<bindings>
 			<bind interface="ICamera" to="SolARCameraOpencv" />
+			<bind interface="ICamera" to="SolARImagesAsCameraOpencv" name="ImagesAsCamera" />
+			<bind interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" />
+			<bind name="DescMatcherFiducial" interface="IDescriptorMatcher" to="SolARDescriptorMatcherRadiusOpencv" />
 		</bindings>
 	</factory>
 	<properties>
