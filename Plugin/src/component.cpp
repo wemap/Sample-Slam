@@ -25,13 +25,8 @@ PipelineSlam::PipelineSlam():ConfigurableBase(xpcf::toUUID<PipelineSlam>())
     declareInjectable<input::devices::ICamera>(m_camera);
 #endif
 
-#ifdef USE_FREE
     declareInjectable<features::IKeypointDetector>(m_keypointsDetector);
     declareInjectable<features::IDescriptorsExtractor>(m_descriptorExtractor);
-#else
-    declareInjectable<features::IKeypointDetector>(m_keypointsDetector, "KPDetectorNonFree");
-    declareInjectable<features::IDescriptorsExtractor>(m_descriptorExtractor, "DescExtractorNonFree");
-#endif
     declareInjectable<features::IDescriptorMatcher>(m_matcher);
     declareInjectable<solver::pose::I3DTransformFinderFrom2D2D>(m_poseFinderFrom2D2D);
     declareInjectable<solver::map::ITriangulator>(m_triangulator);
