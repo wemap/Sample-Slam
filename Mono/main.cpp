@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#define USE_FREE
 //#define USE_IMAGES_SET
 
 #include <iostream>
@@ -24,16 +23,6 @@
 #include <boost/log/core.hpp>
 
 // ADD MODULES TRAITS HEADERS HERE
-
-#include "SolARModuleOpencv_traits.h"
-#include "SolARModuleOpengl_traits.h"
-#include "SolARModuleTools_traits.h"
-#include "SolARModuleFBOW_traits.h"
-#include "SolARModuleG2O_traits.h"
-
-#ifndef USE_FREE
-#include "SolARModuleNonFreeOpencv_traits.h"
-#endif
 
 // ADD XPCF HEADERS HERE
 #include "xpcf/xpcf.h"
@@ -80,15 +69,6 @@
 using namespace SolAR;
 using namespace SolAR::datastructure;
 using namespace SolAR::api;
-using namespace SolAR::MODULES::OPENCV;
-using namespace SolAR::MODULES::FBOW;
-using namespace SolAR::MODULES::G2O;
-
-#ifndef USE_FREE
-using namespace SolAR::MODULES::NONFREEOPENCV;
-#endif
-using namespace SolAR::MODULES::OPENGL;
-using namespace SolAR::MODULES::TOOLS;
 
 namespace xpcf = org::bcom::xpcf;
 
@@ -106,7 +86,7 @@ int main(int argc, char **argv) {
 		/* this is needed in dynamic mode */
 		SRef<xpcf::IComponentManager> xpcfComponentManager = xpcf::getComponentManagerInstance();
 
-		std::string configxml = std::string("conf_SLAM.xml");
+        std::string configxml = std::string("conf_SLAM_Mono.xml");
 		if (argc == 2)
 			configxml = std::string(argv[1]);
 		if (xpcfComponentManager->load(configxml.c_str()) != org::bcom::xpcf::_SUCCESS)
@@ -120,18 +100,12 @@ int main(int argc, char **argv) {
 
 		// component creation
 #ifdef USE_IMAGES_SET
-		auto camera = xpcfComponentManager->create<SolARImagesAsCameraOpencv>()->bindTo<input::devices::ICamera>();
+        auto camera = xpcfComponentManager->resolve<input::devices::ICamera>("ImagesAsCamera");
 #else
         auto camera = xpcfComponentManager->resolve<input::devices::ICamera>();
 #endif
-#ifdef USE_FREE
-        auto keypointsDetector = xpcfComponentManager->resolve<features::IKeypointDetector>();
-        auto descriptorExtractor = xpcfComponentManager->resolve<features::IDescriptorsExtractor>();
-#else
         auto  keypointsDetector = xpcfComponentManager->resolve<features::IKeypointDetector>();
-        auto descriptorExtractor = xpcfComponentManager->resolvebindTo<features::IDescriptorsExtractor>();
-#endif
-		//   auto descriptorExtractorORB =xpcfComponentManager->create<SolARDescriptorsExtractorORBOpencv>()->bindTo<features::IDescriptorsExtractor>();
+        auto descriptorExtractor = xpcfComponentManager->resolve<features::IDescriptorsExtractor>();
         SRef<features::IDescriptorMatcher> matcher = xpcfComponentManager->resolve<features::IDescriptorMatcher>();
         SRef<solver::pose::I3DTransformFinderFrom2D2D> poseFinderFrom2D2D = xpcfComponentManager->resolve<solver::pose::I3DTransformFinderFrom2D2D>();
         SRef<solver::map::ITriangulator> triangulator = xpcfComponentManager->resolve<solver::map::ITriangulator>();
@@ -158,7 +132,7 @@ int main(int argc, char **argv) {
         auto contoursFilter = xpcfComponentManager->resolve<features::IContoursFilter>();
         auto perspectiveController = xpcfComponentManager->resolve<image::IPerspectiveController>();
         auto patternDescriptorExtractor = xpcfComponentManager->resolve<features::IDescriptorsExtractorSBPattern>();
-        auto patternMatcher = xpcfComponentManager->resolve<features::IDescriptorMatcher>();
+        auto patternMatcher = xpcfComponentManager->resolve<features::IDescriptorMatcher>("DescMatcherFiducial");
         auto patternReIndexer = xpcfComponentManager->resolve<features::ISBPatternReIndexer>();
         auto img2worldMapper = xpcfComponentManager->resolve<geom::IImage2WorldMapper>();
         auto overlay3D = xpcfComponentManager->resolve<display::I3DOverlay>();
