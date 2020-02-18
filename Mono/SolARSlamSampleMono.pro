@@ -57,10 +57,11 @@ win32 {
 }
 
 config_files.path = $${TARGETDEPLOYDIR}
-config_files.files=$$files($${PWD}/conf_SLAM.xml)\
+config_files.files= $$files($${PWD}/conf_SLAM.xml)\
                     $$files($${PWD}/camera_calibration.yml)\
                     $$files($${PWD}/fiducialMarker.yml)\
-                    $$files($${PWD}/FiducialMarker.gif)
+                    $$files($${PWD}/FiducialMarker.gif)\
+                    $$files($${PWD}/akaze.fbow)
 INSTALLS += config_files
 
 include ($$shell_quote($$shell_path($$(REMAKEN_RULES_ROOT)/qmake/remaken_install_target.pri)))) # Shell_quote & shell_path required for visual on windows

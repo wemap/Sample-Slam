@@ -169,7 +169,7 @@
 		</configure>
 		<configure component="SolARImagesAsCameraOpencv">
             <property name="calibrationFile" type="string" value="camera_calibration.yml"/>
-			<property name="imagesDirectoryPath" type="string" value="Images3\frame_%04d.png"/> 
+			<property name="imagesDirectoryPath" type="string" value="..\..\Images3\frame_%04d.png"/> 
         </configure>		
 		<configure component="SolARKeypointDetectorOpencv">
 			<property name="type" type="string" value="AKAZE2"/>
