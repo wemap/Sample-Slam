@@ -2,6 +2,7 @@
 #include "PipeLineSlam.h"
 #include "core/Log.h"
 #include "boost/log/core/core.hpp"
+#include <cmath>
 
 #define MIN_THRESHOLD -1
 #define MAX_THRESHOLD 220
@@ -299,8 +300,8 @@ void PipelineSlam::findMatchesAndTriangulation(SRef<Keyframe>& newKf, std::vecto
 		Transform3Df tmpPose = tmpKf->getPose();
 
 		// check distance between two keyframes
-		float distPose = std::sqrtf(std::powf(newKf_pose(0, 3) - tmpPose(0, 3), 2.f) + std::powf(newKf_pose(1, 3) - tmpPose(1, 3), 2.f) +
-			std::powf(newKf_pose(2, 3) - tmpPose(2, 3), 2.f));
+        float distPose = std::sqrt(std::pow(newKf_pose(0, 3) - tmpPose(0, 3), 2.f) + std::pow(newKf_pose(1, 3) - tmpPose(1, 3), 2.f) +
+            std::pow(newKf_pose(2, 3) - tmpPose(2, 3), 2.f));
 		if (distPose < 0.05)
 			continue;
 
@@ -579,8 +580,8 @@ void PipelineSlam::doBootStrap()
 	}
 	
 	if (detectFiducialMarker(m_camImage, m_poseKeyframe2)) {
-		float disTwoKeyframes = std::sqrtf(std::powf(m_poseKeyframe1(0, 3) - m_poseKeyframe2(0, 3), 2.f) + std::powf(m_poseKeyframe1(1, 3) - m_poseKeyframe2(1, 3), 2.f) +
-			std::powf(m_poseKeyframe1(2, 3) - m_poseKeyframe2(2, 3), 2.f));
+        float disTwoKeyframes = std::sqrt(std::pow(m_poseKeyframe1(0, 3) - m_poseKeyframe2(0, 3), 2.f) + std::pow(m_poseKeyframe1(1, 3) - m_poseKeyframe2(1, 3), 2.f) +
+            std::pow(m_poseKeyframe1(2, 3) - m_poseKeyframe2(2, 3), 2.f));
 
 		if (disTwoKeyframes > 0.1) {
 			m_keypointsDetector->detect(m_camImage, m_keypointsView2);

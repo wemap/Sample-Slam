@@ -20,6 +20,7 @@
 #include <string>
 #include <vector>
 #include <set>
+#include <cmath>
 #include <boost/log/core.hpp>
 
 // ADD MODULES TRAITS HEADERS HERE
@@ -320,8 +321,8 @@ int main(int argc, char **argv) {
 					return 1;
 				continue;
 			}			
-			float disTwoKeyframes = std::sqrtf(std::powf(poseFrame1(0, 3) - poseFrame2(0, 3), 2.f) + std::powf(poseFrame1(1, 3) - poseFrame2(1, 3), 2.f) + 
-				std::powf(poseFrame1(2, 3) - poseFrame2(2, 3), 2.f));
+            float disTwoKeyframes = std::sqrt(std::pow(poseFrame1(0, 3) - poseFrame2(0, 3), 2.f) + std::pow(poseFrame1(1, 3) - poseFrame2(1, 3), 2.f) +
+                std::pow(poseFrame1(2, 3) - poseFrame2(2, 3), 2.f));
 
 			if (disTwoKeyframes < 0.1) {
 				if (imageViewer->display(view2) == SolAR::FrameworkReturnCode::_STOP)
@@ -464,8 +465,8 @@ int main(int argc, char **argv) {
 				Transform3Df tmpPose = tmpKf->getPose();
 
 				// check distance between two keyframes
-				float distPose = std::sqrtf(std::powf(newKf_pose(0, 3) - tmpPose(0, 3), 2.f) + std::powf(newKf_pose(1, 3) - tmpPose(1, 3), 2.f) +
-					std::powf(newKf_pose(2, 3) - tmpPose(2, 3), 2.f));
+                float distPose = std::sqrt(std::pow(newKf_pose(0, 3) - tmpPose(0, 3), 2.f) + std::pow(newKf_pose(1, 3) - tmpPose(1, 3), 2.f) +
+                    std::pow(newKf_pose(2, 3) - tmpPose(2, 3), 2.f));
 				if (distPose < 0.05)
 					continue;
 
