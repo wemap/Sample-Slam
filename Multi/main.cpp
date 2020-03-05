@@ -271,91 +271,70 @@ int main(int argc, char **argv) {
 			return marker_found;
 		};
 
-		// Here, Capture the two first keyframe view1, view2
-		bool imageCaptured = false;
-		bool fiducialDetectStart = false;
-		SRef<Image>	view1;
-		SRef<Keyframe> keyframe1, keyframe2;
-		std::vector<Keypoint> keypointsView1, keypointsView2;
-		SRef<DescriptorBuffer> descriptorsView1, descriptorsView2;
-		Transform3Df poseFrame1 = Transform3Df::Identity();
-		Transform3Df poseFrame2;
-		while (!imageCaptured)
-		{
-			if (camera->getNextImage(view1) == SolAR::FrameworkReturnCode::_ERROR_)
-				break;
-#ifdef USE_IMAGES_SET
-			fiducialDetectStart = true;
-			if (imageViewer->display(view1) == SolAR::FrameworkReturnCode::_STOP)
-				return 1;
-#else
-			if (imageViewer->display(view1) == SolAR::FrameworkReturnCode::_STOP)
-				if (!fiducialDetectStart)
-					fiducialDetectStart = true;
-				else
-					return 1;
-#endif
-			if (fiducialDetectStart && detectFiducialMarker(view1, poseFrame1))
-			{
-				keypointsDetector->detect(view1, keypointsView1);
-				descriptorExtractor->extract(view1, keypointsView1, descriptorsView1);
-				keyframe1 = xpcf::utils::make_shared<Keyframe>(keypointsView1, descriptorsView1, view1, poseFrame1);
-				mapper->update(map, keyframe1, {}, {}, {});
-				keyframePoses.push_back(poseFrame1); // used for display
-				kfRetriever->addKeyframe(keyframe1); // add keyframe for reloc				
-				imageCaptured = true;
-				LOG_INFO("Pose of keyframe 1: \n {}", poseFrame1.matrix());
-			}
-		}
-
-		SRef<Image> view2;
+		Transform3Df										poseFrame;
+		SRef<Image>											view;
+		SRef<Frame>											frame1, frame2;
+		SRef<Keyframe>                                      keyframe1, keyframe2;
 		bool bootstrapOk = false;
+		bool initFrame1 = false;
 		while (!bootstrapOk)
 		{
-			if (camera->getNextImage(view2) == SolAR::FrameworkReturnCode::_ERROR_)
+			if (camera->getNextImage(view) == SolAR::FrameworkReturnCode::_ERROR_)
 				break;
 
-			if (!detectFiducialMarker(view2, poseFrame2)) {
-				if (imageViewer->display(view2) == SolAR::FrameworkReturnCode::_STOP)
+			if (!detectFiducialMarker(view, poseFrame)) {
+				if (imageViewer->display(view) == SolAR::FrameworkReturnCode::_STOP)
 					return 1;
 				continue;
 			}
-            float disTwoKeyframes = std::sqrt(std::pow(poseFrame1(0, 3) - poseFrame2(0, 3), 2.f) + std::pow(poseFrame1(1, 3) - poseFrame2(1, 3), 2.f) +
-                std::pow(poseFrame1(2, 3) - poseFrame2(2, 3), 2.f));
-
-			if (disTwoKeyframes < 0.1) {
-				if (imageViewer->display(view2) == SolAR::FrameworkReturnCode::_STOP)
-					return 1;
-				continue;
+			if (!initFrame1) {
+				initFrame1 = true;
+				keypointsDetector->detect(view, keypoints);
+				descriptorExtractor->extract(view, keypoints, descriptors);
+				frame1 = xpcf::utils::make_shared<Frame>(keypoints, descriptors, view, poseFrame);
 			}
-
-			keypointsDetector->detect(view2, keypointsView2);
-			descriptorExtractor->extract(view2, keypointsView2, descriptorsView2);
-			SRef<Frame> frame2 = xpcf::utils::make_shared<Frame>(keypointsView2, descriptorsView2, view2, keyframe1);
-			matcher->match(descriptorsView1, descriptorsView2, matches);
-			int nbOriginalMatches = matches.size();
-			matchesFilter->filter(matches, matches, keypointsView1, keypointsView2);
-
-			matchesOverlay->draw(view2, imageMatches, keypointsView1, keypointsView2, matches);
-			if (imageViewer->display(imageMatches) == SolAR::FrameworkReturnCode::_STOP)
-				return 1;
-
-			if (keyframeSelector->select(frame2, matches))
-			{
-				LOG_INFO("Pose of keyframe 2: \n {}", poseFrame2.matrix());
-				frame2->setPose(poseFrame2);
-				LOG_INFO("Nb matches for triangulation: {}\\{}", matches.size(), nbOriginalMatches);
+			else {
+				Transform3Df poseFrame1 = frame1->getPose();
+				float disTwoKeyframes = std::sqrt(std::pow(poseFrame1(0, 3) - poseFrame(0, 3), 2.f) + std::pow(poseFrame1(1, 3) - poseFrame(1, 3), 2.f) +
+					std::pow(poseFrame1(2, 3) - poseFrame(2, 3), 2.f));
+				if (disTwoKeyframes < 0.1) {
+					if (imageViewer->display(view) == SolAR::FrameworkReturnCode::_STOP)
+						return 1;
+					continue;
+				}
+				keypointsDetector->detect(view, keypoints);
+				descriptorExtractor->extract(view, keypoints, descriptors);
+				frame2 = xpcf::utils::make_shared<Frame>(keypoints, descriptors, view, poseFrame);
+				// matching
+				matcher->match(frame1->getDescriptors(), frame2->getDescriptors(), matches);
+				matchesFilter->filter(matches, matches, frame1->getKeypoints(), frame2->getKeypoints());
+				matchesOverlay->draw(view, imageMatches, frame1->getKeypoints(), frame2->getKeypoints(), matches);
+				if (imageViewer->display(imageMatches) == SolAR::FrameworkReturnCode::_STOP)
+					return 1;
 				// Triangulate
-				keyframe2 = xpcf::utils::make_shared<Keyframe>(frame2);
-				triangulator->triangulate(keyframe2, matches, cloud);
-				//double reproj_error = triangulator->triangulate(keypointsView1, keypointsView2, matches, std::make_pair(0, 1), poseFrame1, poseFrame2, cloud);
-				mapFilter->filter(poseFrame1, poseFrame2, cloud, filteredCloud);
-				keyframePoses.push_back(poseFrame2); // used for display
-				mapper->update(map, keyframe2, filteredCloud, matches, {});
-				kfRetriever->addKeyframe(keyframe2); // add keyframe for reloc
-				std::vector<int>firstIdxKFs = { 0,1 };
-				localBundleAdjuster(firstIdxKFs, bundleReprojError); // Bundle adjustment
-				bootstrapOk = true;
+				cloud.clear();
+				filteredCloud.clear();
+				triangulator->triangulate(frame1->getKeypoints(), frame2->getKeypoints(), frame1->getDescriptors(), frame2->getDescriptors(), matches,
+					std::make_pair(0, 1), frame1->getPose(), frame2->getPose(), cloud);
+				mapFilter->filter(frame1->getPose(), frame2->getPose(), cloud, filteredCloud);
+
+				if (filteredCloud.size() > 80) {
+					keyframe1 = xpcf::utils::make_shared<Keyframe>(frame1);
+					keyframe2 = xpcf::utils::make_shared<Keyframe>(frame2);
+					keyframe2->setReferenceKeyframe(keyframe1);
+					mapper->update(map, keyframe1, {}, {}, {});
+					keyframePoses.push_back(keyframe1->getPose()); // used for display
+					kfRetriever->addKeyframe(keyframe1); // add keyframe for reloc
+					keyframePoses.push_back(keyframe2->getPose()); // used for display
+					mapper->update(map, keyframe2, filteredCloud, matches, {});
+					kfRetriever->addKeyframe(keyframe2); // add keyframe for reloc					
+					std::vector<int>firstIdxKFs = { 0,1 };
+					localBundleAdjuster(firstIdxKFs, bundleReprojError);
+					bootstrapOk = true;
+				}
+				else {
+					frame1 = frame2;
+				}
 			}
 		}
 
@@ -598,7 +577,7 @@ int main(int argc, char **argv) {
 		};
 
 		// Prepare for tracking
-		lastPose = poseFrame2;
+		lastPose = keyframe2->getPose();
 		updateReferenceKeyframe(keyframe2);
 		updateData(keyframe2, localMap, idxLocalMap, frameToTrack);
 		
