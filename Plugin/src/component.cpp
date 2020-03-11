@@ -63,8 +63,9 @@ PipelineSlam::PipelineSlam():ConfigurableBase(xpcf::toUUID<PipelineSlam>())
 	m_stopFlag = false;
 	m_startedOK = false;
 	m_startCaptureFirstKeyframe = false;
+	Keyframe::resetFirstIdKeyframe();
 
-    LOG_DEBUG(" Pipeline constructor");
+    LOG_DEBUG(" Pipeline constructor");	
 }
 
 
@@ -74,9 +75,7 @@ PipelineSlam::~PipelineSlam()
 }
 
 FrameworkReturnCode PipelineSlam::init(SRef<xpcf::IComponentManager> xpcfComponentManager)
-{
-    boost::log::core::get()->set_logging_enabled(false);
-    std::freopen("log.txt", "w", stdout);
+{    
     // component creation
     try {
         // load marker
