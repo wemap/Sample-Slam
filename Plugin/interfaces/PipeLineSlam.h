@@ -116,9 +116,6 @@ private:
 	// Image capture task
 	void getCameraImages();
 
-	// First keyframe detection task
-	void detectFirstKeyframe();
-
 	// Bootstrap task
 	void doBootStrap();
 
@@ -219,10 +216,9 @@ private:
 	Transform3Df										m_pose;
 	SRef<Image>											m_camImage;
     SRef<Map>                                           m_map;
-    Transform3Df                                        m_poseKeyframe1, m_poseKeyframe2;
+    Transform3Df                                        m_poseFrame;
+	SRef<Frame>											m_frame1, m_frame2;
     SRef<Keyframe>                                      m_keyframe1, m_keyframe2;
-    std::vector<Keypoint>								m_keypointsView1, m_keypointsView2;
-    SRef<DescriptorBuffer>                              m_descriptorsView1, m_descriptorsView2;
 	bool												m_firstKeyframeCaptured = false;
 	bool												m_bootstrapOk = false;
 	bool												m_startCaptureFirstKeyframe = false;

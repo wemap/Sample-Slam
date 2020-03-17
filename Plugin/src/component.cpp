@@ -2,6 +2,7 @@
 #include "PipeLineSlam.h"
 #include "core/Log.h"
 #include "boost/log/core/core.hpp"
+#include <cmath>
 
 #define MIN_THRESHOLD -1
 #define MAX_THRESHOLD 220
@@ -62,8 +63,9 @@ PipelineSlam::PipelineSlam():ConfigurableBase(xpcf::toUUID<PipelineSlam>())
 	m_stopFlag = false;
 	m_startedOK = false;
 	m_startCaptureFirstKeyframe = false;
+	Keyframe::resetFirstIdKeyframe();
 
-    LOG_DEBUG(" Pipeline constructor");
+    LOG_DEBUG(" Pipeline constructor");	
 }
 
 
@@ -73,9 +75,7 @@ PipelineSlam::~PipelineSlam()
 }
 
 FrameworkReturnCode PipelineSlam::init(SRef<xpcf::IComponentManager> xpcfComponentManager)
-{
-    boost::log::core::get()->set_logging_enabled(false);
-    std::freopen("log.txt", "w", stdout);
+{    
     // component creation
     try {
         // load marker
@@ -299,8 +299,8 @@ void PipelineSlam::findMatchesAndTriangulation(SRef<Keyframe>& newKf, std::vecto
 		Transform3Df tmpPose = tmpKf->getPose();
 
 		// check distance between two keyframes
-		float distPose = std::sqrtf(std::powf(newKf_pose(0, 3) - tmpPose(0, 3), 2.f) + std::powf(newKf_pose(1, 3) - tmpPose(1, 3), 2.f) +
-			std::powf(newKf_pose(2, 3) - tmpPose(2, 3), 2.f));
+        float distPose = std::sqrt(std::pow(newKf_pose(0, 3) - tmpPose(0, 3), 2.f) + std::pow(newKf_pose(1, 3) - tmpPose(1, 3), 2.f) +
+            std::pow(newKf_pose(2, 3) - tmpPose(2, 3), 2.f));
 		if (distPose < 0.05)
 			continue;
 
@@ -437,7 +437,6 @@ FrameworkReturnCode PipelineSlam::start(void* imageDataBuffer)
 
     // create and start threads
     auto getCameraImagesThread = [this](){;getCameraImages();};
-    auto detectFirstKeyframeThread = [this](){; detectFirstKeyframe();};
     auto doBootStrapThread = [this](){;doBootStrap();};
     auto getKeyPointsThread = [this](){;getKeyPoints();};
     auto getDescriptorsThread = [this](){;getDescriptors();};
@@ -445,7 +444,6 @@ FrameworkReturnCode PipelineSlam::start(void* imageDataBuffer)
     auto getMappingThread = [this](){;mapping();};
 
     m_taskGetCameraImages = new xpcf::DelegateTask(getCameraImagesThread);
-    m_taskDetectFirstKeyframe = new xpcf::DelegateTask(detectFirstKeyframeThread);
     m_taskDoBootStrap = new xpcf::DelegateTask(doBootStrapThread);
     m_taskGetKeyPoints = new xpcf::DelegateTask(getKeyPointsThread);
     m_taskGetDescriptors = new xpcf::DelegateTask(getDescriptorsThread);
@@ -453,7 +451,6 @@ FrameworkReturnCode PipelineSlam::start(void* imageDataBuffer)
     m_taskMapping = new xpcf::DelegateTask(getMappingThread);
 
     m_taskGetCameraImages->start();
-	m_taskDetectFirstKeyframe->start();
     m_taskDoBootStrap ->start();
     m_taskGetKeyPoints->start();
     m_taskGetDescriptors->start();
@@ -473,8 +470,6 @@ FrameworkReturnCode PipelineSlam::stop()
 
     if (m_taskGetCameraImages != nullptr)
         m_taskGetCameraImages->stop();
-    if (m_taskDetectFirstKeyframe != nullptr)
-		m_taskDetectFirstKeyframe->stop();
     if (m_taskDoBootStrap != nullptr)
         m_taskDoBootStrap->stop();
     if (m_taskGetKeyPoints != nullptr)
@@ -545,77 +540,66 @@ void PipelineSlam::getCameraImages() {
 #endif
 };
 
-void PipelineSlam::detectFirstKeyframe()
-{
-	if (m_stopFlag || !m_initOK || !m_startedOK || m_firstKeyframeCaptured || !m_CameraImagesBuffer.tryPop(m_camImage)) {
-		xpcf::DelegateTask::yield();
-		return;
-	}
-
-	int state = GetKeyState('S');
-	m_startCaptureFirstKeyframe = ((state == -127) || (state==-128));
-	
-	if (m_startCaptureFirstKeyframe && detectFiducialMarker(m_camImage, m_poseKeyframe1)){
-		m_keypointsDetector->detect(m_camImage, m_keypointsView1);
-		m_descriptorExtractor->extract(m_camImage, m_keypointsView1, m_descriptorsView1);
-		m_keyframe1 = xpcf::utils::make_shared<Keyframe>(m_keypointsView1, m_descriptorsView1, m_camImage, m_poseKeyframe1);
-		m_mapper->update(m_map, m_keyframe1, {}, {}, {});
-		m_keyframePoses.push_back(m_poseKeyframe1); // used for display
-		m_kfRetriever->addKeyframe(m_keyframe1); // add keyframe for reloc
-		m_firstKeyframeCaptured = true;
-		LOG_INFO("Pose of keyframe 1: \n {}", m_poseKeyframe1.matrix());
-        std::cout << "Pose of keyframe 1: \n" << m_poseKeyframe1.matrix() << std::endl;
-		m_sink->set(m_poseKeyframe1, m_camImage);
-	}
-	else
-		m_sink->set(m_camImage);
-}
-
 void PipelineSlam::doBootStrap()
 {
-	if (m_stopFlag || !m_initOK || !m_startedOK || !m_firstKeyframeCaptured || m_bootstrapOk || !m_CameraImagesBuffer.tryPop(m_camImage)) {
+	if (m_stopFlag || !m_initOK || !m_startedOK || m_bootstrapOk || !m_CameraImagesBuffer.tryPop(m_camImage)) {
 		xpcf::DelegateTask::yield();
 		return;
 	}
-	
-	if (detectFiducialMarker(m_camImage, m_poseKeyframe2)) {
-		float disTwoKeyframes = std::sqrtf(std::powf(m_poseKeyframe1(0, 3) - m_poseKeyframe2(0, 3), 2.f) + std::powf(m_poseKeyframe1(1, 3) - m_poseKeyframe2(1, 3), 2.f) +
-			std::powf(m_poseKeyframe1(2, 3) - m_poseKeyframe2(2, 3), 2.f));
 
-		if (disTwoKeyframes > 0.1) {
-			m_keypointsDetector->detect(m_camImage, m_keypointsView2);
-			m_descriptorExtractor->extract(m_camImage, m_keypointsView2, m_descriptorsView2);
-			SRef<Frame> frame2 = xpcf::utils::make_shared<Frame>(m_keypointsView2, m_descriptorsView2, m_camImage, m_keyframe1);
-			m_matcher->match(m_descriptorsView1, m_descriptorsView2, m_matches);
-			int nbOriginalMatches = m_matches.size();
-			m_matchesFilter->filter(m_matches, m_matches, m_keypointsView1, m_keypointsView2);
+	bool bootstrapOk = false;
+	bool initFrame1 = false;
 
-			if (m_keyframeSelector->select(frame2, m_matches))
-			{
-				LOG_INFO("Pose of keyframe 2: \n {}", m_poseKeyframe2.matrix());
-                std::cout << "Pose of keyframe 2: \n" << m_poseKeyframe2.matrix() << std::endl;
-				frame2->setPose(m_poseKeyframe2);
-				LOG_INFO("Nb matches for triangulation: {}\\{}", m_matches.size(), nbOriginalMatches);
-                std::cout << "Nb matches for triangulation: " << m_matches.size() << "\\" << nbOriginalMatches << std::endl;
-				// Triangulate
-				m_keyframe2 = xpcf::utils::make_shared<Keyframe>(frame2);
-				m_triangulator->triangulate(m_keyframe2, m_matches, m_cloud);
-				//double reproj_error = triangulator->triangulate(keypointsView1, keypointsView2, matches, std::make_pair(0, 1), poseFrame1, poseFrame2, cloud);
-				m_mapFilter->filter(m_poseKeyframe1, m_poseKeyframe2, m_cloud, m_filteredCloud);
-				m_keyframePoses.push_back(m_poseKeyframe2); // used for display
-				m_mapper->update(m_map, m_keyframe2, m_filteredCloud, m_matches, {});
-				m_kfRetriever->addKeyframe(m_keyframe2); // add keyframe for reloc
-				std::vector<int>firstIdxKFs = { 0,1 };
-				localBundleAdjuster(firstIdxKFs, m_bundleReprojError); // Bundle adjustment
-				m_bootstrapOk = true;
-				m_lastPose = m_poseKeyframe2;
-				updateReferenceKeyframe(m_keyframe2);
-				updateData(m_keyframe2);
-				LOG_INFO("Number of initial point cloud: {}", m_filteredCloud.size());
-                std::cout << "Number of initial point cloud: " << m_filteredCloud.size() << std::endl;
-			}
+
+	if (detectFiducialMarker(m_camImage, m_poseFrame)) {
+		if (!m_firstKeyframeCaptured) {
+			m_firstKeyframeCaptured = true;
+			m_keypointsDetector->detect(m_camImage, m_keypoints);
+			m_descriptorExtractor->extract(m_camImage, m_keypoints, m_descriptors);
+			m_frame1 = xpcf::utils::make_shared<Frame>(m_keypoints, m_descriptors, m_camImage, m_poseFrame);
 		}
-		m_sink->set(m_poseKeyframe2, m_camImage);
+		else {
+			Transform3Df poseFrame1 = m_frame1->getPose();
+			float disTwoKeyframes = std::sqrt(std::pow(poseFrame1(0, 3) - m_poseFrame(0, 3), 2.f) + std::pow(poseFrame1(1, 3) - m_poseFrame(1, 3), 2.f) +
+				std::pow(poseFrame1(2, 3) - m_poseFrame(2, 3), 2.f));
+			if (disTwoKeyframes > 0.1) {
+				m_keypointsDetector->detect(m_camImage, m_keypoints);
+				m_descriptorExtractor->extract(m_camImage, m_keypoints, m_descriptors);
+				m_frame2 = xpcf::utils::make_shared<Frame>(m_keypoints, m_descriptors, m_camImage, m_poseFrame);
+				// matching
+				m_matcher->match(m_frame1->getDescriptors(), m_frame2->getDescriptors(), m_matches);
+				m_matchesFilter->filter(m_matches, m_matches, m_frame1->getKeypoints(), m_frame2->getKeypoints());
+				// Triangulate
+				m_cloud.clear();
+				m_filteredCloud.clear();
+				m_triangulator->triangulate(m_frame1->getKeypoints(), m_frame2->getKeypoints(), m_frame1->getDescriptors(), m_frame2->getDescriptors(), m_matches,
+					std::make_pair(0, 1), m_frame1->getPose(), m_frame2->getPose(), m_cloud);
+				m_mapFilter->filter(m_frame1->getPose(), m_frame2->getPose(), m_cloud, m_filteredCloud);
+
+				if (m_filteredCloud.size() > 80) {
+					m_keyframe1 = xpcf::utils::make_shared<Keyframe>(m_frame1);
+					m_keyframe2 = xpcf::utils::make_shared<Keyframe>(m_frame2);
+					m_keyframe2->setReferenceKeyframe(m_keyframe1);
+					m_mapper->update(m_map, m_keyframe1, {}, {}, {});
+					m_keyframePoses.push_back(m_keyframe1->getPose()); // used for display
+					m_kfRetriever->addKeyframe(m_keyframe1); // add keyframe for reloc
+					m_keyframePoses.push_back(m_keyframe2->getPose()); // used for display
+					m_mapper->update(m_map, m_keyframe2, m_filteredCloud, m_matches, {});
+					m_kfRetriever->addKeyframe(m_keyframe2); // add keyframe for reloc					
+					std::vector<int>firstIdxKFs = { 0,1 };
+					localBundleAdjuster(firstIdxKFs, m_bundleReprojError); // Bundle adjustment
+					m_bootstrapOk = true;
+					m_lastPose = m_keyframe2->getPose();
+					updateReferenceKeyframe(m_keyframe2);
+					updateData(m_keyframe2);
+					LOG_INFO("Number of initial point cloud: {}", m_filteredCloud.size());
+				}
+				else {
+					m_frame1 = m_frame2;
+				}
+			}			
+		}
+		m_sink->set(m_poseFrame, m_camImage);
 	}
 	else
 		m_sink->set(m_camImage);

@@ -1,11 +1,16 @@
-TARGET = SolARSlamSampleMulti
-VERSION=0.7.0
-
-CONFIG += c++1z
+## remove Qt dependencies
+QT       -= core gui
 CONFIG -= qt
-CONFIG += console
+
+## global defintions : target lib name, version
+TARGET = SolARSlamSampleMulti
+VERSION= 0.7.0
 
 DEFINES += MYVERSION=$${VERSION}
+CONFIG += c++1z
+CONFIG += console
+
+include(findremakenrules.pri)
 
 QT += opengl
 
@@ -25,11 +30,11 @@ win32:CONFIG -= static
 win32:CONFIG += shared
 QMAKE_TARGET.arch = x86_64 #must be defined prior to include
 
-DEPENDENCIESCONFIG = sharedlib install_recurse
+DEPENDENCIESCONFIG = sharedlib recursive install_recurse
 PROJECTCONFIG = QTVS
 
-#NOTE : CONFIG as staticlib or sharedlib, DEPENDENCIESCONFIG as staticlib or sharedlib MUST BE DEFINED BEFORE templatelibconfig.pri inclusion
-include ($$shell_quote($$shell_path($$(REMAKEN_RULES_ROOT)/qmake/templateappconfig.pri)))
+#NOTE : CONFIG as staticlib or sharedlib, DEPENDENCIESCONFIG as staticlib or sharedlib, QMAKE_TARGET.arch and PROJECTDEPLOYDIR MUST BE DEFINED BEFORE templatelibconfig.pri inclusion
+include ($$shell_quote($$shell_path($${QMAKE_REMAKEN_RULES_ROOT}/templateappconfig.pri)))  # Shell_quote & shell_path required for visual on windows
 
 
 DEFINES += BOOST_ALL_NO_LIB
@@ -67,4 +72,5 @@ config_files.files=$$files($${PWD}/conf_SLAM_Multi.xml)\
                     $$files($${PWD}/akaze.fbow)
 INSTALLS += config_files
 
-include ($$shell_quote($$shell_path($$(REMAKEN_RULES_ROOT)/qmake/remaken_install_target.pri)))) # Shell_quote & shell_path required for visual on windows
+#NOTE : Must be placed at the end of the .pro
+include ($$shell_quote($$shell_path($${QMAKE_REMAKEN_RULES_ROOT}/remaken_install_target.pri)))) # Shell_quote & shell_path required for visual on windows
