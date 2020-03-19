@@ -39,11 +39,11 @@ DEFINES += "_BCOM_SHARED=__declspec(dllexport)"
 
 INCLUDEPATH += interfaces/
 
-HEADERS += interfaces/PipelineSlam.h \
+HEADERS += interfaces/pipelineSlam.h \
 
-SOURCES += src/PipelineSlam.cpp \
-	 \
-	src/component.cpp
+SOURCES += src/pipelineSlam.cpp \
+           src/component.cpp
+
 unix {
     QMAKE_CXXFLAGS += -Wignored-qualifiers
 }
@@ -76,6 +76,9 @@ configuration_files.files = $$files($${PWD}/tests/TestSlamPipeline/PipelineSlam.
 INSTALLS += header_files
 INSTALLS += xpcf_xml_files
 INSTALLS += configuration_files
+
+OTHER_FILES += \
+    packagedependencies.txt
 
 #NOTE : Must be placed at the end of the .pro
 include ($$shell_quote($$shell_path($${QMAKE_REMAKEN_RULES_ROOT}/remaken_install_target.pri)))) # Shell_quote & shell_path required for visual on windows
