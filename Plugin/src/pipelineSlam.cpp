@@ -1,5 +1,5 @@
 #include "xpcf/module/ModuleFactory.h"
-#include "PipeLineSlam.h"
+#include "pipelineSlam.h"
 #include "core/Log.h"
 
 // Declaration of the module embedding the Slam pipeline

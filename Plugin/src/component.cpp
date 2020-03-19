@@ -1,5 +1,5 @@
 #include "xpcf/module/ModuleFactory.h"
-#include "PipeLineSlam.h"
+#include "pipelineSlam.h"
 #include "core/Log.h"
 #include "boost/log/core/core.hpp"
 #include <cmath>
