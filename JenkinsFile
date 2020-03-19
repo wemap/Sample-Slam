@@ -127,7 +127,7 @@ pipeline {
                 }
                 prepareRelease("SolARBuild","linux-gcc","PipelineSlam") 
                 withCredentials([string(credentialsId: 'github-token', variable: 'token')]) {
-                    release("Sample-Slam","PipelineSlam/${version}/unix","${WORKSPACE}/artifactory/x86_64_shared_release/PipelineSlam_${version}_x86_64_shared_release.zip ${WORKSPACE}/artifactory/x86_64_shared_debug/PipelineSlam_${version}_x86_64_shared_debug.zip",token);
+                    release("Sample-Slam","PipelineSlam/${version}/linux","PipelineSlam Version ${version} for Linux","${WORKSPACE}/artifactory/x86_64_shared_release/PipelineSlam_${version}_x86_64_shared_release.zip ${WORKSPACE}/artifactory/x86_64_shared_debug/PipelineSlam_${version}_x86_64_shared_debug.zip",token);
                 }
             }   
         }
