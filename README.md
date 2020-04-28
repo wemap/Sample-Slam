@@ -8,7 +8,7 @@ It offers a C++ SDK to easily and quickly develop and use custom solutions for c
 The SolAR SLAM samples show a SolAR pipeline for augmented reality based on a SLAM.
 
 Run whether the SolARSlamSampleMono.exe (showing a mono thread demonstration of the SolAR SLAM), or the SolARSlamSampleMulti.exe (showing a multi thread demonstration of the SolAR SLAM).
-Move the camera to initialize the SLAM. You will see in a dediacted window the 3D point cloud reconstructed by the SLAM.
+Move the camera to initialize the SLAM. You will see in a dedicated window the 3D point cloud reconstructed by the SLAM.
 
 You can also test the TestSlamPlugin.exe (showing an application loading the SLAM pipeline embedded into a dedicated SolAR Module). Here, you need to print the FiducialMarker.gif. When the application is started, just point to the fiducial marker to initialize the SLAM. 
 
