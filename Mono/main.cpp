@@ -64,7 +64,8 @@
 
 #define MIN_THRESHOLD -1
 #define MAX_THRESHOLD 220
-#define NB_THRESHOLD 8
+#define NB_THRESHOLD 3
+#define NB_POINTCLOUD_INIT 50
 
 
 using namespace SolAR;
@@ -301,6 +302,7 @@ int main(int argc, char **argv) {
 				float disTwoKeyframes = std::sqrt(std::pow(poseFrame1(0, 3) - poseFrame(0, 3), 2.f) + std::pow(poseFrame1(1, 3) - poseFrame(1, 3), 2.f) +
 					std::pow(poseFrame1(2, 3) - poseFrame(2, 3), 2.f));
 				if (disTwoKeyframes < 0.1) {
+                    overlay3D->draw(poseFrame, view);
 					if (imageViewer->display(view) == SolAR::FrameworkReturnCode::_STOP)
 						return 1;
 					continue;
@@ -321,7 +323,7 @@ int main(int argc, char **argv) {
 					std::make_pair(0, 1), frame1->getPose(), frame2->getPose(), cloud);
 				mapFilter->filter(frame1->getPose(), frame2->getPose(), cloud, filteredCloud);
 
-				if (filteredCloud.size() > 80) {
+                if (filteredCloud.size() > NB_POINTCLOUD_INIT) {
 					keyframe1 = xpcf::utils::make_shared<Keyframe>(frame1);
 					keyframe2 = xpcf::utils::make_shared<Keyframe>(frame2);
 					keyframe2->setReferenceKeyframe(keyframe1);

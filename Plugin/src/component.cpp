@@ -6,7 +6,8 @@
 
 #define MIN_THRESHOLD -1
 #define MAX_THRESHOLD 220
-#define NB_THRESHOLD 2
+#define NB_THRESHOLD 3
+#define NB_POINTCLOUD_INIT 50
 
 // The pipeline component for the fiducial marker
 
@@ -576,7 +577,7 @@ void PipelineSlam::doBootStrap()
 					std::make_pair(0, 1), m_frame1->getPose(), m_frame2->getPose(), m_cloud);
 				m_mapFilter->filter(m_frame1->getPose(), m_frame2->getPose(), m_cloud, m_filteredCloud);
 
-				if (m_filteredCloud.size() > 80) {
+                if (m_filteredCloud.size() > NB_POINTCLOUD_INIT) {
 					m_keyframe1 = xpcf::utils::make_shared<Keyframe>(m_frame1);
 					m_keyframe2 = xpcf::utils::make_shared<Keyframe>(m_frame2);
 					m_keyframe2->setReferenceKeyframe(m_keyframe1);
