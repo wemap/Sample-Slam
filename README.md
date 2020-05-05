@@ -19,7 +19,7 @@ Run whether the SolARSlamSampleMono.exe, the SolARSlamSampleMulti.exe, or the Te
 
 :warning: If the initialization is still not successful after a few seconds (This is normally due to texture-less scenes), you can add some objects into the scene and restart.
 
-Now you can move the camera freely. The SolAR SLAM is able to track the camera pose and at the same time you see in a deddicated window the 3D point cloud reconstructed by the SLAM (only for SolARSlamSampleMono.exe and SolARSlamSampleMulti.exe). Note that the fiducial marker is only used for the initialization, it can be removed from the scene later.
+Now you can move the camera freely. The SolAR SLAM is able to track the camera pose and at the same time you see in a dedicated window the 3D point cloud reconstructed by the SLAM (only for SolARSlamSampleMono.exe and SolARSlamSampleMulti.exe). Note that the fiducial marker is only used for the initialization, it can be removed from the scene later.
 
 :warning: In the case of lost tracking, you can return the camera to the previous views to relocalize camera pose instead of restarting.
 
@@ -28,6 +28,8 @@ Press escape to quit the application.
 If you want to change the calibration parameters of the camera, edit the camera_calibration.yml.
 
 To change properties of the components of the SLAM pipeline, edit the .xml files.
+
+:tip: 
 
 
 *   Website https://solarframework.github.io/
