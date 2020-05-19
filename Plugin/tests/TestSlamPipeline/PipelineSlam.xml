@@ -257,8 +257,8 @@
 			<property name="nbMaxFixedKeyframes" type="Integer" value="30"/>
 		</configure>
 		<configure component="SolARImageViewerOpencv"> 
-			<property name="title" type="string" value="SLAM"/>
-			<property name="exitKey" type="Integer" value="13"/>
+                        <property name="title" type="string" value="SLAM (press esc to exit)"/>
+                        <property name="exitKey" type="Integer" value="27"/>
 			<property name="width" type="Integer" value="640"/>
 			<property name="height" type="Integer" value="480"/>
 		</configure>
