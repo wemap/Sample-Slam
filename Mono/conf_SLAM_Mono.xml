@@ -5,9 +5,9 @@
                 <interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" name="IComponentIntrospect" description="IComponentIntrospect"/>
                 <interface uuid="5DDC7DF0-8377-437F-9C81-3643F7676A5B" name="ICamera" description="ICamera"/>
         </component>
-		<component uuid="b8a8b963-ba55-4ea4-b045-d9e7e8f6db02" name="SolARImagesAsCameraOpencv" description="SolARImagesAsCameraOpencv">
-                <interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" name="IComponentIntrospect" description="IComponentIntrospect"/>
-                <interface uuid="5DDC7DF0-8377-437F-9C81-3643F7676A5B" name="ICamera" description="ICamera"/>
+        <component uuid="fa4a780a-9720-11e8-9eb6-529269fb1459" name="SolARVideoAsCameraOpencv" description="SolARVideoAsCameraOpencv">
+            <interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" name="IComponentIntrospect" description="IComponentIntrospect"/>
+            <interface uuid="5DDC7DF0-8377-437F-9C81-3643F7676A5B" name="ICamera" description="ICamera"/>
         </component>
 		<component uuid="e81c7e4e-7da6-476a-8eba-078b43071272" name="SolARKeypointDetectorOpencv" description="SolARKeypointDetectorOpencv">
                 <interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" name="IComponentIntrospect" description="IComponentIntrospect"/>
@@ -155,211 +155,202 @@
     </module> 
 
     <factory>
-		<bindings>
-			<bind interface="ICamera" to="SolARCameraOpencv" />
-			<bind interface="ICamera" to="SolARImagesAsCameraOpencv" name="ImagesAsCamera" />
-			<bind interface="IDescriptorsExtractor" to="SolARDescriptorsExtractorAKAZE2Opencv" />
-			<bind interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" />
-			<bind name="DescMatcherFiducial" interface="IDescriptorMatcher" to="SolARDescriptorMatcherRadiusOpencv" />
-		</bindings>
-	</factory>
-	<properties>
-		<configure component="SolARCameraOpencv">
-			<property name="calibrationFile" type="string" value="camera_calibration.yml"/>
-			<property name="deviceID" type="UnsignedInteger" value="0"/>
-		</configure>
-		<configure component="SolARImagesAsCameraOpencv">
+        <bindings>
+            <bind interface="ICamera" to="SolARCameraOpencv" />
+            <!--bind interface="ICamera" to="SolARVideoAsCameraOpencv" /-->
+            <bind interface="IDescriptorsExtractor" to="SolARDescriptorsExtractorAKAZE2Opencv" />
+            <bind interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" />
+            <bind name="DescMatcherFiducial" interface="IDescriptorMatcher" to="SolARDescriptorMatcherRadiusOpencv" />
+        </bindings>
+    </factory>
+    <properties>
+        <configure component="SolARCameraOpencv">
             <property name="calibrationFile" type="string" value="camera_calibration.yml"/>
-			<property name="imagesDirectoryPath" type="string" value="..\..\Images3\frame_%04d.png"/> 
-        </configure>		
-		<configure component="SolARKeypointDetectorOpencv">
-			<property name="type" type="string" value="AKAZE2"/>
-			<property name="imageRatio" type="Float" value="0.5"/>
-			<property name="nbDescriptors" type="Integer" value="1000"/>
-			<property name="threshold" type="Float" value="0.0001"/>
+            <property name="deviceID" type="UnsignedInteger" value="0"/>
         </configure>
-		<configure component="SolARDescriptorsExtractorAKAZEOpencv">
+        <configure component="SolARVideoAsCameraOpencv">
+            <property name="calibrationFile" type="string" value="camera_calibration.yml"/>
+            <property name="videoPath" type="string" value="../../video.mp4"/>
+        </configure>
+        <configure component="SolARKeypointDetectorOpencv">
+            <property name="type" type="string" value="AKAZE2"/>
+            <property name="imageRatio" type="Float" value="0.5"/>
+            <property name="nbDescriptors" type="Integer" value="1000"/>
+            <property name="threshold" type="Float" value="0.0001"/>
+        </configure>
+        <configure component="SolARDescriptorsExtractorAKAZEOpencv">
             <property name="threshold" type="Float" value="3e-4"/>
         </configure>
-		<configure component="SolARDescriptorsExtractorAKAZE2Opencv">
+        <configure component="SolARDescriptorsExtractorAKAZE2Opencv">
             <property name="threshold" type="Float" value="3e-4"/>
         </configure>
-		<configure component="SolARDescriptorsExtractorORBOpencv">
+        <configure component="SolARDescriptorsExtractorORBOpencv">
             <property name="threshold" type="Float" value="3e-4"/>
         </configure>
-		<configure component="SolARDescriptorMatcherKNNOpencv">
-			<property name="distanceRatio" type="Float" value="0.75"/>
-		</configure>
-		<configure component="SolARDescriptorMatcherHammingBruteForceOpencv">
-			<property name="distanceRatio" type="Float" value="0.9"/>
-		</configure>
-		<configure component="SolARDescriptorMatcherRadiusOpencv">
-			<property name="distanceRatio" type="Float" value="0.9"/>
-		</configure>
-		<configure component="SolARPoseFinderFrom2D2DOpencv">
-			<property name="confidence" type="Float" value="0.99"/>
-			<property name="outlierDistanceRatio" type="Float" value="0.005"/>
-		</configure>
-		<configure component="SolARGeometricMatchesFilterOpencv">
+        <configure component="SolARDescriptorMatcherKNNOpencv">
+            <property name="distanceRatio" type="Float" value="0.75"/>
+        </configure>
+        <configure component="SolARDescriptorMatcherHammingBruteForceOpencv">
+            <property name="distanceRatio" type="Float" value="0.9"/>
+        </configure>
+        <configure component="SolARDescriptorMatcherRadiusOpencv">
+            <property name="distanceRatio" type="Float" value="0.9"/>
+        </configure>
+        <configure component="SolARPoseFinderFrom2D2DOpencv">
             <property name="confidence" type="Float" value="0.99"/>
-			<property name="outlierDistanceRatio" type="Float" value="0.005"/>  
-			<property name="epilinesDistance" type="Float" value="1.0"/>			
+            <property name="outlierDistanceRatio" type="Float" value="0.005"/>
         </configure>
-		<configure component="SolARPoseEstimationSACPnpOpencv">
+        <configure component="SolARGeometricMatchesFilterOpencv">
+            <property name="confidence" type="Float" value="0.99"/>
+            <property name="outlierDistanceRatio" type="Float" value="0.005"/>
+            <property name="epilinesDistance" type="Float" value="1.0"/>
+        </configure>
+        <configure component="SolARPoseEstimationSACPnpOpencv">
             <property name="iterationsCount" type="Integer" value="500"/>
-			<property name="reprojError" type="Float" value="2.5"/>
-			<property name="confidence" type="Float" value="0.99"/>
-			<property name="minNbInliers" type="Integer" value="25"/>
+            <property name="reprojError" type="Float" value="2.5"/>
+            <property name="confidence" type="Float" value="0.99"/>
+            <property name="minNbInliers" type="Integer" value="25"/>
         </configure>
-		<configure component="SolARMapFilterOpencv">
-			<property name="reprojErrorThreshold" type="float" value="3.5"/>
-			<property name="cheiralityCheck" type="integer" value ="1"/>
-		</configure>
-		<configure component="SolARKeyframeSelector">
-			<property name="minNbMatchesIsKeyframe" type="Integer" value="80"/>
-			<property name="minMeanDistanceIsKeyframe" type="Float" value="0.07"/>
-		</configure>
-		<configure component="SolARKeyframeRetrieverFBOW">
-			<property name="VOCpath" type="String" value="akaze.fbow"/>
-			<property name="threshold" type="Float" value="0.02"/>
-			<property name="level" type="Integer" value="3"/>
-			<property name="matchingDistanceRatio" type="Float" value="0.7"/>
-			<property name="matchingDistanceMax" type="Float" value="100"/>
-		</configure>
-		<configure component="SolAR2DOverlayOpencv">
+        <configure component="SolARMapFilterOpencv">
+            <property name="reprojErrorThreshold" type="float" value="3.5"/>
+            <property name="cheiralityCheck" type="integer" value ="1"/>
+        </configure>
+        <configure component="SolARKeyframeSelector">
+            <property name="minNbMatchesIsKeyframe" type="Integer" value="80"/>
+            <property name="minMeanDistanceIsKeyframe" type="Float" value="0.07"/>
+        </configure>
+        <configure component="SolARKeyframeRetrieverFBOW">
+            <property name="VOCpath" type="String" value="akaze.fbow"/>
+            <property name="threshold" type="Float" value="0.02"/>
+            <property name="level" type="Integer" value="3"/>
+            <property name="matchingDistanceRatio" type="Float" value="0.7"/>
+            <property name="matchingDistanceMax" type="Float" value="100"/>
+        </configure>
+        <configure component="SolAR2DOverlayOpencv">
             <property name="thickness" type="UnsignedInteger" value="1"/>
             <property name="radius" type="UnsignedInteger" value="2"/>
-			<property name="color"  type="UnsignedInteger">
-				<value>0</value>
-				<value>255</value>
-				<value>0</value>
-			</property>
-			<property name="maxMatches" type="UnsignedInteger" value="-1"/>	
+            <property name="color"  type="UnsignedInteger">
+                <value>0</value>
+                <value>255</value>
+                <value>0</value>
+            </property>
+            <property name="maxMatches" type="UnsignedInteger" value="-1"/>
         </configure>
-		<configure component="SolARMatchesOverlayOpencv">
+        <configure component="SolARMatchesOverlayOpencv">
             <property name="thickness" type="UnsignedInteger" value="1"/>
-			<property name="mode" type="string" value="FADING"/>
-			<property name="minDistanceRatioGreen" type="Float" value="0.07"/>
-			<property name="color"  type="UnsignedInteger">
-				<value>0</value>
-				<value>0</value>
-				<value>255</value>
-			</property>
-			<property name="maxMatches" type="UnsignedInteger" value="-1"/>	
+            <property name="mode" type="string" value="FADING"/>
+            <property name="minDistanceRatioGreen" type="Float" value="0.07"/>
+            <property name="color"  type="UnsignedInteger">
+                <value>0</value>
+                <value>0</value>
+                <value>255</value>
+            </property>
+            <property name="maxMatches" type="UnsignedInteger" value="-1"/>
         </configure>
-		<configure component="SolARMatchesOverlayOpencv" name="matchesBlue">
+        <configure component="SolARMatchesOverlayOpencv" name="matchesBlue">
             <property name="thickness" type="UnsignedInteger" value="2"/>
-			<property name="mode" type="string" value="COLOR"/>
-			<property name="color"  type="UnsignedInteger">
-				<value>0</value>
-				<value>255</value>
-				<value>0</value>
-			</property>	
+            <property name="mode" type="string" value="COLOR"/>
+            <property name="color"  type="UnsignedInteger">
+                <value>0</value>
+                <value>255</value>
+                <value>0</value>
+            </property>
         </configure>
-		<configure component="SolARMatchesOverlayOpencv" name="matchesRed">
+        <configure component="SolARMatchesOverlayOpencv" name="matchesRed">
             <property name="thickness" type="UnsignedInteger" value="2"/>
-			<property name="mode" type="string" value="COLOR"/>
-			<property name="color"  type="UnsignedInteger">
-				<value>255</value>
-				<value>0</value>
-				<value>0</value>
-			</property>	
+            <property name="mode" type="string" value="COLOR"/>
+            <property name="color"  type="UnsignedInteger">
+                <value>255</value>
+                <value>0</value>
+                <value>0</value>
+            </property>
         </configure>
-		<configure component="SolAROptimizationG2O"> 
-			<property name="nbIterations" type="Integer" value="10"/>
-			<property name="setVerbose" type="Integer" value="0"/>
-			<property name="nbMaxFixedKeyframes" type="Integer" value="30"/>
-		</configure>
-		<configure component="SolARImageViewerOpencv"> 
-			<property name="title" type="string" value="SLAM"/>
-			<property name="exitKey" type="Integer" value="13"/>
-			<property name="width" type="Integer" value="640"/>
-			<property name="height" type="Integer" value="480"/>
-		</configure>
-		<configure component="SolARImageViewerOpencv" name="matches"> 
-			<property name="title" type="string" value="Matches between two first frames"/>
-			<property name="exitKey" type="Integer" value="27"/>
-			<property name="width" type="Integer" value="1280"/>
-			<property name="height" type="Integer" value="480"/>
-		</configure>
-		
-		<configure component="SolAR3DPointsViewerOpengl">
-            <property name="title" type="string" value="Points Cloud"/>
-			<property name="width" type="UnsignedInteger" value="1280"/>
-			<property name="height" type="UnsignedInteger" value="960"/>
-			<property name="backgroundColor" type="UnsignedInteger">
-				<value>0</value>
-				<value>0</value>
-				<value>0</value>
-			</property>
-			<property name="fixedPointsColor" type="UnsignedInteger" value="1"/>
-			<property name="pointsColor" type="UnsignedInteger">
-				<value>0</value>
-				<value>255</value>
-				<value>0</value>
-			</property>
-			<property name="cameraColor" type="UnsignedInteger">
-				<value>255</value>
-				<value>255</value>
-				<value>255</value>
-			</property>
-			<property name="drawCameraAxis" type="UnsignedInteger" value="1"/>
-			<property name="drawSceneAxis" type="UnsignedInteger" value="1"/>
-			<property name="drawWorldAxis" type="UnsignedInteger" value="1"/>
-			<property name="axisScale" type="Float" value="1.0"/>
-			<property name="pointSize" type="Float" value="3.0"/>
-			<property name="cameraScale" type="Float" value="1.0"/>
-			<property name="keyframeAsCamera" type="UnsignedInteger" value="1"/>
-			<property name="framesColor" type="UnsignedInteger">
-				<value>128</value>
-				<value>0</value>
-				<value>255</value>
-			</property>
-			<property name="keyframesColor" type="UnsignedInteger">
-				<value>0</value>
-				<value>0</value>
-				<value>255</value>
-			</property>
-			<property name="zoomSensitivity" type="Float" value="10.0"/>
-			<property name="exitKey" type="Integer" value="27"/>
+        <configure component="SolAROptimizationG2O">
+            <property name="nbIterations" type="Integer" value="10"/>
+            <property name="setVerbose" type="Integer" value="0"/>
+            <property name="nbMaxFixedKeyframes" type="Integer" value="30"/>
         </configure>
-		
-		
-		<configure component="SolARMarker2DSquaredBinaryOpencv">
+        <configure component="SolARImageViewerOpencv">
+            <property name="title" type="string" value="SLAM (press esc to exit)"/>
+            <property name="exitKey" type="Integer" value="27"/>
+            <property name="width" type="Integer" value="640"/>
+            <property name="height" type="Integer" value="480"/>
+        </configure>
+        <configure component="SolAR3DPointsViewerOpengl">
+            <property name="title" type="string" value="Points Cloud (press esc to exit)"/>
+            <property name="width" type="UnsignedInteger" value="1280"/>
+            <property name="height" type="UnsignedInteger" value="960"/>
+            <property name="backgroundColor" type="UnsignedInteger">
+                <value>0</value>
+                <value>0</value>
+                <value>0</value>
+            </property>
+            <property name="fixedPointsColor" type="UnsignedInteger" value="1"/>
+            <property name="pointsColor" type="UnsignedInteger">
+                <value>0</value>
+                <value>255</value>
+                <value>0</value>
+            </property>
+            <property name="cameraColor" type="UnsignedInteger">
+                <value>255</value>
+                <value>255</value>
+                <value>255</value>
+            </property>
+            <property name="drawCameraAxis" type="UnsignedInteger" value="1"/>
+            <property name="drawSceneAxis" type="UnsignedInteger" value="1"/>
+            <property name="drawWorldAxis" type="UnsignedInteger" value="1"/>
+            <property name="axisScale" type="Float" value="1.0"/>
+            <property name="pointSize" type="Float" value="3.0"/>
+            <property name="cameraScale" type="Float" value="1.0"/>
+            <property name="keyframeAsCamera" type="UnsignedInteger" value="1"/>
+            <property name="framesColor" type="UnsignedInteger">
+                <value>128</value>
+                <value>0</value>
+                <value>255</value>
+            </property>
+            <property name="keyframesColor" type="UnsignedInteger">
+                <value>0</value>
+                <value>0</value>
+                <value>255</value>
+            </property>
+            <property name="zoomSensitivity" type="Float" value="10.0"/>
+            <property name="exitKey" type="Integer" value="27"/>
+        </configure>
+        <configure component="SolARMarker2DSquaredBinaryOpencv">
             <property name="filePath" type="string" value="fiducialMarker.yml" description="Path of the .yml file describing the fiducial marker."/>
         </configure>
-		<configure component="SolARImageFilterBinaryOpencv">
-			 <property name="min" type="Integer" value="-1" description="minimum threshold (-1 to automatically compute it on the global image"/>
-			 <property name="max" type="Integer" value="255"description="maximum threshold"/>
+        <configure component="SolARImageFilterBinaryOpencv">
+            <property name="min" type="Integer" value="-1" description="minimum threshold (-1 to automatically compute it on the global image"/>
+            <property name="max" type="Integer" value="255" description="maximum threshold"/>
         </configure>
-		<configure component="SolARContoursExtractorOpencv">
-			<property name="minContourEdges" type="Integer" value="4" description="Minimum number of edge to validate a contour (default = 4)" />
-		</configure>
-		<configure component="SolARContoursFilterBinaryMarkerOpencv">
-			<property name="epsilon" type="Float" value="0.05" description="The maximum distance between the original curve and its approximation (default = 0.05)"/>
-			<property name="minContourLength" type="Float" value="20.0" description="The minimum length of an edge of the contour in pixels to be considered as valid (default = 20)."/>
-			<property name="minDistanceBetweenContourCorners" type="Float" value="10.0" description="The minimum average distance in pixels between corners of a contour and the same corners of another contour to consider the contour as valid (default = 10)"/>
-		</configure>
-		<configure component="SolARPerspectiveControllerOpencv">
-			<property name="outputImageWidth" type="Integer" value="640" description="The width in pixels of the corrected image."/>
-			<property name="outputImageHeight" type="Integer" value="480" description="The width in pixels of the corrected image."/>
-		</configure>
-		<configure component="SolAR3DOverlayBoxOpencv">
+        <configure component="SolARContoursExtractorOpencv">
+            <property name="minContourEdges" type="Integer" value="4" description="Minimum number of edge to validate a contour (default = 4)" />
+        </configure>
+        <configure component="SolARContoursFilterBinaryMarkerOpencv">
+            <property name="epsilon" type="Float" value="0.05" description="The maximum distance between the original curve and its approximation (default = 0.05)"/>
+            <property name="minContourLength" type="Float" value="20.0" description="The minimum length of an edge of the contour in pixels to be considered as valid (default = 20)."/>
+            <property name="minDistanceBetweenContourCorners" type="Float" value="10.0" description="The minimum average distance in pixels between corners of a contour and the same corners of another contour to consider the contour as valid (default = 10)"/>
+        </configure>
+        <configure component="SolARPerspectiveControllerOpencv">
+            <property name="outputImageWidth" type="Integer" value="640" description="The width in pixels of the corrected image."/>
+            <property name="outputImageHeight" type="Integer" value="480" description="The width in pixels of the corrected image."/>
+        </configure>
+        <configure component="SolAR3DOverlayBoxOpencv">
             <property name="position"  type="Float">
-				<value>0</value>
-				<value>0</value>
-				<value>0</value>
-			</property>
-			<property name="orientation"  type="Float">
-				<value>0.0</value>
-				<value>0.0</value>
-				<value>0.0</value>
-			</property>
-			<property name="size"  type="Float">
-				<value>0.182</value>
-				<value>0.182</value>
-				<value>0.182</value>
-			</property>
+                <value>0</value>
+                <value>0</value>
+                <value>0</value>
+            </property>
+            <property name="orientation"  type="Float">
+                <value>0.0</value>
+                <value>0.0</value>
+                <value>0.0</value>
+            </property>
+            <property name="size"  type="Float">
+                <value>0.182</value>
+                <value>0.182</value>
+                <value>0.182</value>
+            </property>
         </configure>
     </properties>
 </xpcf-registry>
