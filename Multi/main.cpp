@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-//#define USE_IMAGES_SET
-
 #include <iostream>
 #include <string>
 #include <vector>
@@ -66,7 +64,8 @@
 
 #define MIN_THRESHOLD -1
 #define MAX_THRESHOLD 220
-#define NB_THRESHOLD 8
+#define NB_THRESHOLD 3
+#define NB_POINTCLOUD_INIT 50
 
 using namespace SolAR;
 using namespace SolAR::datastructure;
@@ -102,11 +101,7 @@ int main(int argc, char **argv) {
 		LOG_INFO("Start creating components");
 
 		// component creation
-#ifdef USE_IMAGES_SET
-        auto camera = xpcfComponentManagerresolvebindTo<input::devices::ICamera>("ImagesAsCamera");
-#else
         auto camera = xpcfComponentManager->resolve<input::devices::ICamera>();
-#endif
         auto keypointsDetector = xpcfComponentManager->resolve<features::IKeypointDetector>();
         auto descriptorExtractor = xpcfComponentManager->resolve<features::IDescriptorsExtractor>();
 
@@ -277,6 +272,7 @@ int main(int argc, char **argv) {
 		SRef<Keyframe>                                      keyframe1, keyframe2;
 		bool bootstrapOk = false;
 		bool initFrame1 = false;
+        bool stop = false;
 		while (!bootstrapOk)
 		{
 			if (camera->getNextImage(view) == SolAR::FrameworkReturnCode::_ERROR_)
@@ -284,7 +280,9 @@ int main(int argc, char **argv) {
 
 			if (!detectFiducialMarker(view, poseFrame)) {
 				if (imageViewer->display(view) == SolAR::FrameworkReturnCode::_STOP)
-					return 1;
+                {
+                    return 1;
+                }
 				continue;
 			}
 			if (!initFrame1) {
@@ -298,8 +296,11 @@ int main(int argc, char **argv) {
 				float disTwoKeyframes = std::sqrt(std::pow(poseFrame1(0, 3) - poseFrame(0, 3), 2.f) + std::pow(poseFrame1(1, 3) - poseFrame(1, 3), 2.f) +
 					std::pow(poseFrame1(2, 3) - poseFrame(2, 3), 2.f));
 				if (disTwoKeyframes < 0.1) {
+                    overlay3D->draw(poseFrame, view);
 					if (imageViewer->display(view) == SolAR::FrameworkReturnCode::_STOP)
-						return 1;
+                    {
+                        return 1;
+                    }
 					continue;
 				}
 				keypointsDetector->detect(view, keypoints);
@@ -318,7 +319,7 @@ int main(int argc, char **argv) {
 					std::make_pair(0, 1), frame1->getPose(), frame2->getPose(), cloud);
 				mapFilter->filter(frame1->getPose(), frame2->getPose(), cloud, filteredCloud);
 
-				if (filteredCloud.size() > 80) {
+                if (filteredCloud.size() > NB_POINTCLOUD_INIT) {
 					keyframe1 = xpcf::utils::make_shared<Keyframe>(frame1);
 					keyframe2 = xpcf::utils::make_shared<Keyframe>(frame2);
 					keyframe2->setReferenceKeyframe(keyframe1);
@@ -581,8 +582,6 @@ int main(int argc, char **argv) {
 		updateReferenceKeyframe(keyframe2);
 		updateData(keyframe2, localMap, idxLocalMap, frameToTrack);
 		
-
-		bool stop = false;
 		xpcf::DropBuffer<SRef<Image>>												m_dropBufferCamImageCapture;
 		xpcf::DropBuffer<SRef<Frame>>												m_dropBufferAddKeyframe;
 		xpcf::DropBuffer<SRef<Keyframe>>											m_dropBufferNewKeyframe;
@@ -593,45 +592,49 @@ int main(int argc, char **argv) {
 		// Camera image capture task
 		auto fnCamImageCapture = [&]()
 		{
-			SRef<Image> view;
-			if (camera->getNextImage(view) != SolAR::FrameworkReturnCode::_SUCCESS)
-			{
-				stop = true;
-				return;
-			}
 
-			m_dropBufferCamImageCapture.push(view);			
-
-#ifdef USE_IMAGES_SET
-			std::this_thread::sleep_for(std::chrono::milliseconds(40));
-#endif
+            if (!stop)
+            {
+                SRef<Image> view;
+                if (camera->getNextImage(view) != SolAR::FrameworkReturnCode::_SUCCESS)
+                {
+                    stop = true;
+                    return;
+                }
+                LOG_INFO("Capture");
+                m_dropBufferCamImageCapture.push(view);
+            }
 		};
 
 		// Keypoint detection task
 		auto fnDetection = [&]() 
-		{			
-			SRef<Image> frame;
-			if (!m_dropBufferCamImageCapture.tryPop(frame)) {
-				xpcf::DelegateTask::yield();
-				return;
-			}
-
-			keypointsDetector->detect(frame, keypoints);
-			m_dropBufferKeypoints.push(std::make_pair(frame, keypoints));
+        {
+            if (!stop)
+            {
+                SRef<Image> frame;
+                if (!m_dropBufferCamImageCapture.tryPop(frame)) {
+                    xpcf::DelegateTask::yield();
+                    return;
+                }
+                keypointsDetector->detect(frame, keypoints);
+                m_dropBufferKeypoints.push(std::make_pair(frame, keypoints));
+            }
 		};		
 
 		// Feature extraction task
 		auto fnExtraction = [&]()
 		{
-			std::pair<SRef<Image>, std::vector<Keypoint>> frameKeypoints;
-			if (!m_dropBufferKeypoints.tryPop(frameKeypoints)) {
-				xpcf::DelegateTask::yield();
-				return;
-			}
-
-			descriptorExtractor->extract(frameKeypoints.first, frameKeypoints.second, descriptors);
-			SRef<Frame> frame = xpcf::utils::make_shared<Frame>(frameKeypoints.second, descriptors, frameKeypoints.first);
-			m_dropBufferFrameDescriptors.push(frame);
+            if (!stop)
+            {
+                std::pair<SRef<Image>, std::vector<Keypoint>> frameKeypoints;
+                if (!m_dropBufferKeypoints.tryPop(frameKeypoints)) {
+                    xpcf::DelegateTask::yield();
+                    return;
+                }
+                descriptorExtractor->extract(frameKeypoints.first, frameKeypoints.second, descriptors);
+                SRef<Frame> frame = xpcf::utils::make_shared<Frame>(frameKeypoints.second, descriptors, frameKeypoints.first);
+                m_dropBufferFrameDescriptors.push(frame);
+            }
 		};
 		
 
@@ -639,11 +642,12 @@ int main(int argc, char **argv) {
 		int count = 0;
 		// Tracking task
 		auto fnTracking = [&]()
-		{
-			if (!m_dropBufferFrameDescriptors.tryPop(newFrame)) {
+        {
+            if (!m_dropBufferFrameDescriptors.tryPop(newFrame)) {
 				xpcf::DelegateTask::yield();
 				return;
 			}
+
 			SRef<Keyframe> newKeyframe;
 			if (m_dropBufferNewKeyframe.tryPop(newKeyframe))
 			{
@@ -738,7 +742,14 @@ int main(int argc, char **argv) {
 				else
 					LOG_DEBUG("Retrieval Failed");
 			}
-			m_dropBufferDisplay.push(imageMatches);
+
+            LOG_INFO("Display");
+            if (imageViewer->display(imageMatches) == SolAR::FrameworkReturnCode::_STOP)
+            {
+                stop = true;
+            }
+
+            //m_dropBufferDisplay.push(imageMatches);
 
 			LOG_DEBUG("Nb of Local Map / World Map: {} / {}", localMap.size(), map->getPointCloud().size());
 			LOG_DEBUG("Index of current reference keyframe: {}", referenceKeyframe->m_idx);
@@ -755,84 +766,65 @@ int main(int argc, char **argv) {
 		// check need new keyframe
 		auto fnMapping = [&]()
 		{
-			SRef<Frame> newFrame;
-			if (!m_dropBufferAddKeyframe.tryPop(newFrame)) {
-				xpcf::DelegateTask::yield();
-				return;
-			}
-
-			// check need new keyframe
-			if (keyframeSelector->select(newFrame, checkDisparityDistance))
-			{
-				if (keyframeSelector->select(newFrame, checkNeedNewKfWithAllKfs)) {
-					updateReferenceKeyframe(updatedRefKf);
-					m_dropBufferNewKeyframe.push(updatedRefKf);
-					LOG_INFO("Update new reference keyframe id: {} \n", updatedRefKf->m_idx);
-				}
-				else {
-					// create new keyframe
-					SRef<Keyframe> newKeyframe = processNewKeyframe(newFrame);
-					// Local bundle adjustment
-					std::vector<unsigned int>bestIdx = newKeyframe->getBestNeighborKeyframes(10);
-					std::vector<int> windowIdxBundling;
-					for (auto it_best : bestIdx)
-						windowIdxBundling.push_back(it_best);
-					windowIdxBundling.push_back(newKeyframe->m_idx);
-					localBundleAdjuster(windowIdxBundling, bundleReprojError);
-					// Update new reference keyframe 
-					updateReferenceKeyframe(newKeyframe);
-					keyframePoses.push_back(newKeyframe->getPose());
-					LOG_INFO("Number of keyframe: {} -> cloud current size: {} \n", mapper->getKeyframes().size(), map->getPointCloud().size());
-					m_dropBufferNewKeyframe.push(newKeyframe);
-				}
-			}
-		};
-		
-		// Display task
-		auto fnDisplay = [&]()
-		{
-			SRef<Image> view;
-			if (!m_dropBufferDisplay.tryPop(view)) {
-				xpcf::DelegateTask::yield();
-				return;
-			}			
-			if (imageViewer->display(view) == SolAR::FrameworkReturnCode::_STOP)
-			{
-				stop = true;
-			}			
-		};
+            if (!stop)
+            {
+                SRef<Frame> newFrame;
+                if (!m_dropBufferAddKeyframe.tryPop(newFrame)) {
+                    xpcf::DelegateTask::yield();
+                    return;
+                }
+                // check need new keyframe
+                if (keyframeSelector->select(newFrame, checkDisparityDistance))
+                {
+                    if (keyframeSelector->select(newFrame, checkNeedNewKfWithAllKfs)) {
+                        updateReferenceKeyframe(updatedRefKf);
+                        m_dropBufferNewKeyframe.push(updatedRefKf);
+                        LOG_INFO("Update new reference keyframe id: {} \n", updatedRefKf->m_idx);
+                    }
+                    else {
+                        // create new keyframe
+                        SRef<Keyframe> newKeyframe = processNewKeyframe(newFrame);
+                        // Local bundle adjustment
+                        std::vector<unsigned int>bestIdx = newKeyframe->getBestNeighborKeyframes(10);
+                        std::vector<int> windowIdxBundling;
+                        for (auto it_best : bestIdx)
+                            windowIdxBundling.push_back(it_best);
+                        windowIdxBundling.push_back(newKeyframe->m_idx);
+                        localBundleAdjuster(windowIdxBundling, bundleReprojError);
+                        // Update new reference keyframe
+                        updateReferenceKeyframe(newKeyframe);
+                        keyframePoses.push_back(newKeyframe->getPose());
+                        LOG_INFO("Number of keyframe: {} -> cloud current size: {} \n", mapper->getKeyframes().size(), map->getPointCloud().size());
+                        m_dropBufferNewKeyframe.push(newKeyframe);
+                    }
+                }
+            }
+        };
 
 		// instantiate and start tasks
 		xpcf::DelegateTask taskCamImageCapture(fnCamImageCapture);
-		//xpcf::DelegateTask taskTracking(fnTracking);
-		xpcf::DelegateTask taskDetection(fnDetection);
-		xpcf::DelegateTask taskExtraction(fnExtraction);
+        xpcf::DelegateTask taskDetection(fnDetection);
+        xpcf::DelegateTask taskExtraction(fnExtraction);
 		xpcf::DelegateTask taskMapping(fnMapping);
-		xpcf::DelegateTask taskDisplay(fnDisplay);
 
 		taskCamImageCapture.start();
-		taskDetection.start();
-		taskExtraction.start();
-		//taskTracking.start();
+        taskDetection.start();
+        taskExtraction.start();
 		taskMapping.start();
-		taskDisplay.start();
 
 		// Start tracking
 		clock_t start, end;		
 		start = clock();
 		while (!stop)
 		{
-			fnTracking();
-			//std::this_thread::sleep_for(std::chrono::milliseconds(1));		
+            fnTracking();
 		}
 
 		// Stop tasks
 		taskCamImageCapture.stop();
-		taskDetection.stop();
-		taskExtraction.stop();
-		//taskTracking.stop();
+        taskDetection.stop();
+        taskExtraction.stop();
 		taskMapping.stop();
-		//taskDisplay.stop();
 
 		// display stats on frame rate
 		end = clock();
