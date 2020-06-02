@@ -8,6 +8,8 @@
 #define MAX_THRESHOLD 220
 #define NB_THRESHOLD 3
 #define NB_POINTCLOUD_INIT 50
+#define MIN_WEIGHT_NEIGHBOR_KEYFRAME 50
+#define MIN_POINT_DISTANCE 0.04
 
 // The pipeline component for the fiducial marker
 
@@ -18,6 +20,15 @@ using namespace datastructure;
 using namespace api::pipeline;
 namespace PIPELINES {
 
+inline static float centerCamDistance(const Transform3Df & pose1, const Transform3Df & pose2) {
+	return std::sqrt(std::pow(pose1(0, 3) - pose2(0, 3), 2.f) + std::pow(pose1(1, 3) - pose2(1, 3), 2.f) +
+		std::pow(pose1(2, 3) - pose2(2, 3), 2.f));
+}
+
+inline static float angleCamDistance(const Transform3Df & pose1, const Transform3Df & pose2) {
+	return std::acos(pose1(0, 2) * pose2(0, 2) + pose1(1, 2) * pose2(1, 2) + pose1(2, 2) * pose2(2, 2));
+}
+
 PipelineSlam::PipelineSlam():ConfigurableBase(xpcf::toUUID<PipelineSlam>())
 {
     declareInterface<api::pipeline::IPipeline>(this);
@@ -26,6 +37,11 @@ PipelineSlam::PipelineSlam():ConfigurableBase(xpcf::toUUID<PipelineSlam>())
 #else
     declareInjectable<input::devices::ICamera>(m_camera);
 #endif
+	declareInjectable<IPointCloudManager>(m_pointCloudManager);
+	declareInjectable<IKeyframesManager>(m_keyframesManager);
+	declareInjectable<ICovisibilityGraph>(m_covisibilityGraph);
+	declareInjectable<reloc::IKeyframeRetriever>(m_kfRetriever);
+	declareInjectable<solver::map::IMapper>(m_mapper);
 
     declareInjectable<features::IKeypointDetector>(m_keypointsDetector);
     declareInjectable<features::IDescriptorsExtractor>(m_descriptorExtractor);
@@ -36,10 +52,8 @@ PipelineSlam::PipelineSlam():ConfigurableBase(xpcf::toUUID<PipelineSlam>())
     declareInjectable<solver::pose::I3DTransformSACFinderFrom2D3D>(m_pnpRansac);
     declareInjectable<solver::pose::I3DTransformFinderFrom2D3D>(m_pnp);
     declareInjectable<solver::pose::I2D3DCorrespondencesFinder>(m_corr2D3DFinder);
-    declareInjectable<solver::map::IMapFilter>(m_mapFilter);
-    declareInjectable<solver::map::IMapper>(m_mapper);
-    declareInjectable<solver::map::IKeyframeSelector>(m_keyframeSelector);
-    declareInjectable<reloc::IKeyframeRetriever>(m_kfRetriever);
+    declareInjectable<solver::map::IMapFilter>(m_mapFilter);    
+    declareInjectable<solver::map::IKeyframeSelector>(m_keyframeSelector);    
     declareInjectable<geom::IProject>(m_projector);
     declareInjectable<sink::ISinkPoseImage>(m_sink);
     declareInjectable<source::ISourceImage>(m_source);
@@ -64,7 +78,6 @@ PipelineSlam::PipelineSlam():ConfigurableBase(xpcf::toUUID<PipelineSlam>())
 	m_stopFlag = false;
 	m_startedOK = false;
 	m_startCaptureFirstKeyframe = false;
-	Keyframe::resetFirstIdKeyframe();
 
     LOG_DEBUG(" Pipeline constructor");	
 }
@@ -169,31 +182,29 @@ bool PipelineSlam::detectFiducialMarker(SRef<Image>& image, Transform3Df &pose)
 	return marker_found;
 }
 
-void PipelineSlam::updateData(const SRef<Keyframe> refKf)
+void PipelineSlam::updateData(const SRef<Keyframe> &refKf)
 {	
 	m_frameToTrack = xpcf::utils::make_shared<Frame>(m_referenceKeyframe);
 	m_frameToTrack->setReferenceKeyframe(m_referenceKeyframe);
-	m_idxLocalMap.clear();
 	m_localMap.clear();
-	m_mapper->getLocalMapIndex(m_referenceKeyframe, m_idxLocalMap);
-	for (auto it : m_idxLocalMap)
-		m_localMap.push_back(m_mapper->getGlobalMap()->getAPoint(it));
+	// get local point cloud
+	m_mapper->getLocalPointCloud(refKf, MIN_WEIGHT_NEIGHBOR_KEYFRAME, m_localMap);
 }
 
-void PipelineSlam::updateReferenceKeyframe(const SRef<Keyframe> refKf)
+void PipelineSlam::updateReferenceKeyframe(const SRef<Keyframe> &refKf)
 {
 	std::unique_lock<std::mutex> lock(globalVarsMutex);
 	m_referenceKeyframe = refKf;
-	LOG_DEBUG("Update new reference keyframe with id {}", m_referenceKeyframe->m_idx);
+	LOG_DEBUG("Update new reference keyframe with id {}", m_referenceKeyframe->getId());
 };
 
 bool PipelineSlam::checkNeedNewKfWithAllKfs(const SRef<Frame>& newFrame)
 {
-	std::vector < SRef <Keyframe>> ret_keyframes;
-	if (m_kfRetriever->retrieve(newFrame, ret_keyframes) == FrameworkReturnCode::_SUCCESS) {
-		if (ret_keyframes[0]->m_idx != m_referenceKeyframe->m_idx) {
-			m_updatedRefKf = ret_keyframes[0];
-			LOG_DEBUG("Find new reference keyframe with id {}", m_updatedRefKf->m_idx);
+	std::vector < uint32_t> ret_keyframesId;
+	if (m_kfRetriever->retrieve(newFrame, ret_keyframesId) == FrameworkReturnCode::_SUCCESS) {
+		if (ret_keyframesId[0] != m_referenceKeyframe->getId()) {
+			m_keyframesManager->getKeyframe(ret_keyframesId[0], m_updatedRefKf);
+			LOG_DEBUG("Find new reference keyframe with id {}", m_updatedRefKf->getId());
 			return true;
 		}
 		LOG_DEBUG("Find same reference keyframe, need make new keyframe");
@@ -204,15 +215,17 @@ bool PipelineSlam::checkNeedNewKfWithAllKfs(const SRef<Frame>& newFrame)
 };
 
 bool PipelineSlam::checkDisparityDistance(const SRef<Frame>& newFrame) {
-	const std::vector<CloudPoint> &cloudPoint = m_map->getPointCloud();
 	const std::vector<Keypoint> &refKeypoints = m_referenceKeyframe->getKeypoints();
-	const std::map<unsigned int, unsigned int> &refMapVisibility = m_referenceKeyframe->getVisibleMapPoints();
-	std::vector<CloudPoint> cpRef;
+	const std::map<uint32_t, uint32_t> &refMapVisibility = m_referenceKeyframe->getVisibility();
+	std::vector<SRef<CloudPoint>> cpRef;
 	std::vector<Point2Df> projected2DPts, ref2DPts;
 
-	for (auto it = refMapVisibility.begin(); it != refMapVisibility.end(); it++) {
-		cpRef.push_back(cloudPoint[it->second]);
-		ref2DPts.push_back(Point2Df(refKeypoints[it->first].getX(), refKeypoints[it->first].getY()));
+	for (auto const & it : refMapVisibility) {
+		SRef<CloudPoint> cloudPoint;
+		if (m_pointCloudManager->getPoint(it.second, cloudPoint) == FrameworkReturnCode::_SUCCESS) {
+			cpRef.push_back(cloudPoint);
+			ref2DPts.push_back(Point2Df(refKeypoints[it.first].getX(), refKeypoints[it.first].getY()));
+		}
 	}
 	m_projector->project(cpRef, projected2DPts, newFrame->getPose());
 
@@ -222,138 +235,142 @@ bool PipelineSlam::checkDisparityDistance(const SRef<Frame>& newFrame) {
 	{
 		Point2Df pt1 = ref2DPts[i];
 		Point2Df pt2 = projected2DPts[i];
-
 		totalMatchesDist += (pt1 - pt2).norm() / imageWidth;
 	}
 	double meanMatchesDist = totalMatchesDist / projected2DPts.size();
 	LOG_DEBUG("Keyframe Selector Mean Matches Dist: {}", meanMatchesDist);
 	return (meanMatchesDist > 0.07);
 }
-SRef<Keyframe> PipelineSlam::processNewKeyframe(SRef<Frame> newFrame)
+SRef<Keyframe> PipelineSlam::processNewKeyframe(SRef<Frame> &newFrame)
 {
 	// create a new keyframe from the current frame
 	SRef<Keyframe> newKeyframe = xpcf::utils::make_shared<Keyframe>(newFrame);
+	// Add to keyframe manager
+	m_keyframesManager->addKeyframe(newKeyframe);
 	// Add to BOW retrieval			
 	m_kfRetriever->addKeyframe(newKeyframe);
 	// Update keypoint visibility, descriptor in cloud point and connections between new keyframe with other keyframes
 	updateAssociateCloudPoint(newKeyframe);
 	// get best neighbor keyframes
-	std::vector<unsigned int> idxBestNeighborKfs = newKeyframe->getBestNeighborKeyframes(4);
+	std::vector<uint32_t> idxBestNeighborKfs;
+	m_covisibilityGraph->getNeighbors(newKeyframe->getId(), MIN_WEIGHT_NEIGHBOR_KEYFRAME, idxBestNeighborKfs);
 	// find matches between unmatching keypoints in the new keyframe and the best neighboring keyframes
-	std::vector<std::tuple<unsigned int, int, unsigned int>> infoMatches; // first: index of kp in newKf, second: index of Kf, third: index of kp in Kf.
-	std::vector<CloudPoint> newCloudPoint;
-	findMatchesAndTriangulation(newKeyframe, idxBestNeighborKfs, infoMatches, newCloudPoint);
+	std::vector<SRef<CloudPoint>> newCloudPoint;
+	findMatchesAndTriangulation(newKeyframe, idxBestNeighborKfs, newCloudPoint);
 	if (newCloudPoint.size() > 0) {
 		// fuse duplicate points
-		std::vector<unsigned int> idxNeigborKfs = newKeyframe->getBestNeighborKeyframes(10);
-		fuseCloudPoint(newKeyframe, idxNeigborKfs, infoMatches, newCloudPoint);
+		std::vector<uint32_t> idxNeigborKfs;
+		m_covisibilityGraph->getNeighbors(newKeyframe->getId(), MIN_WEIGHT_NEIGHBOR_KEYFRAME - 10, idxNeigborKfs);
+		fuseCloudPoint(newKeyframe, idxNeigborKfs, newCloudPoint);
 	}
-	LOG_INFO("Keyframe: {} -> Number of new 3D points: {}", newKeyframe->m_idx, newCloudPoint.size());
-	// mapper update
-	m_mapper->update(m_map, newKeyframe, newCloudPoint, infoMatches);
+	LOG_DEBUG("Keyframe: {} -> Number of new 3D points: {}", newKeyframe->getId(), newCloudPoint.size());
+	// add new points to point cloud manager, update visibility map and covisibility graph
+	for (auto const &point : newCloudPoint)
+		m_mapper->addCloudPoint(point);
 	return newKeyframe;
 }
 
 void PipelineSlam::updateAssociateCloudPoint(SRef<Keyframe>& newKf)
 {
-	std::map<unsigned int, unsigned int> newkf_mapVisibility = newKf->getVisibleMapPoints();
-	std::map<unsigned int, int> kfCounter;
-	for (auto it = newkf_mapVisibility.begin(); it != newkf_mapVisibility.end(); it++) {
-		CloudPoint &cp = m_map->getAPoint(it->second);
-		// calculate the number of connections to other keyframes
-		std::map<unsigned int, unsigned int> cpKfVisibility = cp.getVisibility();
-		for (auto it_kf = cpKfVisibility.begin(); it_kf != cpKfVisibility.end(); it_kf++)
-			kfCounter[it_kf->first]++;
-		///// update descriptor of cp: des_cp = ((des_cp * cp.getVisibility().size()) + des_buf) / (cp.getVisibility().size() + 1)
-		//// TO DO
-		cp.visibilityAddKeypoint(newKf->m_idx, it->first);
+	const std::map<uint32_t, uint32_t> &newkf_mapVisibility = newKf->getVisibility();
+	std::map<uint32_t, int> kfCounter;
+	// calculate the number of connections to other keyframes
+	for (auto const &it : newkf_mapVisibility) {
+		SRef<CloudPoint> cloudPoint;
+		if (m_pointCloudManager->getPoint(it.second, cloudPoint) == FrameworkReturnCode::_SUCCESS) {
+			const std::map<uint32_t, uint32_t> &cpKfVisibility = cloudPoint->getVisibility();
+			for (auto const &it_kf : cpKfVisibility)
+				kfCounter[it_kf.first]++;
+			///Todo: update descriptor of cp: des_cp = ((des_cp * cp.getVisibility().size()) + des_buf) / (cp.getVisibility().size() + 1)
+			cloudPoint->addVisibility(newKf->getId(), it.first);
+		}
 	}
 
-	for (auto it = kfCounter.begin(); it != kfCounter.end(); it++)
-		if ((it->first != newKf->m_idx) && (it->second > 20)) {
-			newKf->addNeighborKeyframe(it->first, it->second);
-		}
+	// Add to covisibility graph
+	for (auto const &it : kfCounter)
+		if (it.first != newKf->getId())
+			m_covisibilityGraph->increaseEdge(newKf->getId(), it.first, it.second);
 }
 
-void PipelineSlam::findMatchesAndTriangulation(SRef<Keyframe>& newKf, std::vector<unsigned int>& idxBestNeighborKfs, std::vector<std::tuple<unsigned int, int, unsigned int>>& infoMatches, std::vector<CloudPoint>& cloudPoint)
+void PipelineSlam::findMatchesAndTriangulation(const SRef<Keyframe> & newKf, const std::vector<uint32_t> &idxBestNeighborKfs, std::vector<SRef<CloudPoint>> &cloudPoint)
 {
-	const std::map<unsigned int, unsigned int> &newKf_mapVisibility = newKf->getVisibleMapPoints();
+	const std::map<unsigned int, unsigned int> &newKf_mapVisibility = newKf->getVisibility();
 	const SRef<DescriptorBuffer> &newKf_des = newKf->getDescriptors();
 	const std::vector<Keypoint> & newKf_kp = newKf->getKeypoints();
-	Transform3Df newKf_pose = newKf->getPose();
+	const Transform3Df& newKf_pose = newKf->getPose();
 
+	// Vector indices keypoints have no visibility to map point
 	std::vector<bool> checkMatches(newKf_kp.size(), false);
-
 	for (int i = 0; i < newKf_kp.size(); ++i)
 		if (newKf_mapVisibility.find(i) != newKf_mapVisibility.end()) {
 			checkMatches[i] = true;
 		}
 
+	// Triangulate to neighboring keyframes
 	for (int i = 0; i < idxBestNeighborKfs.size(); ++i) {
+		// get non map point view keypoints
 		std::vector<int> newKf_indexKeypoints;
 		for (int j = 0; j < checkMatches.size(); ++j)
 			if (!checkMatches[j])
 				newKf_indexKeypoints.push_back(j);
 
 		// get neighbor keyframe i
-		SRef<Keyframe> &tmpKf = m_mapper->getKeyframe(idxBestNeighborKfs[i]);
-		Transform3Df tmpPose = tmpKf->getPose();
+		SRef<Keyframe> tmpKf;
+		m_keyframesManager->getKeyframe(idxBestNeighborKfs[i], tmpKf);
+		const Transform3Df &tmpKf_pose = tmpKf->getPose();
 
 		// check distance between two keyframes
-        float distPose = std::sqrt(std::pow(newKf_pose(0, 3) - tmpPose(0, 3), 2.f) + std::pow(newKf_pose(1, 3) - tmpPose(1, 3), 2.f) +
-            std::pow(newKf_pose(2, 3) - tmpPose(2, 3), 2.f));
-		if (distPose < 0.05)
+		if ((centerCamDistance(newKf_pose, tmpKf_pose) < 0.05) || (angleCamDistance(newKf_pose, tmpKf_pose) > 0.5))
 			continue;
 
 		// Matching based on BoW
 		std::vector < DescriptorMatch> tmpMatches, goodMatches;
-		m_kfRetriever->match(newKf_indexKeypoints, newKf_des, idxBestNeighborKfs[i], tmpMatches);
+		m_kfRetriever->match(newKf_indexKeypoints, newKf_des, tmpKf, tmpMatches);
 
 		// matches filter based epipolar lines
-		m_matchesFilter->filter(tmpMatches, tmpMatches, newKf_kp, tmpKf->getKeypoints(), newKf->getPose(), tmpKf->getPose(), m_camera->getIntrinsicsParameters());
+		m_matchesFilter->filter(tmpMatches, tmpMatches, newKf_kp, tmpKf->getKeypoints(), newKf_pose, tmpKf_pose, m_camera->getIntrinsicsParameters());
 
 		// find info to triangulate				
-		std::vector<std::tuple<unsigned int, int, unsigned int>> tmpInfoMatches;
-		const std::map<unsigned int, unsigned int> & tmpMapVisibility = tmpKf->getVisibleMapPoints();
+		const std::map<unsigned int, unsigned int> & tmpMapVisibility = tmpKf->getVisibility();
 		for (int j = 0; j < tmpMatches.size(); ++j) {
 			unsigned int idx_newKf = tmpMatches[j].getIndexInDescriptorA();
 			unsigned int idx_tmpKf = tmpMatches[j].getIndexInDescriptorB();
 			if ((!checkMatches[idx_newKf]) && (tmpMapVisibility.find(idx_tmpKf) == tmpMapVisibility.end())) {
-				tmpInfoMatches.push_back(std::make_tuple(idx_newKf, idxBestNeighborKfs[i], idx_tmpKf));
 				goodMatches.push_back(tmpMatches[j]);
 			}
 		}
 
 		// triangulation
-		std::vector<CloudPoint> tmpCloudPoint, tmpFilteredCloudPoint;
+		std::vector<SRef<CloudPoint>> tmpCloudPoint, tmpFilteredCloudPoint;
 		std::vector<int> indexFiltered;
 		if (goodMatches.size() > 0)
 			m_triangulator->triangulate(newKf_kp, tmpKf->getKeypoints(), newKf_des, tmpKf->getDescriptors(), goodMatches,
-				std::make_pair(newKf->m_idx, idxBestNeighborKfs[i]), newKf->getPose(), tmpKf->getPose(), tmpCloudPoint);
+				std::make_pair(newKf->getId(), idxBestNeighborKfs[i]), newKf_pose, tmpKf_pose, tmpCloudPoint);
 
 		// filter cloud points
 		if (tmpCloudPoint.size() > 0)
-			m_mapFilter->filter(newKf->getPose(), tmpKf->getPose(), tmpCloudPoint, tmpFilteredCloudPoint, indexFiltered);
+			m_mapFilter->filter(newKf_pose, tmpKf_pose, tmpCloudPoint, tmpFilteredCloudPoint, indexFiltered);
 		for (int i = 0; i < indexFiltered.size(); ++i) {
-			checkMatches[std::get<0>(tmpInfoMatches[indexFiltered[i]])] = true;
-			infoMatches.push_back(tmpInfoMatches[indexFiltered[i]]);
+			checkMatches[goodMatches[indexFiltered[i]].getIndexInDescriptorA()] = true;
 			cloudPoint.push_back(tmpFilteredCloudPoint[i]);
 		}
 	}
 }
 
-void PipelineSlam::fuseCloudPoint(SRef<Keyframe>& newKeyframe, std::vector<unsigned int>& idxNeigborKfs, std::vector<std::tuple<unsigned int, int, unsigned int>>& infoMatches, std::vector<CloudPoint>& newCloudPoint)
+void PipelineSlam::fuseCloudPoint(const SRef<Keyframe> &newKeyframe, const std::vector<uint32_t> &idxNeigborKfs, std::vector<SRef<CloudPoint>> &newCloudPoint)
 {
 	std::vector<bool> checkMatches(newCloudPoint.size(), true);
 	std::vector<SRef<DescriptorBuffer>> desNewCloudPoint;
-	for (auto &it_cp : newCloudPoint) {
-		desNewCloudPoint.push_back(it_cp.getDescriptor());
+	for (auto const &it_cp : newCloudPoint) {
+		desNewCloudPoint.push_back(it_cp->getDescriptor());
 	}
 
 	for (int i = 0; i < idxNeigborKfs.size(); ++i) {
 		// get a neighbor
-		SRef<Keyframe> &neighborKf = m_mapper->getKeyframe(idxNeigborKfs[i]);
-		const std::map<unsigned int, unsigned int> mapVisibilitiesNeighbor = neighborKf->getVisibleMapPoints();
+		SRef<Keyframe> neighborKf;
+		if (m_keyframesManager->getKeyframe(idxNeigborKfs[i], neighborKf) == FrameworkReturnCode::_ERROR_)
+			continue;
+		const std::map<uint32_t, uint32_t> &mapVisibilitiesNeighbor = neighborKf->getVisibility();
 
 		//  projection points
 		std::vector< Point2Df > projected2DPts;
@@ -367,54 +384,46 @@ void PipelineSlam::fuseCloudPoint(SRef<Keyframe>& newKeyframe, std::vector<unsig
 			int idxKpNeighbor = allMatches[j].getIndexInDescriptorB();
 			if (!checkMatches[idxNewCloudPoint])
 				continue;
-			std::tuple<unsigned int, int, unsigned int> infoMatch = infoMatches[idxNewCloudPoint];
 
+			const std::map<uint32_t, uint32_t> &newCloudPointVisibility = newCloudPoint[idxNewCloudPoint]->getVisibility();
 			// check this cloud point is created from the same neighbor keyframe
-			if (std::get<1>(infoMatch) == idxNeigborKfs[i])
+			if (newCloudPointVisibility.find(idxNeigborKfs[i]) != newCloudPointVisibility.end())
 				continue;
 
 			// check if have a cloud point in the neighbor keyframe is coincide with this cloud point.
 			auto it_cp = mapVisibilitiesNeighbor.find(idxKpNeighbor);
 			if (it_cp != mapVisibilitiesNeighbor.end()) {
-				// fuse
-				CloudPoint &old_cp = m_map->getAPoint(it_cp->second);
-				old_cp.visibilityAddKeypoint(newKeyframe->m_idx, std::get<0>(infoMatch));
-				old_cp.visibilityAddKeypoint(std::get<1>(infoMatch), std::get<2>(infoMatch));
-
-				newKeyframe->addVisibleMapPoint(std::get<0>(infoMatch), it_cp->second);
-				m_mapper->getKeyframe(std::get<1>(infoMatch))->addVisibleMapPoint(std::get<2>(infoMatch), it_cp->second);
-
-				checkMatches[idxNewCloudPoint] = false;
+				SRef<CloudPoint> existedCloudPoint;
+				if (m_pointCloudManager->getPoint(it_cp->second, existedCloudPoint) == FrameworkReturnCode::_SUCCESS) {
+					if ((*existedCloudPoint - *newCloudPoint[idxNewCloudPoint]).magnitude() < MIN_POINT_DISTANCE) {
+						// add visibilities to this cloud point and keyframes
+						std::vector<uint32_t> keyframeIds;
+						for (auto const &vNewCP : newCloudPointVisibility) {
+							existedCloudPoint->addVisibility(vNewCP.first, vNewCP.second);
+							keyframeIds.push_back(vNewCP.first);
+							SRef<Keyframe> tmpKeyframe;
+							m_keyframesManager->getKeyframe(vNewCP.first, tmpKeyframe);
+							tmpKeyframe->addVisibility(vNewCP.second, it_cp->second);
+						}
+						// update covisibility graph
+						m_covisibilityGraph->increaseEdge(idxNeigborKfs[i], keyframeIds[0], 1);
+						m_covisibilityGraph->increaseEdge(idxNeigborKfs[i], keyframeIds[1], 1);
+						m_covisibilityGraph->increaseEdge(keyframeIds[0], keyframeIds[1], 1);
+						// this new cloud point is existed
+						checkMatches[idxNewCloudPoint] = false;
+						/// Todo: Modify cloud point descriptor
+					}
+				}
 			}
 		}
 	}
-	std::vector<std::tuple<unsigned int, int, unsigned int>> tmpInfoMatches;
-	std::vector<CloudPoint> tmpNewCloudPoint;
-	for (int i = 0; i < checkMatches.size(); ++i)
-		if (checkMatches[i]) {
-			tmpInfoMatches.push_back(infoMatches[i]);
-			tmpNewCloudPoint.push_back(newCloudPoint[i]);
-		}
-	tmpInfoMatches.swap(infoMatches);
-	tmpNewCloudPoint.swap(newCloudPoint);
-}
 
-void PipelineSlam::localBundleAdjuster(std::vector<int>& framesIdxToBundle, double & reprojError)
-{
-	std::vector<Transform3Df>correctedPoses;
-	std::vector<CloudPoint>correctedCloud;
-	CamCalibration correctedCalib;
-	CamDistortion correctedDist;
-	reprojError = m_bundler->solve(m_mapper->getKeyframes(),
-		m_mapper->getGlobalMap()->getPointCloud(),
-		m_camera->getIntrinsicsParameters(),
-		m_camera->getDistorsionParameters(),
-		framesIdxToBundle,
-		correctedPoses,
-		correctedCloud,
-		correctedCalib,
-		correctedDist);
-	m_mapper->update(correctedPoses, correctedCloud);
+	std::vector<std::tuple<uint32_t, int, uint32_t>> tmpInfoMatches;
+	std::vector<SRef<CloudPoint>> tmpNewCloudPoint;
+	for (int i = 0; i < checkMatches.size(); ++i)
+		if (checkMatches[i])
+			tmpNewCloudPoint.push_back(newCloudPoint[i]);
+	tmpNewCloudPoint.swap(newCloudPoint);
 }
 
 FrameworkReturnCode PipelineSlam::start(void* imageDataBuffer)
@@ -561,39 +570,47 @@ void PipelineSlam::doBootStrap()
 		}
 		else {
 			Transform3Df poseFrame1 = m_frame1->getPose();
-			float disTwoKeyframes = std::sqrt(std::pow(poseFrame1(0, 3) - m_poseFrame(0, 3), 2.f) + std::pow(poseFrame1(1, 3) - m_poseFrame(1, 3), 2.f) +
-				std::pow(poseFrame1(2, 3) - m_poseFrame(2, 3), 2.f));
-			if (disTwoKeyframes > 0.1) {
+			if (centerCamDistance(m_poseFrame, poseFrame1) > 0.1) {
+				// feature extraction
 				m_keypointsDetector->detect(m_camImage, m_keypoints);
 				m_descriptorExtractor->extract(m_camImage, m_keypoints, m_descriptors);
 				m_frame2 = xpcf::utils::make_shared<Frame>(m_keypoints, m_descriptors, m_camImage, m_poseFrame);
-				// matching
-				m_matcher->match(m_frame1->getDescriptors(), m_frame2->getDescriptors(), m_matches);
-				m_matchesFilter->filter(m_matches, m_matches, m_frame1->getKeypoints(), m_frame2->getKeypoints());
-				// Triangulate
-				m_cloud.clear();
-				m_filteredCloud.clear();
-				m_triangulator->triangulate(m_frame1->getKeypoints(), m_frame2->getKeypoints(), m_frame1->getDescriptors(), m_frame2->getDescriptors(), m_matches,
-					std::make_pair(0, 1), m_frame1->getPose(), m_frame2->getPose(), m_cloud);
-				m_mapFilter->filter(m_frame1->getPose(), m_frame2->getPose(), m_cloud, m_filteredCloud);
+				// check angle camera distance
+				if (angleCamDistance(m_poseFrame, poseFrame1) < 0.1) {
+					// matching
+					m_matcher->match(m_frame1->getDescriptors(), m_frame2->getDescriptors(), m_matches);
+					m_matchesFilter->filter(m_matches, m_matches, m_frame1->getKeypoints(), m_frame2->getKeypoints());
+					// Triangulate
+					m_cloud.clear();
+					m_filteredCloud.clear();
+					m_triangulator->triangulate(m_frame1->getKeypoints(), m_frame2->getKeypoints(), m_frame1->getDescriptors(), m_frame2->getDescriptors(), m_matches,
+						std::make_pair(0, 1), m_frame1->getPose(), m_frame2->getPose(), m_cloud);
+					m_mapFilter->filter(m_frame1->getPose(), m_frame2->getPose(), m_cloud, m_filteredCloud);
 
-                if (m_filteredCloud.size() > NB_POINTCLOUD_INIT) {
-					m_keyframe1 = xpcf::utils::make_shared<Keyframe>(m_frame1);
-					m_keyframe2 = xpcf::utils::make_shared<Keyframe>(m_frame2);
-					m_keyframe2->setReferenceKeyframe(m_keyframe1);
-					m_mapper->update(m_map, m_keyframe1, {}, {}, {});
-					m_keyframePoses.push_back(m_keyframe1->getPose()); // used for display
-					m_kfRetriever->addKeyframe(m_keyframe1); // add keyframe for reloc
-					m_keyframePoses.push_back(m_keyframe2->getPose()); // used for display
-					m_mapper->update(m_map, m_keyframe2, m_filteredCloud, m_matches, {});
-					m_kfRetriever->addKeyframe(m_keyframe2); // add keyframe for reloc					
-					std::vector<int>firstIdxKFs = { 0,1 };
-					localBundleAdjuster(firstIdxKFs, m_bundleReprojError); // Bundle adjustment
-					m_bootstrapOk = true;
-					m_lastPose = m_keyframe2->getPose();
-					updateReferenceKeyframe(m_keyframe2);
-					updateData(m_keyframe2);
-					LOG_INFO("Number of initial point cloud: {}", m_filteredCloud.size());
+					if (m_filteredCloud.size() > NB_POINTCLOUD_INIT) {
+						// add keyframes to keyframes manager
+						m_keyframe1 = xpcf::utils::make_shared<Keyframe>(m_frame1);
+						m_keyframesManager->addKeyframe(m_keyframe1);
+						m_keyframe2 = xpcf::utils::make_shared<Keyframe>(m_frame2);
+						m_keyframesManager->addKeyframe(m_keyframe2);
+						m_keyframe2->setReferenceKeyframe(m_keyframe1);						
+						// add intial point cloud to point cloud manager and update visibility map and update covisibility graph
+						for (auto const &it : m_filteredCloud)
+							m_mapper->addCloudPoint(it);
+						// add keyframes to retriever
+						m_kfRetriever->addKeyframe(m_keyframe1);
+						m_kfRetriever->addKeyframe(m_keyframe2);
+						// apply bundle adjustement 
+						m_bundleReprojError = m_bundler->solve(m_camera->getIntrinsicsParameters(), m_camera->getDistorsionParameters(), { 0,1 });
+						m_bootstrapOk = true;
+						m_lastPose = m_keyframe2->getPose();
+						updateReferenceKeyframe(m_keyframe2);
+						updateData(m_keyframe2);
+						LOG_INFO("Number of initial point cloud: {}", m_filteredCloud.size());
+					}
+					else {
+						m_frame1 = m_frame2;
+					}
 				}
 				else {
 					m_frame1 = m_frame2;
@@ -648,16 +665,14 @@ void PipelineSlam::tracking()
 	newFrame->setReferenceKeyframe(m_referenceKeyframe);
 	m_matcher->match(m_frameToTrack->getDescriptors(), newFrame->getDescriptors(), m_matches);
 	m_matchesFilter->filter(m_matches, m_matches, m_frameToTrack->getKeypoints(), newFrame->getKeypoints());
-
 	std::vector<Point2Df> pt2d;
 	std::vector<Point3Df> pt3d;
 	std::vector<CloudPoint> foundPoints;
 	std::vector<DescriptorMatch> foundMatches;
 	std::vector<DescriptorMatch> remainingMatches;
-	m_corr2D3DFinder->find(m_frameToTrack, newFrame, m_matches, m_map, pt3d, pt2d, foundMatches, remainingMatches);
+	m_corr2D3DFinder->find(m_frameToTrack, newFrame, m_matches, pt3d, pt2d, foundMatches, remainingMatches);
 	// display matches
 	SRef<Image> imageMatches = newFrame->getView()->copy();
-
 	std::vector<Point2Df> imagePoints_inliers;
 	std::vector<Point3Df> worldPoints_inliers;
 	if (m_pnpRansac->estimate(pt2d, pt3d, imagePoints_inliers, worldPoints_inliers, m_pose, m_lastPose) == FrameworkReturnCode::_SUCCESS) {
@@ -676,7 +691,7 @@ void PipelineSlam::tracking()
 
 			std::vector<SRef<DescriptorBuffer>> desAllLocalMap;
 			for (auto &it_cp : m_localMap) {
-				desAllLocalMap.push_back(it_cp.getDescriptor());
+				desAllLocalMap.push_back(it_cp->getDescriptor());
 			}
 			std::vector<DescriptorMatch> allMatches;
 			m_matcher->matchInRegion(projected2DPts, desAllLocalMap, newFrame, allMatches, 5.f);
@@ -688,8 +703,8 @@ void PipelineSlam::tracking()
 				int idx_2d = it_match.getIndexInDescriptorB();
 				int idx_3d = it_match.getIndexInDescriptorA();
 				pt2d.push_back(Point2Df(keypoints[idx_2d].getX(), keypoints[idx_2d].getY()));
-				pt3d.push_back(Point3Df(m_localMap[idx_3d].getX(), m_localMap[idx_3d].getY(), m_localMap[idx_3d].getZ()));
-				newMapVisibility[idx_2d] = m_idxLocalMap[idx_3d];
+				pt3d.push_back(Point3Df(m_localMap[idx_3d]->getX(), m_localMap[idx_3d]->getY(), m_localMap[idx_3d]->getZ()));
+				newMapVisibility[idx_2d] = m_localMap[idx_3d]->getId();
 			}
 
 			// pnp optimization
@@ -698,7 +713,7 @@ void PipelineSlam::tracking()
 			newFrame->setPose(refinedPose);
 
 			// update map visibility of current frame
-			newFrame->addVisibleMapPoints(newMapVisibility);
+			newFrame->addVisibilities(newMapVisibility);
 			LOG_DEBUG("Number of map visibility of frame to track: {}", newMapVisibility.size());
 			m_i2DOverlay->drawCircles(pt2d, imageMatches);
 			//overlay3D->draw(refinedPose, imageMatches);
@@ -714,21 +729,20 @@ void PipelineSlam::tracking()
 		// add new frame to check need new keyframe
 		m_addKeyframeBuffer.push(newFrame);
 
-		m_framePoses.push_back(newFrame->getPose()); // used for display
-
 		m_isLostTrack = false;	// tracking is good
 
 	}
 	else {
 		LOG_DEBUG("Pose estimation has failed");
 		m_isLostTrack = true;		// lost tracking
-
 		// reloc
-		std::vector < SRef <Keyframe>> ret_keyframes;
-		if (m_kfRetriever->retrieve(newFrame, ret_keyframes) == FrameworkReturnCode::_SUCCESS) {
-			LOG_INFO("Tracking: lost need update keyframe id {}", ret_keyframes[0]->m_idx);
-			updateReferenceKeyframe(ret_keyframes[0]);
-			updateData(ret_keyframes[0]);
+		std::vector < uint32_t> retKeyframesId;
+		if (m_kfRetriever->retrieve(newFrame, retKeyframesId) == FrameworkReturnCode::_SUCCESS) {
+			LOG_INFO("Tracking: lost need update keyframe id {}", retKeyframesId[0]);
+			SRef<Keyframe> bestRetKeyframe;
+			m_keyframesManager->getKeyframe(retKeyframesId[0], bestRetKeyframe);
+			updateReferenceKeyframe(bestRetKeyframe);
+			updateData(bestRetKeyframe);
 			m_lastPose = m_referenceKeyframe->getPose();
 			LOG_DEBUG("Retrieval Success");
 		}
@@ -738,8 +752,8 @@ void PipelineSlam::tracking()
 		m_sink->set(imageMatches);
 	}
 
-	LOG_DEBUG("Nb of Local Map / World Map: {} / {}", m_localMap.size(), m_map->getPointCloud().size());
-	LOG_DEBUG("Index of current reference keyframe: {} / {}", m_referenceKeyframe->m_idx, m_mapper->getKeyframes().size());
+	LOG_DEBUG("Nb of Local Map / World Map: {} / {}", m_localMap.size(), m_pointCloudManager->getNbPoints());
+	LOG_DEBUG("Index of current reference keyframe: {} / {}", m_referenceKeyframe->getId(), m_keyframesManager->getNbKeyframes());
 }
 
 void PipelineSlam::mapping()
@@ -758,21 +772,19 @@ void PipelineSlam::mapping()
 		if (m_keyframeSelector->select(newFrame, _fnCheckNeedNewKfWithAllKfs)) {
 			updateReferenceKeyframe(m_updatedRefKf);
 			m_newKeyframeBuffer.push(m_updatedRefKf);
-			LOG_INFO("Update new reference keyframe id: {} \n", m_updatedRefKf->m_idx);
+			LOG_INFO("Update new reference keyframe id: {} \n", m_updatedRefKf->getId());
 		}
 		else {
+			// create new keyframe
 			SRef<Keyframe> newKeyframe = processNewKeyframe(newFrame);
 			// Local bundle adjustment
-			std::vector<unsigned int>bestIdx = newKeyframe->getBestNeighborKeyframes(10);
-			std::vector<int> windowIdxBundling;
-			for (auto it_best : bestIdx)
-				windowIdxBundling.push_back(it_best);
-			windowIdxBundling.push_back(newKeyframe->m_idx);
-			localBundleAdjuster(windowIdxBundling, m_bundleReprojError);
+			std::vector<uint32_t> bestIdx;
+			m_covisibilityGraph->getNeighbors(newKeyframe->getId(), MIN_WEIGHT_NEIGHBOR_KEYFRAME, bestIdx);
+			bestIdx.push_back(newKeyframe->getId());
+			m_bundleReprojError = m_bundler->solve(m_camera->getIntrinsicsParameters(), m_camera->getDistorsionParameters(), bestIdx);
 			// Update new reference keyframe 
 			updateReferenceKeyframe(newKeyframe);
-			m_keyframePoses.push_back(newKeyframe->getPose());
-			LOG_INFO("Number of keyframe: {} -> cloud current size: {} \n", m_mapper->getKeyframes().size(), m_map->getPointCloud().size());
+			LOG_INFO("Number of keyframe: {} -> cloud current size: {} \n", m_keyframesManager->getNbKeyframes(), m_pointCloudManager->getNbPoints());
 			m_newKeyframeBuffer.push(newKeyframe);
 		}
 	}		

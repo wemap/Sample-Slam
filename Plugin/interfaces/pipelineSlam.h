@@ -38,6 +38,9 @@
 #include "api/reloc/IKeyframeRetriever.h"
 #include "api/geom/IProject.h"
 #include "api/solver/map/IBundler.h"
+#include "api/storage/ICovisibilityGraph.h"
+#include "api/storage/IKeyframesManager.h"
+#include "api/storage/IPointCloudManager.h"
 #include "core/Log.h"
 
 #include "api/input/files/IMarker2DSquaredBinary.h"
@@ -136,10 +139,10 @@ private:
 	bool detectFiducialMarker(SRef<Image>& image, Transform3Df &pose);
 
 	// update data to track
-	void updateData(const SRef<Keyframe> refKf);
+	void updateData(const SRef<Keyframe> &refKf);
 
 	// update reference keyframe
-	void updateReferenceKeyframe(const SRef<Keyframe> refKf);
+	void updateReferenceKeyframe(const SRef<Keyframe> &refKf);
 
 	// check need new keyframe based on FBoW
 	bool checkNeedNewKfWithAllKfs(const SRef<Frame>& newFrame);
@@ -148,19 +151,16 @@ private:
 	bool checkDisparityDistance(const SRef<Frame>& newFrame);
 
 	// process to add a new keyframe
-	SRef<Keyframe> processNewKeyframe(SRef<Frame> newFrame);
+	SRef<Keyframe> processNewKeyframe(SRef<Frame> &newFrame);
 
 	// Update keypoint visibility, descriptor in cloud point
 	void updateAssociateCloudPoint(SRef<Keyframe> & newKf);
 
 	// find matches between unmatching keypoints in the new keyframe and the best neighboring keyframes
-	void findMatchesAndTriangulation(SRef<Keyframe> & newKf, std::vector<unsigned int> &idxBestNeighborKfs, std::vector<std::tuple<unsigned int, int, unsigned int>> &infoMatches, std::vector<CloudPoint> &cloudPoint);
+	void findMatchesAndTriangulation(const SRef<Keyframe> & newKf, const std::vector<uint32_t> &idxBestNeighborKfs, std::vector<SRef<CloudPoint>> &cloudPoint);
 
 	// check and fuse cloud point
-	void fuseCloudPoint(SRef<Keyframe> &newKeyframe, std::vector<unsigned int> &idxNeigborKfs, std::vector<std::tuple<unsigned int, int, unsigned int>> &infoMatches, std::vector<CloudPoint> &newCloudPoint);
-
-	// Local bundle adjustment
-	void localBundleAdjuster(std::vector<int>&framesIdxToBundle, double& reprojError);
+	void fuseCloudPoint(const SRef<Keyframe> &newKeyframe, const std::vector<uint32_t> &idxNeigborKfs, std::vector<SRef<CloudPoint>> &newCloudPoint);
 
 private:
 
@@ -169,6 +169,13 @@ private:
 
 	// mutex
 	std::mutex globalVarsMutex;
+
+	// storage components
+	SRef<IPointCloudManager>							m_pointCloudManager;
+	SRef<IKeyframesManager>								m_keyframesManager;
+	SRef<ICovisibilityGraph>							m_covisibilityGraph;
+	SRef<reloc::IKeyframeRetriever>						m_kfRetriever;
+	SRef<solver::map::IMapper>							m_mapper;
 
 	// components
     SRef<input::devices::ICamera>						m_camera;
@@ -195,10 +202,8 @@ private:
 	SRef<solver::map::ITriangulator>					m_triangulator;    
     SRef<solver::pose::I2D3DCorrespondencesFinder>		m_corr2D3DFinder;
     SRef<geom::IProject>								m_projector;
-    SRef<solver::map::IMapFilter>						m_mapFilter;
-    SRef<solver::map::IMapper>							m_mapper;
-    SRef<solver::map::IKeyframeSelector>				m_keyframeSelector;
-    SRef<reloc::IKeyframeRetriever>						m_kfRetriever;
+    SRef<solver::map::IMapFilter>						m_mapFilter;    
+    SRef<solver::map::IKeyframeSelector>				m_keyframeSelector;    
 	SRef<solver::map::IBundler>							m_bundler;
 
     // display stuff
@@ -215,7 +220,6 @@ private:
 	// SLAM variables
 	Transform3Df										m_pose;
 	SRef<Image>											m_camImage;
-    SRef<Map>                                           m_map;
     Transform3Df                                        m_poseFrame;
 	SRef<Frame>											m_frame1, m_frame2;
     SRef<Keyframe>                                      m_keyframe1, m_keyframe2;
@@ -227,17 +231,14 @@ private:
 	std::vector<Keypoint>								m_keypoints;
 	SRef<DescriptorBuffer>								m_descriptors;
 	std::vector<DescriptorMatch>                        m_matches;
-	std::vector<CloudPoint>								m_cloud, m_filteredCloud;
+	std::vector<SRef<CloudPoint>>						m_cloud, m_filteredCloud;
     SRef<Keyframe>                                      m_referenceKeyframe;
     SRef<Keyframe>                                      m_updatedRefKf;
     SRef<Frame>											m_frameToTrack;
     Transform3Df                                        m_lastPose;
-    std::vector<Transform3Df>                           m_keyframePoses;
-    std::vector<Transform3Df>                           m_framePoses;
     bool                                                m_isLostTrack;
 
-	std::vector<CloudPoint>								m_localMap;
-	std::vector<unsigned int>							m_idxLocalMap;
+	std::vector<SRef<CloudPoint>>						m_localMap;
 	double												m_bundleReprojError;
 
 
