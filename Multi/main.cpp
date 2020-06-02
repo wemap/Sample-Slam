@@ -178,15 +178,17 @@ int main(int argc, char **argv) {
 	img2worldMapper->bindTo<xpcf::IConfigurable>()->getProperty("digitalHeight")->setIntegerValue(patternSize);
 	img2worldMapper->bindTo<xpcf::IConfigurable>()->getProperty("worldWidth")->setFloatingValue(binaryMarker->getSize().width);
 	img2worldMapper->bindTo<xpcf::IConfigurable>()->getProperty("worldHeight")->setFloatingValue(binaryMarker->getSize().height);
-	overlay3D->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
 
 	// initialize pose estimation with the camera intrinsic parameters (please refeer to the use of intrinsec parameters file)
-	pnpRansac->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
-	pnp->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
-	poseFinderFrom2D2D->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
-	triangulator->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
-	projector->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
-	LOG_DEBUG("Intrincic parameters : \n {}", camera->getIntrinsicsParameters());
+    CamCalibration calibration = camera->getIntrinsicsParameters();
+    CamDistortion distortion = camera->getDistortionParameters();
+    overlay3D->setCameraParameters(calibration, distortion);
+    pnpRansac->setCameraParameters(calibration, distortion);
+    pnp->setCameraParameters(calibration, distortion);
+    poseFinderFrom2D2D->setCameraParameters(calibration, distortion);
+    triangulator->setCameraParameters(calibration, distortion);
+    projector->setCameraParameters(calibration, distortion);
+    LOG_DEBUG("Intrincic parameters : \n {}", calibration);
 
 	if (camera->start() != FrameworkReturnCode::_SUCCESS)
 	{
@@ -329,7 +331,7 @@ int main(int argc, char **argv) {
 				keyframeRetriever->addKeyframe(keyframe1);
 				keyframeRetriever->addKeyframe(keyframe2);
 				// apply bundle adjustement 
-				bundleReprojError = bundler->solve(camera->getIntrinsicsParameters(), camera->getDistorsionParameters(), { 0,1 });
+                bundleReprojError = bundler->solve(calibration, distortion, { 0,1 });
 				bootstrapOk = true;
 			}
 			else {
@@ -802,7 +804,7 @@ int main(int argc, char **argv) {
 					std::vector<uint32_t> bestIdx;
 					covisibilityGraph->getNeighbors(newKeyframe->getId(), MIN_WEIGHT_NEIGHBOR_KEYFRAME, bestIdx);
 					bestIdx.push_back(newKeyframe->getId());
-					bundleReprojError = bundler->solve(camera->getIntrinsicsParameters(), camera->getDistorsionParameters(), bestIdx);
+                    bundleReprojError = bundler->solve(calibration, distortion, bestIdx);
                     // Update new reference keyframe
                     updateReferenceKeyframe(newKeyframe);
                     keyframePoses.push_back(newKeyframe->getPose());

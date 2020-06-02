@@ -164,6 +164,8 @@ int main(int argc, char **argv) {
 	SRef<Keyframe>                                      referenceKeyframe, updatedRefKf;
 	SRef<Image>                                         imageMatches;
 	std::vector<SRef<CloudPoint>>						localMap;
+    CamCalibration                                      calibration;
+    CamDistortion                                       distortion;
 
 	bool												isLostTrack = false;
 	bool												bundling = true;
@@ -185,15 +187,17 @@ int main(int argc, char **argv) {
 	img2worldMapper->bindTo<xpcf::IConfigurable>()->getProperty("digitalHeight")->setIntegerValue(patternSize);
 	img2worldMapper->bindTo<xpcf::IConfigurable>()->getProperty("worldWidth")->setFloatingValue(binaryMarker->getSize().width);
 	img2worldMapper->bindTo<xpcf::IConfigurable>()->getProperty("worldHeight")->setFloatingValue(binaryMarker->getSize().height);
-	overlay3D->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
 
 	// initialize pose estimation with the camera intrinsic parameters (please refer to the use of intrinsic parameters file)
-	pnpRansac->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
-	pnp->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
-	poseFinderFrom2D2D->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
-	triangulator->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
-	projector->setCameraParameters(camera->getIntrinsicsParameters(), camera->getDistorsionParameters());
-	LOG_DEBUG("Intrincic parameters : \n {}", camera->getIntrinsicsParameters());
+    calibration = camera->getIntrinsicsParameters();
+    distortion = camera->getDistortionParameters();
+    overlay3D->setCameraParameters(calibration, distortion);
+    pnpRansac->setCameraParameters(calibration, distortion);
+    pnp->setCameraParameters(calibration, distortion);
+    poseFinderFrom2D2D->setCameraParameters(calibration, distortion);
+    triangulator->setCameraParameters(calibration, distortion);
+    projector->setCameraParameters(calibration, distortion);
+    LOG_DEBUG("Intrincic parameters : \n {}", distortion);
 
 	if (camera->start() != FrameworkReturnCode::_SUCCESS)
 	{
@@ -335,7 +339,7 @@ int main(int argc, char **argv) {
 				keyframeRetriever->addKeyframe(keyframe2);
 				// apply bundle adjustement 
 				if (bundling) {
-					bundleReprojError = bundler->solve(camera->getIntrinsicsParameters(), camera->getDistorsionParameters(), { 0,1 });
+                    bundleReprojError = bundler->solve(calibration, distortion, { 0,1 });
 				}
 				bootstrapOk = true;
 			}
@@ -687,7 +691,7 @@ int main(int argc, char **argv) {
 						std::vector<uint32_t> bestIdx;
 						covisibilityGraph->getNeighbors(newKeyframe->getId(), MIN_WEIGHT_NEIGHBOR_KEYFRAME, bestIdx);						
 						bestIdx.push_back(newKeyframe->getId());
-						bundleReprojError = bundler->solve(camera->getIntrinsicsParameters(), camera->getDistorsionParameters(), bestIdx);
+                        bundleReprojError = bundler->solve(calibration, distortion, bestIdx);
 					}
 					// update data
 					updateData(newKeyframe, localMap, referenceKeyframe, frameToTrack);

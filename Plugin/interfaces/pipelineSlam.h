@@ -227,7 +227,9 @@ private:
 	bool												m_bootstrapOk = false;
 	bool												m_startCaptureFirstKeyframe = false;
 	bool												m_haveToBeFlip;
-    
+
+    CamCalibration                                      m_calibration;
+    CamDistortion                                       m_distortion;
 	std::vector<Keypoint>								m_keypoints;
 	SRef<DescriptorBuffer>								m_descriptors;
 	std::vector<DescriptorMatch>                        m_matches;

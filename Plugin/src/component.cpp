@@ -112,11 +112,13 @@ FrameworkReturnCode PipelineSlam::init(SRef<xpcf::IComponentManager> xpcfCompone
         m_img2worldMapper->bindTo<xpcf::IConfigurable>()->getProperty("worldHeight")->setFloatingValue(m_binaryMarker->getSize().height);
 
         // initialize components requiring the camera intrinsic and distortion parameters
-        m_pnp->setCameraParameters(m_camera->getIntrinsicsParameters(), m_camera->getDistorsionParameters());
-        m_pnpRansac->setCameraParameters(m_camera->getIntrinsicsParameters(), m_camera->getDistorsionParameters());
-        m_poseFinderFrom2D2D->setCameraParameters(m_camera->getIntrinsicsParameters(), m_camera->getDistorsionParameters());
-        m_triangulator->setCameraParameters(m_camera->getIntrinsicsParameters(), m_camera->getDistorsionParameters());
-        m_projector->setCameraParameters(m_camera->getIntrinsicsParameters(), m_camera->getDistorsionParameters());   
+        m_calibration = m_camera->getIntrinsicsParameters();
+        m_distortion = m_camera->getDistortionParameters();
+        m_pnp->setCameraParameters(m_calibration, m_distortion);
+        m_pnpRansac->setCameraParameters(m_calibration, m_distortion);
+        m_poseFinderFrom2D2D->setCameraParameters(m_calibration, m_distortion);
+        m_triangulator->setCameraParameters(m_calibration, m_distortion);
+        m_projector->setCameraParameters(m_calibration, m_distortion);
 
         m_initOK = true;	
 		m_haveToBeFlip = false;
@@ -601,7 +603,7 @@ void PipelineSlam::doBootStrap()
 						m_kfRetriever->addKeyframe(m_keyframe1);
 						m_kfRetriever->addKeyframe(m_keyframe2);
 						// apply bundle adjustement 
-						m_bundleReprojError = m_bundler->solve(m_camera->getIntrinsicsParameters(), m_camera->getDistorsionParameters(), { 0,1 });
+                        m_bundleReprojError = m_bundler->solve(m_calibration, m_distortion, { 0,1 });
 						m_bootstrapOk = true;
 						m_lastPose = m_keyframe2->getPose();
 						updateReferenceKeyframe(m_keyframe2);
@@ -781,7 +783,7 @@ void PipelineSlam::mapping()
 			std::vector<uint32_t> bestIdx;
 			m_covisibilityGraph->getNeighbors(newKeyframe->getId(), MIN_WEIGHT_NEIGHBOR_KEYFRAME, bestIdx);
 			bestIdx.push_back(newKeyframe->getId());
-			m_bundleReprojError = m_bundler->solve(m_camera->getIntrinsicsParameters(), m_camera->getDistorsionParameters(), bestIdx);
+            m_bundleReprojError = m_bundler->solve(m_calibration,m_distortion, bestIdx);
 			// Update new reference keyframe 
 			updateReferenceKeyframe(newKeyframe);
 			LOG_INFO("Number of keyframe: {} -> cloud current size: {} \n", m_keyframesManager->getNbKeyframes(), m_pointCloudManager->getNbPoints());
