@@ -189,7 +189,7 @@
         </configure>
         <configure component="SolARKeypointDetectorOpencv">
             <property name="type" type="string" value="AKAZE2"/>
-            <property name="imageRatio" type="Float" value="1.0"/>
+            <property name="imageRatio" type="Float" value="0.5"/>
             <property name="nbDescriptors" type="Integer" value="1000"/>
             <property name="threshold" type="Float" value="0.0001"/>
         </configure>
