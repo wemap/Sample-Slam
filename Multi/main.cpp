@@ -266,6 +266,16 @@ int main(int argc, char **argv) {
 	bool bootstrapOk = false;
 	bool initFrame1 = false;
     bool stop = false;
+
+	// Load map from file
+	if (mapper->loadFromFile() == FrameworkReturnCode::_SUCCESS) {
+		LOG_INFO("Load map done!");
+		bootstrapOk = true;
+		keyframesManager->getKeyframe(0, keyframe2);
+	}
+	else
+		LOG_INFO("Initialization from scratch");
+
 	while (!bootstrapOk)
 	{
 		if (camera->getNextImage(view) == SolAR::FrameworkReturnCode::_ERROR_)
@@ -838,13 +848,16 @@ int main(int argc, char **argv) {
 	taskCamImageCapture.stop();
     taskDetection.stop();
     taskExtraction.stop();
-	taskMapping.stop();
+	taskMapping.stop();	
 
 	// display stats on frame rate
 	end = clock();
 	double duration = double(end - start) / CLOCKS_PER_SEC;
 	printf("\n\nElasped time is %.2lf seconds.\n", duration);
 	printf("Number of processed frame per second : %8.2f\n", count / duration);	
+
+	// Save map
+	mapper->saveToFile();
 
 	return 0;
 }

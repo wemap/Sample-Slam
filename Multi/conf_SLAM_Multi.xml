@@ -123,11 +123,11 @@
 			<interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" name="IComponentIntrospect" description="IComponentIntrospect"/>
 			<interface uuid="4d5f2abe-beb7-11e8-a355-529269fb1459" name="IKeyframeSelector" description="IKeyframeSelector"/>
 		</component>
-		<component uuid="09205b96-7cba-4415-bc61-64744bc26222" name="SolARMapFilterOpencv" description="SolARMapFilterOpencv">
+		<component uuid="09205b96-7cba-4415-bc61-64744bc26222" name="SolARMapFilter" description="SolARMapFilter">
 			<interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" name="IComponentIntrospect" description="IComponentIntrospect"/>
 			<interface uuid="68dc9152-5199-11ea-8d77-2e728ce88125" name="IMapFilter" description="IMapFilter"/>
 		</component>
-		<component uuid="8e3c926a-0861-46f7-80b2-8abb5576692c" name="SolARMapperOpencv" description="SolARMapperOpencv">
+		<component uuid="8e3c926a-0861-46f7-80b2-8abb5576692c" name="SolARMapper" description="SolARMapper">
 
 			<interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" name="IComponentIntrospect" description="IComponentIntrospect"/>
 			<interface uuid="90075c1b-915b-469d-b92d-41c5d575bf15" name="IMapper" description="IMapper"/>
@@ -187,7 +187,16 @@
 		<configure component="SolARVideoAsCameraOpencv">
 			<property name="calibrationFile" type="string" value="camera_calibration.yml"/>
 			<property name="videoPath" type="string" value="../../video.mp4"/>
-		</configure>		
+		</configure>	
+		<configure component="SolARMapper">
+			<property name="directory" type="string" value="map"/>
+			<property name="identificationFileName" type="string" value="identification.txt"/>
+			<property name="coordinateFileName" type="string" value="coordinate.txt"/>
+			<property name="pointCloudManagerFileName" type="string" value="pointcloud.txt"/>
+			<property name="keyframesManagerFileName" type="string" value="keyframes.txt"/>
+			<property name="covisibilityGraphFileName" type="string" value="covisibility_graph.txt"/>
+			<property name="keyframeRetrieverFileName" type="string" value="keyframe_retriever.txt"/>
+		</configure>
 		<configure component="SolARKeypointDetectorOpencv">
 			<property name="type" type="string" value="AKAZE2"/>
 			<property name="imageRatio" type="Float" value="0.5"/>
@@ -227,7 +236,7 @@
 			<property name="confidence" type="Float" value="0.99"/>
 			<property name="minNbInliers" type="Integer" value="25"/>
 		</configure>
-		<configure component="SolARMapFilterOpencv">
+		<configure component="SolARMapFilter">
 			<property name="reprojErrorThreshold" type="float" value="3.5"/>
 			<property name="cheiralityCheck" type="integer" value ="1"/>
 		</configure>

@@ -447,6 +447,18 @@ FrameworkReturnCode PipelineSlam::start(void* imageDataBuffer)
 		}
 	}
 
+	// Load map from file
+	if (m_mapper->loadFromFile() == FrameworkReturnCode::_SUCCESS) {
+		LOG_INFO("Load map done!");
+		m_bootstrapOk = true;
+		m_keyframesManager->getKeyframe(0, m_keyframe2);
+		m_lastPose = m_keyframe2->getPose();
+		updateReferenceKeyframe(m_keyframe2);
+		updateData(m_keyframe2);
+	}
+	else
+		LOG_INFO("Initialization from scratch");
+
     // create and start threads
     auto getCameraImagesThread = [this](){;getCameraImages();};
     auto doBootStrapThread = [this](){;doBootStrap();};
@@ -493,17 +505,19 @@ FrameworkReturnCode PipelineSlam::stop()
     if (m_taskMapping != nullptr)
 		m_taskMapping->stop();
 
-     if(!m_initOK)
-     {
-         LOG_WARNING("Try to stop a pipeline that has not been initialized");
-         return FrameworkReturnCode::_ERROR_;
-     }
-     if (!m_startedOK)
-     {
-         LOG_WARNING("Try to stop a pipeline that has not been started");
-         return FrameworkReturnCode::_ERROR_;
-     }
-     LOG_INFO("Pipeline has stopped: \n");
+    if(!m_initOK)
+    {
+        LOG_WARNING("Try to stop a pipeline that has not been initialized");
+        return FrameworkReturnCode::_ERROR_;
+    }
+    if (!m_startedOK)
+    {
+        LOG_WARNING("Try to stop a pipeline that has not been started");
+        return FrameworkReturnCode::_ERROR_;
+    }
+    LOG_INFO("Pipeline has stopped: \n");
+	// Save map
+	m_mapper->saveToFile();
 
     return FrameworkReturnCode::_SUCCESS;
 }

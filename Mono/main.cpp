@@ -275,6 +275,16 @@ int main(int argc, char **argv) {
 	std::vector<SRef<CloudPoint>>	cloud, filteredCloud;
 	bool bootstrapOk = false;
 	bool initFrame1 = false;
+
+	// Load map from file
+	if (mapper->loadFromFile() == FrameworkReturnCode::_SUCCESS) {
+		LOG_INFO("Load map done!");
+		bootstrapOk = true;
+		keyframesManager->getKeyframe(0, keyframe2);
+	}
+	else
+		LOG_INFO("Initialization from scratch");
+
 	while (!bootstrapOk)
 	{
 		if (camera->getNextImage(view) == SolAR::FrameworkReturnCode::_ERROR_)
@@ -588,7 +598,7 @@ int main(int argc, char **argv) {
 			// fuse duplicate points
 			std::vector<uint32_t> idxNeigborKfs;
 			covisibilityGraph->getNeighbors(newKeyframe->getId(), MIN_WEIGHT_NEIGHBOR_KEYFRAME - 10, idxNeigborKfs);
-			fuseCloudPoint(newKeyframe, idxNeigborKfs, newCloudPoint);				
+			fuseCloudPoint(newKeyframe, idxNeigborKfs, newCloudPoint);	
 		}
 		LOG_DEBUG("Keyframe: {} -> Number of new 3D points: {}", newKeyframe->getId(), newCloudPoint.size());
 		// add new points to point cloud manager, update visibility map and covisibility graph
@@ -680,7 +690,7 @@ int main(int argc, char **argv) {
 			lastPose = newFrame->getPose();
 
 			// check need new keyframe
-			if (keyframeSelector->select(newFrame, checkDisparityDistance)){
+			if (!isLostTrack && keyframeSelector->select(newFrame, checkDisparityDistance)){
 				if (keyframeSelector->select(newFrame, checkNeedNewKfWithAllKfs)) {
 					updateData(updatedRefKf, localMap, referenceKeyframe, frameToTrack);
 				}
@@ -755,6 +765,9 @@ int main(int argc, char **argv) {
 	double duration = double(end - start) / CLOCKS_PER_SEC;
 	printf("\n\nElasped time is %.2lf seconds.\n", duration);
 	printf("Number of processed frame per second : %8.2f\n", count / duration);
+
+	// Save map
+	mapper->saveToFile();
 
 	return 0;
 }
