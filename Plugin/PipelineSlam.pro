@@ -44,8 +44,9 @@ HEADERS += interfaces/pipelineSlam.h \
 SOURCES += src/pipelineSlam.cpp \
            src/component.cpp
 
-unix {
+unix:!android {
     QMAKE_CXXFLAGS += -Wignored-qualifiers
+    ANDROID_ABIS="arm64-v8a"
 }
 
 macx {
@@ -62,6 +63,10 @@ win32 {
     DEFINES += WIN64 UNICODE _UNICODE
     QMAKE_COMPILER_DEFINES += _WIN64
     QMAKE_CXXFLAGS += -wd4250 -wd4251 -wd4244 -wd4275
+}
+
+android {
+    QMAKE_LFLAGS += -nostdlib++
 }
 
 header_files.path = $${PROJECTDEPLOYDIR}/interfaces
