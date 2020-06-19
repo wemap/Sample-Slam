@@ -283,8 +283,14 @@ void PipelineSlam::updateAssociateCloudPoint(SRef<Keyframe>& newKf)
 			const std::map<uint32_t, uint32_t> &cpKfVisibility = cloudPoint->getVisibility();
 			for (auto const &it_kf : cpKfVisibility)
 				kfCounter[it_kf.first]++;
-			///Todo: update descriptor of cp: des_cp = ((des_cp * cp.getVisibility().size()) + des_buf) / (cp.getVisibility().size() + 1)
+			// add new visibility to cloud point
 			cloudPoint->addVisibility(newKf->getId(), it.first);
+			// update view direction
+			Transform3Df poseNewKf = newKf->getPose();
+			Vector3f newViewDirection(poseNewKf(0, 3) - cloudPoint->getX(), poseNewKf(1, 3) - cloudPoint->getY(), poseNewKf(2, 3) - cloudPoint->getZ());
+			cloudPoint->addNewViewDirection(newViewDirection);
+			// update descriptor
+			cloudPoint->addNewDescriptor(newKf->getDescriptors()->getDescriptor(it.first));
 		}
 	}
 
@@ -406,6 +412,12 @@ void PipelineSlam::fuseCloudPoint(const SRef<Keyframe> &newKeyframe, const std::
 							SRef<Keyframe> tmpKeyframe;
 							m_keyframesManager->getKeyframe(vNewCP.first, tmpKeyframe);
 							tmpKeyframe->addVisibility(vNewCP.second, it_cp->second);
+							// modify cloud point descriptor
+							existedCloudPoint->addNewDescriptor(tmpKeyframe->getDescriptors()->getDescriptor(vNewCP.second));
+							// modify view direction
+							Transform3Df poseTmpKf = tmpKeyframe->getPose();
+							Vector3f newViewDirection(poseTmpKf(0, 3) - existedCloudPoint->getX(), poseTmpKf(1, 3) - existedCloudPoint->getY(), poseTmpKf(2, 3) - existedCloudPoint->getZ());
+							existedCloudPoint->addNewViewDirection(newViewDirection);
 						}
 						// update covisibility graph
 						m_covisibilityGraph->increaseEdge(idxNeigborKfs[i], keyframeIds[0], 1);
@@ -413,7 +425,6 @@ void PipelineSlam::fuseCloudPoint(const SRef<Keyframe> &newKeyframe, const std::
 						m_covisibilityGraph->increaseEdge(keyframeIds[0], keyframeIds[1], 1);
 						// this new cloud point is existed
 						checkMatches[idxNewCloudPoint] = false;
-						/// Todo: Modify cloud point descriptor
 					}
 				}
 			}

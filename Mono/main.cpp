@@ -366,7 +366,6 @@ int main(int argc, char **argv) {
 	auto updateData = [&](const SRef<Keyframe> &refKf, std::vector<SRef<CloudPoint>> &localMap, SRef<Keyframe> & referenceKeyframe, SRef<Frame> &frameToTrack)
 	{
 		referenceKeyframe = refKf;
-		LOG_INFO("Update new reference keyframe with id {}", referenceKeyframe->getId());
 		frameToTrack = xpcf::utils::make_shared<Frame>(referenceKeyframe);
 		frameToTrack->setReferenceKeyframe(referenceKeyframe);
 		localMap.clear();
@@ -413,7 +412,7 @@ int main(int argc, char **argv) {
 				LOG_INFO("Update new reference keyframe with id {}", referenceKeyframe->getId());
 				return true;
 			}
-			LOG_INFO("Find same reference keyframe, need make new keyframe");
+			LOG_INFO("Need make new keyframe");
 			return false;
 		}
 		else
@@ -431,8 +430,14 @@ int main(int argc, char **argv) {
 				const std::map<uint32_t, uint32_t> &cpKfVisibility = cloudPoint->getVisibility();
 				for (auto const &it_kf : cpKfVisibility)
 					kfCounter[it_kf.first]++;
-				///Todo: update descriptor of cp: des_cp = ((des_cp * cp.getVisibility().size()) + des_buf) / (cp.getVisibility().size() + 1)
+				// add new visibility to cloud point
 				cloudPoint->addVisibility(newKf->getId(), it.first);
+				// update view direction
+				Transform3Df poseNewKf = newKf->getPose();
+				Vector3f newViewDirection(poseNewKf(0, 3) - cloudPoint->getX(), poseNewKf(1, 3) - cloudPoint->getY(), poseNewKf(2, 3) - cloudPoint->getZ());
+				cloudPoint->addNewViewDirection(newViewDirection);
+				// update descriptor
+				cloudPoint->addNewDescriptor(newKf->getDescriptors()->getDescriptor(it.first));
 			}			
 		}
 
@@ -555,6 +560,13 @@ int main(int argc, char **argv) {
 								SRef<Keyframe> tmpKeyframe;
 								keyframesManager->getKeyframe(vNewCP.first, tmpKeyframe);
 								tmpKeyframe->addVisibility(vNewCP.second, it_cp->second);
+								// modify cloud point descriptor
+								existedCloudPoint->addNewDescriptor(tmpKeyframe->getDescriptors()->getDescriptor(vNewCP.second));
+								// modify view direction
+								Transform3Df poseTmpKf = tmpKeyframe->getPose();
+								Vector3f newViewDirection(poseTmpKf(0, 3) - existedCloudPoint->getX(), poseTmpKf(1, 3) - existedCloudPoint->getY(), poseTmpKf(2, 3) - existedCloudPoint->getZ());
+								existedCloudPoint->addNewViewDirection(newViewDirection);
+
 							}
 							// update covisibility graph
 							covisibilityGraph->increaseEdge(idxNeigborKfs[i], keyframeIds[0], 1);
@@ -562,7 +574,6 @@ int main(int argc, char **argv) {
 							covisibilityGraph->increaseEdge(keyframeIds[0], keyframeIds[1], 1);
 							// this new cloud point is existed
 							checkMatches[idxNewCloudPoint] = false;
-							/// Todo: Modify cloud point descriptor
 						}
 					}
 				}
