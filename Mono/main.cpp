@@ -122,7 +122,7 @@ int main(int argc, char **argv) {
 	auto mapper = xpcfComponentManager->resolve<solver::map::IMapper>();
 		
 	// processing components
-    LOG_INFO("---- Resolving processing compoenents ----");
+    LOG_INFO("---- Resolving processing components ----");
     LOG_INFO("Resolving key points detector");
     auto  keypointsDetector = xpcfComponentManager->resolve<features::IKeypointDetector>();
     LOG_INFO("Resolving descriptor extractor");

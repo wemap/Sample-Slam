@@ -341,7 +341,7 @@ int main(int argc, char **argv) {
 				keyframeRetriever->addKeyframe(keyframe1);
 				keyframeRetriever->addKeyframe(keyframe2);
 				// apply bundle adjustement 
-                bundleReprojError = bundler->solve(calibration, distortion, { 0,1 });
+                bundleReprojError = bundler->bundleAdjustment(calibration, distortion, { 0,1 });
 				bootstrapOk = true;
 			}
 			else {
@@ -823,7 +823,7 @@ int main(int argc, char **argv) {
 					std::vector<uint32_t> bestIdx;
 					covisibilityGraph->getNeighbors(newKeyframe->getId(), MIN_WEIGHT_NEIGHBOR_KEYFRAME, bestIdx);
 					bestIdx.push_back(newKeyframe->getId());
-                    bundleReprojError = bundler->solve(calibration, distortion, bestIdx);
+                    bundleReprojError = bundler->bundleAdjustment(calibration, distortion, bestIdx);
                     // Update new reference keyframe
                     updateReferenceKeyframe(newKeyframe);
                     keyframePoses.push_back(newKeyframe->getPose());
