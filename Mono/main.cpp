@@ -100,51 +100,89 @@ int main(int argc, char **argv) {
 	// declare and create components
 	LOG_INFO("Start creating components");
 
-	// component creation
+	// component creation    
 #ifdef USE_IMAGES_SET
+    LOG_INFO("Resolving camera using images set");
     auto camera = xpcfComponentManager->resolve<input::devices::ICamera>("ImagesAsCamera");
 #else
+    LOG_INFO("Resolving camera ");
     auto camera = xpcfComponentManager->resolve<input::devices::ICamera>();
 #endif
 	// storage components
+    LOG_INFO("---- Resolving storage components ----");
+    LOG_INFO("Resolving point cloud manager");
 	auto pointCloudManager = xpcfComponentManager->resolve<IPointCloudManager>();
+    LOG_INFO("Resolving key frames manager");
 	auto keyframesManager = xpcfComponentManager->resolve<IKeyframesManager>();
+    LOG_INFO("Resolving covisibility graph");
 	auto covisibilityGraph = xpcfComponentManager->resolve<ICovisibilityGraph>();
+    LOG_INFO("Resolving key frame retriever");
 	auto keyframeRetriever = xpcfComponentManager->resolve<IKeyframeRetriever>();
+    LOG_INFO("Resolving key mapper");
 	auto mapper = xpcfComponentManager->resolve<solver::map::IMapper>();
 		
 	// processing components
+    LOG_INFO("---- Resolving processing compoenents ----");
+    LOG_INFO("Resolving key points detector");
     auto  keypointsDetector = xpcfComponentManager->resolve<features::IKeypointDetector>();
+    LOG_INFO("Resolving descriptor extractor");
     auto descriptorExtractor = xpcfComponentManager->resolve<features::IDescriptorsExtractor>();
+    LOG_INFO("Resolving descriptor matcher");
     auto matcher = xpcfComponentManager->resolve<features::IDescriptorMatcher>();
+    LOG_INFO("Resolving pose finder from 2D 2D correspondences");
     auto poseFinderFrom2D2D = xpcfComponentManager->resolve<solver::pose::I3DTransformFinderFrom2D2D>();
+    LOG_INFO("Resolving triangulator");
     auto triangulator = xpcfComponentManager->resolve<solver::map::ITriangulator>();
+    LOG_INFO("Resolving matches filter");
     auto matchesFilter = xpcfComponentManager->resolve<features::IMatchesFilter>();
+    LOG_INFO("Resolving pnp ransac");
     auto pnpRansac = xpcfComponentManager->resolve<solver::pose::I3DTransformSACFinderFrom2D3D>();
+    LOG_INFO("Resolving pnp ");
     auto pnp = xpcfComponentManager->resolve<solver::pose::I3DTransformFinderFrom2D3D>();
+    LOG_INFO("Resolving correspondences finder");
     auto corr2D3DFinder = xpcfComponentManager->resolve<solver::pose::I2D3DCorrespondencesFinder>();
+    LOG_INFO("Resolving map filter");
     auto mapFilter = xpcfComponentManager->resolve<solver::map::IMapFilter>();        
+    LOG_INFO("Resolving key frame selector");
     auto keyframeSelector = xpcfComponentManager->resolve<solver::map::IKeyframeSelector>();
+    LOG_INFO("Resolving matches overlay");
     auto matchesOverlay = xpcfComponentManager->resolve<display::IMatchesOverlay>();
     auto matchesOverlayBlue = xpcfComponentManager->resolve<display::IMatchesOverlay>("matchesBlue");
     auto matchesOverlayRed = xpcfComponentManager->resolve<display::IMatchesOverlay>("matchesRed");
+    LOG_INFO("Resolving image viewer");
     auto imageViewer = xpcfComponentManager->resolve<display::IImageViewer>();
+    LOG_INFO("Resolving viewer3D points");
     auto viewer3DPoints = xpcfComponentManager->resolve<display::I3DPointsViewer>();        
+    LOG_INFO("Resolving projector");
     auto projector = xpcfComponentManager->resolve<geom::IProject>();
+    LOG_INFO("Resolving bundler");
     auto bundler = xpcfComponentManager->resolve<api::solver::map::IBundler>();
 
 	// marker fiducial components
+    LOG_INFO("---- Resolving marker fiducial components ----");
+    LOG_INFO("Resolving binary marker");
     auto binaryMarker = xpcfComponentManager->resolve<input::files::IMarker2DSquaredBinary>();
+    LOG_INFO("Resolving image filter");
     auto imageFilterBinary = xpcfComponentManager->resolve<image::IImageFilter>();
+    LOG_INFO("Resolving image convertor");
     auto imageConvertor = xpcfComponentManager->resolve<image::IImageConvertor>();
+    LOG_INFO("Resolving contours extractor");
     auto contoursExtractor = xpcfComponentManager->resolve<features::IContoursExtractor>();
+    LOG_INFO("Resolving contours filter");
     auto contoursFilter = xpcfComponentManager->resolve<features::IContoursFilter>();
+    LOG_INFO("Resolving perspective controller");
     auto perspectiveController = xpcfComponentManager->resolve<image::IPerspectiveController>();
+    LOG_INFO("Resolving pattern descriptor extractor");
     auto patternDescriptorExtractor = xpcfComponentManager->resolve<features::IDescriptorsExtractorSBPattern>();
+    LOG_INFO("Resolving pattern matcher");
     auto patternMatcher = xpcfComponentManager->resolve<features::IDescriptorMatcher>("DescMatcherFiducial");
+    LOG_INFO("Resolving pattern re indexer");
     auto patternReIndexer = xpcfComponentManager->resolve<features::ISBPatternReIndexer>();
+    LOG_INFO("Resolving image 2 world mapper");
     auto img2worldMapper = xpcfComponentManager->resolve<geom::IImage2WorldMapper>();
+    LOG_INFO("Resolving 3D overlay");
     auto overlay3D = xpcfComponentManager->resolve<display::I3DOverlay>();
+    LOG_INFO("Resolving 2D overlay");
     auto overlay2D = xpcfComponentManager->resolve<display::I2DOverlay>();
 
 	LOG_INFO("Loaded all components");
@@ -349,7 +387,7 @@ int main(int argc, char **argv) {
 				keyframeRetriever->addKeyframe(keyframe2);
 				// apply bundle adjustement 
 				if (bundling) {
-                    bundleReprojError = bundler->solve(calibration, distortion, { 0,1 });
+                    bundleReprojError = bundler->bundleAdjustment(calibration, distortion, { 0,1 });
 				}
 				bootstrapOk = true;
 			}
@@ -712,7 +750,7 @@ int main(int argc, char **argv) {
 						std::vector<uint32_t> bestIdx;
 						covisibilityGraph->getNeighbors(newKeyframe->getId(), MIN_WEIGHT_NEIGHBOR_KEYFRAME, bestIdx);						
 						bestIdx.push_back(newKeyframe->getId());
-                        bundleReprojError = bundler->solve(calibration, distortion, bestIdx);
+                        bundleReprojError = bundler->bundleAdjustment(calibration, distortion, bestIdx);
 					}
 					// update data
 					updateData(newKeyframe, localMap, referenceKeyframe, frameToTrack);
