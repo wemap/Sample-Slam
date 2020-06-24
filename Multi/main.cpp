@@ -70,6 +70,7 @@
 #define NB_POINTCLOUD_INIT 50
 #define MIN_WEIGHT_NEIGHBOR_KEYFRAME 50
 #define MIN_POINT_DISTANCE 0.04
+#define NB_NEWKEYFRAMES_BA 10
 
 using namespace SolAR;
 using namespace SolAR::datastructure;
@@ -800,6 +801,7 @@ int main(int argc, char **argv) {
 	};		
 
 	// check need new keyframe
+	int countNewKeyframes = 0;
 	auto fnMapping = [&]()
 	{
         if (!stop)
@@ -824,6 +826,13 @@ int main(int argc, char **argv) {
 					covisibilityGraph->getNeighbors(newKeyframe->getId(), MIN_WEIGHT_NEIGHBOR_KEYFRAME, bestIdx);
 					bestIdx.push_back(newKeyframe->getId());
                     bundleReprojError = bundler->bundleAdjustment(calibration, distortion, bestIdx);
+					// global bundle adjustment
+					countNewKeyframes++;
+					if (countNewKeyframes == NB_NEWKEYFRAMES_BA) {
+						countNewKeyframes = 0;
+						bundleReprojError = bundler->bundleAdjustment(calibration, distortion);
+						LOG_INFO("Global bundle adjustment -> error: {}", bundleReprojError);
+					}
                     // Update new reference keyframe
                     updateReferenceKeyframe(newKeyframe);
                     keyframePoses.push_back(newKeyframe->getPose());

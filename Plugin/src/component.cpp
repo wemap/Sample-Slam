@@ -10,6 +10,7 @@
 #define NB_POINTCLOUD_INIT 50
 #define MIN_WEIGHT_NEIGHBOR_KEYFRAME 50
 #define MIN_POINT_DISTANCE 0.04
+#define NB_NEWKEYFRAMES_BA 10
 
 // The pipeline component for the fiducial marker
 
@@ -809,6 +810,13 @@ void PipelineSlam::mapping()
 			m_covisibilityGraph->getNeighbors(newKeyframe->getId(), MIN_WEIGHT_NEIGHBOR_KEYFRAME, bestIdx);
 			bestIdx.push_back(newKeyframe->getId());
             m_bundleReprojError = m_bundler->bundleAdjustment(m_calibration,m_distortion, bestIdx);
+			// global bundle adjustment
+			m_countNewKeyframes++;
+			if (m_countNewKeyframes == NB_NEWKEYFRAMES_BA) {
+				m_countNewKeyframes = 0;
+				m_bundleReprojError = m_bundler->bundleAdjustment(m_calibration, m_distortion);
+				LOG_INFO("Global bundle adjustment -> error: {}", m_bundleReprojError);
+			}
 			// Update new reference keyframe 
 			updateReferenceKeyframe(newKeyframe);
 			LOG_INFO("Number of keyframe: {} -> cloud current size: {} \n", m_keyframesManager->getNbKeyframes(), m_pointCloudManager->getNbPoints());

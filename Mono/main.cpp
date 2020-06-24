@@ -68,6 +68,7 @@
 #define NB_POINTCLOUD_INIT 50
 #define MIN_WEIGHT_NEIGHBOR_KEYFRAME 50
 #define MIN_POINT_DISTANCE 0.04
+#define NB_NEWKEYFRAMES_BA 10
 
 
 using namespace SolAR;
@@ -663,6 +664,7 @@ int main(int argc, char **argv) {
 	// Start tracking
 	clock_t start, end;
 	int count = 0;
+	int countNewKeyframes = 0;
 	start = clock();
 	while (true)
 	{
@@ -751,12 +753,19 @@ int main(int argc, char **argv) {
 						covisibilityGraph->getNeighbors(newKeyframe->getId(), MIN_WEIGHT_NEIGHBOR_KEYFRAME, bestIdx);						
 						bestIdx.push_back(newKeyframe->getId());
                         bundleReprojError = bundler->bundleAdjustment(calibration, distortion, bestIdx);
+						// global bundle adjustment
+						countNewKeyframes++;
+						if (countNewKeyframes == NB_NEWKEYFRAMES_BA) {
+							countNewKeyframes = 0;
+							bundleReprojError = bundler->bundleAdjustment(calibration, distortion);
+							LOG_INFO("Global bundle adjustment -> error: {}", bundleReprojError);
+						}
 					}
 					// update data
 					updateData(newKeyframe, localMap, referenceKeyframe, frameToTrack);
 					// add keyframe pose to display
 					keyframePoses.push_back(newKeyframe->getPose());
-					LOG_INFO("Number of keyframe: {} -> cloud current size: {} \n", keyframesManager->getNbKeyframes(), pointCloudManager->getNbPoints());
+					LOG_INFO("Number of keyframe: {} -> cloud current size: {} \n", keyframesManager->getNbKeyframes(), pointCloudManager->getNbPoints());					
 				}
 			}
 			else

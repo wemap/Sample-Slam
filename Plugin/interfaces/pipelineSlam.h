@@ -227,6 +227,7 @@ private:
 	bool												m_bootstrapOk = false;
 	bool												m_startCaptureFirstKeyframe = false;
 	bool												m_haveToBeFlip;
+	int													m_countNewKeyframes = 0;
 
     CamCalibration                                      m_calibration;
     CamDistortion                                       m_distortion;
