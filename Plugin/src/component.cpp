@@ -628,7 +628,7 @@ void PipelineSlam::doBootStrap()
 						m_kfRetriever->addKeyframe(m_keyframe1);
 						m_kfRetriever->addKeyframe(m_keyframe2);
 						// apply bundle adjustement 
-                        m_bundleReprojError = m_bundler->solve(m_calibration, m_distortion, { 0,1 });
+                        m_bundleReprojError = m_bundler->bundleAdjustment(m_calibration, m_distortion, { 0,1 });
 						m_bootstrapOk = true;
 						m_lastPose = m_keyframe2->getPose();
 						updateReferenceKeyframe(m_keyframe2);
@@ -808,7 +808,7 @@ void PipelineSlam::mapping()
 			std::vector<uint32_t> bestIdx;
 			m_covisibilityGraph->getNeighbors(newKeyframe->getId(), MIN_WEIGHT_NEIGHBOR_KEYFRAME, bestIdx);
 			bestIdx.push_back(newKeyframe->getId());
-            m_bundleReprojError = m_bundler->solve(m_calibration,m_distortion, bestIdx);
+            m_bundleReprojError = m_bundler->bundleAdjustment(m_calibration,m_distortion, bestIdx);
 			// Update new reference keyframe 
 			updateReferenceKeyframe(newKeyframe);
 			LOG_INFO("Number of keyframe: {} -> cloud current size: {} \n", m_keyframesManager->getNbKeyframes(), m_pointCloudManager->getNbPoints());
