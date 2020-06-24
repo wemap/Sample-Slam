@@ -825,14 +825,8 @@ int main(int argc, char **argv) {
 					std::vector<uint32_t> bestIdx;
 					covisibilityGraph->getNeighbors(newKeyframe->getId(), MIN_WEIGHT_NEIGHBOR_KEYFRAME, bestIdx);
 					bestIdx.push_back(newKeyframe->getId());
-                    bundleReprojError = bundler->bundleAdjustment(calibration, distortion, bestIdx);
-					// global bundle adjustment
+                    bundleReprojError = bundler->bundleAdjustment(calibration, distortion, bestIdx);	
 					countNewKeyframes++;
-					if (countNewKeyframes == NB_NEWKEYFRAMES_BA) {
-						countNewKeyframes = 0;
-						bundleReprojError = bundler->bundleAdjustment(calibration, distortion);
-						LOG_INFO("Global bundle adjustment -> error: {}", bundleReprojError);
-					}
                     // Update new reference keyframe
                     updateReferenceKeyframe(newKeyframe);
                     keyframePoses.push_back(newKeyframe->getPose());
@@ -843,16 +837,32 @@ int main(int argc, char **argv) {
         }
     };
 
+
+	// global bundle adjustment task
+	auto fnGlobalBundleAdjustment = [&]() {
+		if (countNewKeyframes == NB_NEWKEYFRAMES_BA) {
+			countNewKeyframes = 0;
+			bundleReprojError = bundler->bundleAdjustment(calibration, distortion);
+			LOG_INFO("Global bundle adjustment -> error: {}", bundleReprojError);
+		}
+		else {
+			xpcf::DelegateTask::yield();
+			return;
+		}
+	};
+
 	// instantiate and start tasks
 	xpcf::DelegateTask taskCamImageCapture(fnCamImageCapture);
     xpcf::DelegateTask taskDetection(fnDetection);
     xpcf::DelegateTask taskExtraction(fnExtraction);
 	xpcf::DelegateTask taskMapping(fnMapping);
+	xpcf::DelegateTask taskGlobalBA(fnGlobalBundleAdjustment);
 
 	taskCamImageCapture.start();
     taskDetection.start();
     taskExtraction.start();
 	taskMapping.start();
+	taskGlobalBA.start();
 
 	// Start tracking
 	clock_t start, end;		
@@ -867,6 +877,7 @@ int main(int argc, char **argv) {
     taskDetection.stop();
     taskExtraction.stop();
 	taskMapping.stop();	
+	taskGlobalBA.stop();
 
 	// display stats on frame rate
 	end = clock();

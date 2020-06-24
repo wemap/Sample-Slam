@@ -478,6 +478,7 @@ FrameworkReturnCode PipelineSlam::start(void* imageDataBuffer)
     auto getDescriptorsThread = [this](){;getDescriptors();};
     auto getTrackingThread = [this](){;tracking();};
     auto getMappingThread = [this](){;mapping();};
+    auto getGlobalBAThread = [this](){;globalBundleAdjustment();};
 
     m_taskGetCameraImages = new xpcf::DelegateTask(getCameraImagesThread);
     m_taskDoBootStrap = new xpcf::DelegateTask(doBootStrapThread);
@@ -485,6 +486,7 @@ FrameworkReturnCode PipelineSlam::start(void* imageDataBuffer)
     m_taskGetDescriptors = new xpcf::DelegateTask(getDescriptorsThread);
     m_taskTracking = new xpcf::DelegateTask(getTrackingThread);
     m_taskMapping = new xpcf::DelegateTask(getMappingThread);
+	m_taskGlobalBA = new xpcf::DelegateTask(getGlobalBAThread);
 
     m_taskGetCameraImages->start();
     m_taskDoBootStrap ->start();
@@ -492,6 +494,7 @@ FrameworkReturnCode PipelineSlam::start(void* imageDataBuffer)
     m_taskGetDescriptors->start();
 	m_taskTracking->start();
 	m_taskMapping->start();
+	m_taskGlobalBA->start();
 
     LOG_INFO("Threads have started");
     m_startedOK = true;	
@@ -516,6 +519,8 @@ FrameworkReturnCode PipelineSlam::stop()
 		m_taskTracking->stop();
     if (m_taskMapping != nullptr)
 		m_taskMapping->stop();
+	if (m_taskGlobalBA != nullptr)
+		m_taskGlobalBA->stop();
 
     if(!m_initOK)
     {
@@ -810,19 +815,26 @@ void PipelineSlam::mapping()
 			m_covisibilityGraph->getNeighbors(newKeyframe->getId(), MIN_WEIGHT_NEIGHBOR_KEYFRAME, bestIdx);
 			bestIdx.push_back(newKeyframe->getId());
             m_bundleReprojError = m_bundler->bundleAdjustment(m_calibration,m_distortion, bestIdx);
-			// global bundle adjustment
-			m_countNewKeyframes++;
-			if (m_countNewKeyframes == NB_NEWKEYFRAMES_BA) {
-				m_countNewKeyframes = 0;
-				m_bundleReprojError = m_bundler->bundleAdjustment(m_calibration, m_distortion);
-				LOG_INFO("Global bundle adjustment -> error: {}", m_bundleReprojError);
-			}
+			m_countNewKeyframes++;			
 			// Update new reference keyframe 
 			updateReferenceKeyframe(newKeyframe);
 			LOG_INFO("Number of keyframe: {} -> cloud current size: {} \n", m_keyframesManager->getNbKeyframes(), m_pointCloudManager->getNbPoints());
 			m_newKeyframeBuffer.push(newKeyframe);
 		}
 	}		
+}
+
+void PipelineSlam::globalBundleAdjustment()
+{		
+	if (m_countNewKeyframes == NB_NEWKEYFRAMES_BA) {
+		m_countNewKeyframes = 0;
+		m_bundleReprojError = m_bundler->bundleAdjustment(m_calibration, m_distortion);
+		LOG_INFO("Global bundle adjustment -> error: {}", m_bundleReprojError);
+	}
+	else {
+		xpcf::DelegateTask::yield();
+		return;
+	}
 }
 
 }//namespace PIPELINES

@@ -134,6 +134,9 @@ private:
 	// mapping task
 	void mapping();	
 
+	// global bundle adjustment task
+	void globalBundleAdjustment();
+
 
 	// detect fiducial marker
 	bool detectFiducialMarker(SRef<Image>& image, Transform3Df &pose);
@@ -260,6 +263,7 @@ private:
     xpcf::DelegateTask*									m_taskGetDescriptors;
     xpcf::DelegateTask*									m_taskTracking;
     xpcf::DelegateTask*									m_taskMapping;        
+    xpcf::DelegateTask*									m_taskGlobalBA;        
 
 };
 
