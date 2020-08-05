@@ -51,6 +51,8 @@
 #include "api/storage/ICovisibilityGraph.h"
 #include "api/storage/IKeyframesManager.h"
 #include "api/storage/IPointCloudManager.h"
+#include "api/loop/ILoopClosureDetector.h"
+#include "api/loop/ILoopCorrector.h"
 
 #include "api/input/files/IMarker2DSquaredBinary.h"
 #include "api/image/IImageFilter.h"
@@ -68,7 +70,7 @@
 #define NB_POINTCLOUD_INIT 50
 #define MIN_WEIGHT_NEIGHBOR_KEYFRAME 50
 #define MIN_POINT_DISTANCE 0.04
-#define NB_NEWKEYFRAMES_BA 10
+#define NB_NEWKEYFRAMES_LOOP 5
 
 
 using namespace SolAR;
@@ -158,6 +160,10 @@ int main(int argc, char **argv) {
     auto projector = xpcfComponentManager->resolve<geom::IProject>();
     LOG_INFO("Resolving bundler");
     auto bundler = xpcfComponentManager->resolve<api::solver::map::IBundler>();
+	LOG_INFO("Resolving loop detector");
+	auto loopDetector = xpcfComponentManager->resolve<loop::ILoopClosureDetector>();
+	LOG_INFO("Resolving loop corrector");
+	auto loopCorrector = xpcfComponentManager->resolve<loop::ILoopCorrector>();
 
 	// marker fiducial components
     LOG_INFO("---- Resolving marker fiducial components ----");
@@ -236,6 +242,7 @@ int main(int argc, char **argv) {
     poseFinderFrom2D2D->setCameraParameters(calibration, distortion);
     triangulator->setCameraParameters(calibration, distortion);
     projector->setCameraParameters(calibration, distortion);
+	loopCorrector->setCameraParameters(calibration, distortion);
     LOG_DEBUG("Intrincic parameters : \n {}", distortion);
 
 	if (camera->start() != FrameworkReturnCode::_SUCCESS)
@@ -443,19 +450,21 @@ int main(int argc, char **argv) {
 
 
 	// check need to make a new keyframe based on all existed keyframes
-	std::function<bool(const SRef<Frame>&)> checkNeedNewKfWithAllKfs = [&referenceKeyframe, &mapper, &keyframeRetriever, &updatedRefKf, &keyframesManager](const SRef<Frame>& newFrame) -> bool {
-		std::vector < uint32_t> ret_keyframesId;
-		if (keyframeRetriever->retrieve(newFrame, ret_keyframesId) == FrameworkReturnCode::_SUCCESS) {
-			if (ret_keyframesId[0] != referenceKeyframe->getId()) {
-				keyframesManager->getKeyframe(ret_keyframesId[0], updatedRefKf);
-				LOG_INFO("Update new reference keyframe with id {}", referenceKeyframe->getId());
-				return true;
-			}
-			LOG_INFO("Need make new keyframe");
+	std::function<bool(const SRef<Frame>&)> checkNeedNewKfWithAllKfs = [&](const SRef<Frame>& newFrame) -> bool {
+		std::vector < uint32_t> ret_keyframesId, neighborsKfs;
+		covisibilityGraph->getNeighbors(newFrame->getReferenceKeyframe()->getId(), MIN_WEIGHT_NEIGHBOR_KEYFRAME, neighborsKfs);
+		std::set<uint32_t> candidates;
+		for (const auto &it : neighborsKfs)
+			candidates.insert(it);
+		if (keyframeRetriever->retrieve(newFrame, candidates, ret_keyframesId) == FrameworkReturnCode::_SUCCESS) {
+			keyframesManager->getKeyframe(ret_keyframesId[0], updatedRefKf);
+			LOG_INFO("Update new reference keyframe with id {}", updatedRefKf->getId());
+			return true;
+		}
+		else {
+			LOG_INFO("Need to make new keyframe");
 			return false;
 		}
-		else
-			return false;
 	};
 
 	// Update keypoint visibility, descriptor in cloud point
@@ -587,35 +596,44 @@ int main(int argc, char **argv) {
 					
 				// check if have a cloud point in the neighbor keyframe is coincide with this cloud point.
 				auto it_cp = mapVisibilitiesNeighbor.find(idxKpNeighbor);
-				if (it_cp != mapVisibilitiesNeighbor.end()) {
-					SRef<CloudPoint> existedCloudPoint; 
-					if (pointCloudManager->getPoint(it_cp->second, existedCloudPoint) == FrameworkReturnCode::_SUCCESS) {
-						if ((*existedCloudPoint - *newCloudPoint[idxNewCloudPoint]).magnitude() < MIN_POINT_DISTANCE) {
-							// add visibilities to this cloud point and keyframes
-							std::vector<uint32_t> keyframeIds;
-							for (auto const &vNewCP : newCloudPointVisibility) {
-								existedCloudPoint->addVisibility(vNewCP.first, vNewCP.second);
-								keyframeIds.push_back(vNewCP.first);
-								SRef<Keyframe> tmpKeyframe;
-								keyframesManager->getKeyframe(vNewCP.first, tmpKeyframe);
-								tmpKeyframe->addVisibility(vNewCP.second, it_cp->second);
-								// modify cloud point descriptor
-								existedCloudPoint->addNewDescriptor(tmpKeyframe->getDescriptors()->getDescriptor(vNewCP.second));
-								// modify view direction
-								Transform3Df poseTmpKf = tmpKeyframe->getPose();
-								Vector3f newViewDirection(poseTmpKf(0, 3) - existedCloudPoint->getX(), poseTmpKf(1, 3) - existedCloudPoint->getY(), poseTmpKf(2, 3) - existedCloudPoint->getZ());
-								existedCloudPoint->addNewViewDirection(newViewDirection);
-
-							}
-							// update covisibility graph
-							covisibilityGraph->increaseEdge(idxNeigborKfs[i], keyframeIds[0], 1);
-							covisibilityGraph->increaseEdge(idxNeigborKfs[i], keyframeIds[1], 1);
-							covisibilityGraph->increaseEdge(keyframeIds[0], keyframeIds[1], 1);
-							// this new cloud point is existed
-							checkMatches[idxNewCloudPoint] = false;
+				if (it_cp == mapVisibilitiesNeighbor.end())
+					continue;
+				
+				SRef<CloudPoint> existedCloudPoint; 
+				if (pointCloudManager->getPoint(it_cp->second, existedCloudPoint) == FrameworkReturnCode::_SUCCESS) {
+					const std::map<uint32_t, uint32_t> &existedCloudPointVisibility = existedCloudPoint->getVisibility();
+					bool goodCheck = true;
+					for (const auto &vExistedCP : existedCloudPointVisibility)
+						if (newCloudPointVisibility.find(vExistedCP.first) != newCloudPointVisibility.end()) {
+							goodCheck = false;
+							break;
 						}
+					if (goodCheck && ((*existedCloudPoint - *newCloudPoint[idxNewCloudPoint]).magnitude() < MIN_POINT_DISTANCE)) {
+						// add visibilities to this cloud point and keyframes
+						std::vector<uint32_t> keyframeIds;
+						for (auto const &vNewCP : newCloudPointVisibility) {
+							existedCloudPoint->addVisibility(vNewCP.first, vNewCP.second);
+							keyframeIds.push_back(vNewCP.first);
+							SRef<Keyframe> tmpKeyframe;
+							keyframesManager->getKeyframe(vNewCP.first, tmpKeyframe);
+							tmpKeyframe->addVisibility(vNewCP.second, it_cp->second);
+							// modify cloud point descriptor
+							existedCloudPoint->addNewDescriptor(tmpKeyframe->getDescriptors()->getDescriptor(vNewCP.second));
+							// modify view direction
+							Transform3Df poseTmpKf = tmpKeyframe->getPose();
+							Vector3f newViewDirection(poseTmpKf(0, 3) - existedCloudPoint->getX(), poseTmpKf(1, 3) - existedCloudPoint->getY(), poseTmpKf(2, 3) - existedCloudPoint->getZ());
+							existedCloudPoint->addNewViewDirection(newViewDirection);
+
+						}
+						// update covisibility graph
+						covisibilityGraph->increaseEdge(idxNeigborKfs[i], keyframeIds[0], 1);
+						covisibilityGraph->increaseEdge(idxNeigborKfs[i], keyframeIds[1], 1);
+						covisibilityGraph->increaseEdge(keyframeIds[0], keyframeIds[1], 1);
+						// this new cloud point is existed
+						checkMatches[idxNewCloudPoint] = false;
 					}
 				}
+				
 			}
 		}
 
@@ -671,7 +689,7 @@ int main(int argc, char **argv) {
 		// Get current image
 		camera->getNextImage(view);
 		keypointsDetector->detect(view, keypoints);
-		LOG_DEBUG("Number of keypoints: {}", keypoints.size());
+		LOG_INFO("Number of keypoints: {}", keypoints.size());
 		descriptorExtractor->extract(view, keypoints, descriptors);		
 		newFrame = xpcf::utils::make_shared<Frame>(keypoints, descriptors, view, referenceKeyframe);
 		// match current keypoints with the keypoints of the Keyframe
@@ -683,7 +701,8 @@ int main(int argc, char **argv) {
 		std::vector<CloudPoint> foundPoints;
 		std::vector<DescriptorMatch> foundMatches;
 		std::vector<DescriptorMatch> remainingMatches;
-		corr2D3DFinder->find(frameToTrack, newFrame, matches, pt3d, pt2d, foundMatches, remainingMatches);						
+		corr2D3DFinder->find(frameToTrack, newFrame, matches, pt3d, pt2d, foundMatches, remainingMatches);		
+		LOG_INFO("Number of 2D-3D finder: {}", pt3d.size());
 		// display matches
 		imageMatches = view->copy();
 
@@ -753,15 +772,26 @@ int main(int argc, char **argv) {
 						covisibilityGraph->getNeighbors(newKeyframe->getId(), MIN_WEIGHT_NEIGHBOR_KEYFRAME, bestIdx);						
 						bestIdx.push_back(newKeyframe->getId());
                         bundleReprojError = bundler->bundleAdjustment(calibration, distortion, bestIdx);
-						// global bundle adjustment
+						// loop closure
 						countNewKeyframes++;
-						if (countNewKeyframes == NB_NEWKEYFRAMES_BA) {
-							countNewKeyframes = 0;
-							bundleReprojError = bundler->bundleAdjustment(calibration, distortion);
-							LOG_INFO("Global bundle adjustment -> error: {}", bundleReprojError);
+						if (countNewKeyframes >= NB_NEWKEYFRAMES_LOOP) {
+							LOG_INFO("Last keyframe id: {}", newKeyframe->getId());
+							SRef<Keyframe> detectedLoopKeyframe;
+							Transform3Df sim3Transform;
+							std::vector<std::pair<uint32_t, uint32_t>> duplicatedPointsIndices;
+							if (loopDetector->detect(newKeyframe, detectedLoopKeyframe, sim3Transform, duplicatedPointsIndices) == FrameworkReturnCode::_SUCCESS) {
+								// detected loop keyframe
+								LOG_INFO("Detected loop keyframe id: {}", detectedLoopKeyframe->getId());
+								// performs loop correction 
+								countNewKeyframes = 0;
+								loopCorrector->correct(newKeyframe, detectedLoopKeyframe, sim3Transform, duplicatedPointsIndices);
+							}
+							else
+								LOG_INFO("Cannot detect a loop closure from last keyframe");
 						}
 					}
 					// update data
+					LOG_INFO("Update data");
 					updateData(newKeyframe, localMap, referenceKeyframe, frameToTrack);
 					// add keyframe pose to display
 					keyframePoses.push_back(newKeyframe->getPose());
