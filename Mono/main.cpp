@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-//#define USE_IMAGES_SET
-
 #include <iostream>
 #include <string>
 #include <vector>
@@ -31,7 +29,6 @@
 #include "api/features/IKeypointDetector.h"
 #include "api/features/IDescriptorsExtractor.h"
 #include "api/features/IDescriptorMatcher.h"
-#include "api/solver/pose/I3DTransformFinderFrom2D2D.h"
 #include "api/solver/map/ITriangulator.h"
 #include "api/solver/map/IMapper.h"
 #include "api/solver/map/IKeyframeSelector.h"
@@ -53,21 +50,8 @@
 #include "api/storage/IPointCloudManager.h"
 #include "api/loop/ILoopClosureDetector.h"
 #include "api/loop/ILoopCorrector.h"
+#include "api/slam/IBootstrapper.h"
 
-#include "api/input/files/IMarker2DSquaredBinary.h"
-#include "api/image/IImageFilter.h"
-#include "api/image/IImageConvertor.h"
-#include "api/features/IContoursExtractor.h"
-#include "api/features/IContoursFilter.h"
-#include "api/image/IPerspectiveController.h"
-#include "api/features/IDescriptorsExtractorSBPattern.h"
-#include "api/features/ISBPatternReIndexer.h"
-#include "api/geom/IImage2WorldMapper.h"
-
-#define MIN_THRESHOLD -1
-#define MAX_THRESHOLD 220
-#define NB_THRESHOLD 3
-#define NB_POINTCLOUD_INIT 50
 #define MIN_WEIGHT_NEIGHBOR_KEYFRAME 50
 #define MIN_POINT_DISTANCE 0.04
 #define NB_NEWKEYFRAMES_LOOP 5
@@ -104,13 +88,8 @@ int main(int argc, char **argv) {
 	LOG_INFO("Start creating components");
 
 	// component creation    
-#ifdef USE_IMAGES_SET
-    LOG_INFO("Resolving camera using images set");
-    auto camera = xpcfComponentManager->resolve<input::devices::ICamera>("ImagesAsCamera");
-#else
     LOG_INFO("Resolving camera ");
     auto camera = xpcfComponentManager->resolve<input::devices::ICamera>();
-#endif
 	// storage components
     LOG_INFO("---- Resolving storage components ----");
     LOG_INFO("Resolving point cloud manager");
@@ -131,9 +110,7 @@ int main(int argc, char **argv) {
     LOG_INFO("Resolving descriptor extractor");
     auto descriptorExtractor = xpcfComponentManager->resolve<features::IDescriptorsExtractor>();
     LOG_INFO("Resolving descriptor matcher");
-    auto matcher = xpcfComponentManager->resolve<features::IDescriptorMatcher>();
-    LOG_INFO("Resolving pose finder from 2D 2D correspondences");
-    auto poseFinderFrom2D2D = xpcfComponentManager->resolve<solver::pose::I3DTransformFinderFrom2D2D>();
+    auto matcher = xpcfComponentManager->resolve<features::IDescriptorMatcher>("Matcher");
     LOG_INFO("Resolving triangulator");
     auto triangulator = xpcfComponentManager->resolve<solver::map::ITriangulator>();
     LOG_INFO("Resolving matches filter");
@@ -150,8 +127,6 @@ int main(int argc, char **argv) {
     auto keyframeSelector = xpcfComponentManager->resolve<solver::map::IKeyframeSelector>();
     LOG_INFO("Resolving matches overlay");
     auto matchesOverlay = xpcfComponentManager->resolve<display::IMatchesOverlay>();
-    auto matchesOverlayBlue = xpcfComponentManager->resolve<display::IMatchesOverlay>("matchesBlue");
-    auto matchesOverlayRed = xpcfComponentManager->resolve<display::IMatchesOverlay>("matchesRed");
     LOG_INFO("Resolving image viewer");
     auto imageViewer = xpcfComponentManager->resolve<display::IImageViewer>();
     LOG_INFO("Resolving viewer3D points");
@@ -164,33 +139,12 @@ int main(int argc, char **argv) {
 	auto loopDetector = xpcfComponentManager->resolve<loop::ILoopClosureDetector>();
 	LOG_INFO("Resolving loop corrector");
 	auto loopCorrector = xpcfComponentManager->resolve<loop::ILoopCorrector>();
-
-	// marker fiducial components
-    LOG_INFO("---- Resolving marker fiducial components ----");
-    LOG_INFO("Resolving binary marker");
-    auto binaryMarker = xpcfComponentManager->resolve<input::files::IMarker2DSquaredBinary>();
-    LOG_INFO("Resolving image filter");
-    auto imageFilterBinary = xpcfComponentManager->resolve<image::IImageFilter>();
-    LOG_INFO("Resolving image convertor");
-    auto imageConvertor = xpcfComponentManager->resolve<image::IImageConvertor>();
-    LOG_INFO("Resolving contours extractor");
-    auto contoursExtractor = xpcfComponentManager->resolve<features::IContoursExtractor>();
-    LOG_INFO("Resolving contours filter");
-    auto contoursFilter = xpcfComponentManager->resolve<features::IContoursFilter>();
-    LOG_INFO("Resolving perspective controller");
-    auto perspectiveController = xpcfComponentManager->resolve<image::IPerspectiveController>();
-    LOG_INFO("Resolving pattern descriptor extractor");
-    auto patternDescriptorExtractor = xpcfComponentManager->resolve<features::IDescriptorsExtractorSBPattern>();
-    LOG_INFO("Resolving pattern matcher");
-    auto patternMatcher = xpcfComponentManager->resolve<features::IDescriptorMatcher>("DescMatcherFiducial");
-    LOG_INFO("Resolving pattern re indexer");
-    auto patternReIndexer = xpcfComponentManager->resolve<features::ISBPatternReIndexer>();
-    LOG_INFO("Resolving image 2 world mapper");
-    auto img2worldMapper = xpcfComponentManager->resolve<geom::IImage2WorldMapper>();
     LOG_INFO("Resolving 3D overlay");
     auto overlay3D = xpcfComponentManager->resolve<display::I3DOverlay>();
     LOG_INFO("Resolving 2D overlay");
     auto overlay2D = xpcfComponentManager->resolve<display::I2DOverlay>();
+	LOG_INFO("Resolving bootstrapper");
+	auto bootstrapper = xpcfComponentManager->resolve<slam::IBootstrapper>();
 
 	LOG_INFO("Loaded all components");
 
@@ -213,25 +167,7 @@ int main(int argc, char **argv) {
     CamDistortion                                       distortion;
 
 	bool												isLostTrack = false;
-	bool												bundling = true;
 	double												bundleReprojError;		
-
-	// components initialisation for marker detection
-	SRef<DescriptorBuffer> markerPatternDescriptor;
-	binaryMarker->loadMarker();
-	patternDescriptorExtractor->extract(binaryMarker->getPattern(), markerPatternDescriptor);
-	LOG_DEBUG("Marker pattern:\n {}", binaryMarker->getPattern().getPatternMatrix())
-	// Set the size of the box to display according to the marker size in world unit
-	overlay3D->bindTo<xpcf::IConfigurable>()->getProperty("size")->setFloatingValue(binaryMarker->getSize().width, 0);
-	overlay3D->bindTo<xpcf::IConfigurable>()->getProperty("size")->setFloatingValue(binaryMarker->getSize().height, 1);
-	overlay3D->bindTo<xpcf::IConfigurable>()->getProperty("size")->setFloatingValue(binaryMarker->getSize().height / 2.0f, 2);
-	int patternSize = binaryMarker->getPattern().getSize();
-	patternDescriptorExtractor->bindTo<xpcf::IConfigurable>()->getProperty("patternSize")->setIntegerValue(patternSize);
-	patternReIndexer->bindTo<xpcf::IConfigurable>()->getProperty("sbPatternSize")->setIntegerValue(patternSize);
-	img2worldMapper->bindTo<xpcf::IConfigurable>()->getProperty("digitalWidth")->setIntegerValue(patternSize);
-	img2worldMapper->bindTo<xpcf::IConfigurable>()->getProperty("digitalHeight")->setIntegerValue(patternSize);
-	img2worldMapper->bindTo<xpcf::IConfigurable>()->getProperty("worldWidth")->setFloatingValue(binaryMarker->getSize().width);
-	img2worldMapper->bindTo<xpcf::IConfigurable>()->getProperty("worldHeight")->setFloatingValue(binaryMarker->getSize().height);
 
 	// initialize pose estimation with the camera intrinsic parameters (please refer to the use of intrinsic parameters file)
     calibration = camera->getIntrinsicsParameters();
@@ -239,10 +175,10 @@ int main(int argc, char **argv) {
     overlay3D->setCameraParameters(calibration, distortion);
     pnpRansac->setCameraParameters(calibration, distortion);
     pnp->setCameraParameters(calibration, distortion);
-    poseFinderFrom2D2D->setCameraParameters(calibration, distortion);
     triangulator->setCameraParameters(calibration, distortion);
     projector->setCameraParameters(calibration, distortion);
 	loopCorrector->setCameraParameters(calibration, distortion);
+	bootstrapper->setCameraParameters(calibration, distortion);
     LOG_DEBUG("Intrincic parameters : \n {}", distortion);
 
 	if (camera->start() != FrameworkReturnCode::_SUCCESS)
@@ -251,158 +187,20 @@ int main(int argc, char **argv) {
 		return -1;
 	}
 
-	// camera pose estimation function based on the fiducial marker
-	auto detectFiducialMarker = [&imageConvertor, &imageFilterBinary, &contoursExtractor, &contoursFilter, &perspectiveController,
-		&patternDescriptorExtractor, &patternMatcher, &markerPatternDescriptor, &patternReIndexer, &img2worldMapper, &pnp, &overlay3D](SRef<Image>& image, Transform3Df &pose){
-		SRef<Image>                     greyImage, binaryImage;
-		std::vector<Contour2Df>			contours;
-		std::vector<Contour2Df>			filtered_contours;
-		std::vector<SRef<Image>>        patches;
-		std::vector<Contour2Df>			recognizedContours;
-		SRef<DescriptorBuffer>          recognizedPatternsDescriptors;
-		std::vector<DescriptorMatch>    patternMatches;
-		std::vector<Point2Df>			pattern2DPoints;
-		std::vector<Point2Df>			img2DPoints;
-		std::vector<Point3Df>			pattern3DPoints;
-
-		bool marker_found = false;
-		// Convert Image from RGB to grey
-		imageConvertor->convert(image, greyImage, Image::ImageLayout::LAYOUT_GREY);
-		for (int num_threshold = 0; !marker_found && num_threshold < NB_THRESHOLD; num_threshold++)
-		{
-			// Compute the current Threshold valu for image binarization
-			int threshold = MIN_THRESHOLD + (MAX_THRESHOLD - MIN_THRESHOLD)*((float)num_threshold / (float)(NB_THRESHOLD - 1));
-			// Convert Image from grey to black and white
-			imageFilterBinary->bindTo<xpcf::IConfigurable>()->getProperty("min")->setIntegerValue(threshold);
-			imageFilterBinary->bindTo<xpcf::IConfigurable>()->getProperty("max")->setIntegerValue(255);
-			// Convert Image from grey to black and white
-			imageFilterBinary->filter(greyImage, binaryImage);
-			// Extract contours from binary image
-			contoursExtractor->extract(binaryImage, contours);
-			// Filter 4 edges contours to find those candidate for marker contours
-			contoursFilter->filter(contours, filtered_contours);
-			// Create one warpped and cropped image by contour
-			perspectiveController->correct(binaryImage, filtered_contours, patches);
-			// test if this last image is really a squared binary marker, and if it is the case, extract its descriptor
-			if (patternDescriptorExtractor->extract(patches, filtered_contours, recognizedPatternsDescriptors, recognizedContours) != FrameworkReturnCode::_ERROR_)
-			{
-				// From extracted squared binary pattern, match the one corresponding to the squared binary marker
-				if (patternMatcher->match(markerPatternDescriptor, recognizedPatternsDescriptors, patternMatches) == features::IDescriptorMatcher::DESCRIPTORS_MATCHER_OK)
-				{
-					// Reindex the pattern to create two vector of points, the first one corresponding to marker corner, the second one corresponding to the poitsn of the contour
-					patternReIndexer->reindex(recognizedContours, patternMatches, pattern2DPoints, img2DPoints);
-					// Compute the 3D position of each corner of the marker
-					img2worldMapper->map(pattern2DPoints, pattern3DPoints);
-					// Compute the pose of the camera using a Perspective n Points algorithm using only the 4 corners of the marker
-					if (pnp->estimate(img2DPoints, pattern3DPoints, pose) == FrameworkReturnCode::_SUCCESS)
-					{														
-						marker_found = true;
-					}
-				}
-			}
-		}
-		return marker_found;
-	};
-
-	// calculate distance between two center of camera poses
-	auto centerCamDistance = [](const Transform3Df & pose1, const Transform3Df & pose2) {
-		return std::sqrt(std::pow(pose1(0, 3) - pose2(0, 3), 2.f) + std::pow(pose1(1, 3) - pose2(1, 3), 2.f) +
-			std::pow(pose1(2, 3) - pose2(2, 3), 2.f));
-	};
-
-	// calculate angle between z-axis of two camera poses
-	auto angleCamDistance = [](const Transform3Df & pose1, const Transform3Df & pose2) {
-		return std::acos(pose1(0, 2) * pose2(0, 2) + pose1(1, 2) * pose2(1, 2) + pose1(2, 2) * pose2(2, 2));
-	};
-
-	// Initialization by get two keyframes using pose estimation from fiducial marker
-	SRef<Frame>						frame1, frame2;
-	SRef<Keyframe>					keyframe1, keyframe2;
-	std::vector<SRef<CloudPoint>>	cloud, filteredCloud;
-	bool bootstrapOk = false;
-	bool initFrame1 = false;
-
 	// Load map from file
+	SRef<Keyframe>	keyframe1, keyframe2;
 	if (mapper->loadFromFile() == FrameworkReturnCode::_SUCCESS) {
 		LOG_INFO("Load map done!");
-		bootstrapOk = true;
 		keyframesManager->getKeyframe(0, keyframe2);
 	}
-	else
+	else {
 		LOG_INFO("Initialization from scratch");
-
-	while (!bootstrapOk)
-	{
-		if (camera->getNextImage(view) == SolAR::FrameworkReturnCode::_ERROR_)
-			break;
-
-		if (!detectFiducialMarker(view, poseFrame)) {
-			if (imageViewer->display(view) == SolAR::FrameworkReturnCode::_STOP)
-				return 1;
-			continue;
-		}
-		if (!initFrame1) {
-			initFrame1 = true;
-			keypointsDetector->detect(view, keypoints);
-			descriptorExtractor->extract(view, keypoints, descriptors);
-			frame1 = xpcf::utils::make_shared<Frame>(keypoints, descriptors, view, poseFrame);
-		}
-		else {
-			// check center camera distance
-			Transform3Df poseFrame1 = frame1->getPose();
-			if (centerCamDistance(poseFrame, poseFrame1) < 0.1) {
-                overlay3D->draw(poseFrame, view);
-				if (imageViewer->display(view) == SolAR::FrameworkReturnCode::_STOP)
-					return 1;
-				continue;
-			}
-			// feature extraction
-			keypointsDetector->detect(view, keypoints);
-			descriptorExtractor->extract(view, keypoints, descriptors);
-			frame2 = xpcf::utils::make_shared<Frame>(keypoints, descriptors, view, poseFrame);
-			// check angle camera distance
-			if (angleCamDistance(poseFrame, poseFrame1) > 0.1) {
-				frame1 = frame2;
-				continue;
-			}
-			// matching
-			matcher->match(frame1->getDescriptors(), frame2->getDescriptors(), matches);
-			matchesFilter->filter(matches, matches, frame1->getKeypoints() , frame2->getKeypoints());
-			matchesOverlay->draw(view, imageMatches, frame1->getKeypoints(), frame2->getKeypoints(), matches);
-			if (imageViewer->display(imageMatches) == SolAR::FrameworkReturnCode::_STOP)
-				return 1;
-			// Triangulate
-			cloud.clear();
-			filteredCloud.clear();
-			triangulator->triangulate(frame1->getKeypoints(), frame2->getKeypoints(), frame1->getDescriptors(), frame2->getDescriptors(), matches,
-				std::make_pair(0, 1), frame1->getPose(), frame2->getPose(), cloud);
-			mapFilter->filter(frame1->getPose(), frame2->getPose(), cloud, filteredCloud);
-			std::cout << filteredCloud.size() << std::endl;
-            if (filteredCloud.size() > NB_POINTCLOUD_INIT) {
-				// add keyframes to keyframes manager
-				keyframe1 = xpcf::utils::make_shared<Keyframe>(frame1);				
-				keyframesManager->addKeyframe(keyframe1);
-				keyframe2 = xpcf::utils::make_shared<Keyframe>(frame2);
-				keyframesManager->addKeyframe(keyframe2);
-				keyframe2->setReferenceKeyframe(keyframe1);
-				keyframePoses.push_back(keyframe1->getPose()); // used for display
-				keyframePoses.push_back(keyframe2->getPose()); // used for display
-				// add intial point cloud to point cloud manager and update visibility map and update covisibility graph
-				for (auto const &it : filteredCloud)
-					mapper->addCloudPoint(it);
-				// add keyframes to retriever
-				keyframeRetriever->addKeyframe(keyframe1);
-				keyframeRetriever->addKeyframe(keyframe2);
-				// apply bundle adjustement 
-				if (bundling) {
-                    bundleReprojError = bundler->bundleAdjustment(calibration, distortion, { 0,1 });
-				}
-				bootstrapOk = true;
-			}
-			else {
-				frame1 = frame2;
-			}
-		}							
+		if (bootstrapper->run() == FrameworkReturnCode::_ERROR_)
+			return 1;
+		keyframesManager->getKeyframe(0, keyframe1);
+		keyframesManager->getKeyframe(1, keyframe2);
+		keyframePoses.push_back(keyframe1->getPose());
+		keyframePoses.push_back(keyframe2->getPose());
 	}
 	
 	LOG_INFO("Number of initial point cloud: {}", pointCloudManager->getNbPoints());
@@ -521,10 +319,6 @@ int main(int argc, char **argv) {
 			SRef<Keyframe> tmpKf;
 			keyframesManager->getKeyframe(idxBestNeighborKfs[i], tmpKf);
 			const Transform3Df &tmpKf_pose = tmpKf->getPose();
-
-			// check distance between two keyframes
-			if ((centerCamDistance(newKf_pose, tmpKf_pose) < 0.05) || (angleCamDistance(newKf_pose, tmpKf_pose) > 0.5))
-				continue;
 
 			// Matching based on BoW
 			std::vector < DescriptorMatch> tmpMatches, goodMatches;
@@ -766,29 +560,27 @@ int main(int argc, char **argv) {
 				}
 				else {
 					SRef<Keyframe> newKeyframe = processNewKeyframe(newFrame);
-					if (bundling) {
-						// Local bundle adjustment
-						std::vector<uint32_t> bestIdx;
-						covisibilityGraph->getNeighbors(newKeyframe->getId(), MIN_WEIGHT_NEIGHBOR_KEYFRAME, bestIdx);						
-						bestIdx.push_back(newKeyframe->getId());
-                        bundleReprojError = bundler->bundleAdjustment(calibration, distortion, bestIdx);
-						// loop closure
-						countNewKeyframes++;
-						if (countNewKeyframes >= NB_NEWKEYFRAMES_LOOP) {
-							LOG_INFO("Last keyframe id: {}", newKeyframe->getId());
-							SRef<Keyframe> detectedLoopKeyframe;
-							Transform3Df sim3Transform;
-							std::vector<std::pair<uint32_t, uint32_t>> duplicatedPointsIndices;
-							if (loopDetector->detect(newKeyframe, detectedLoopKeyframe, sim3Transform, duplicatedPointsIndices) == FrameworkReturnCode::_SUCCESS) {
-								// detected loop keyframe
-								LOG_INFO("Detected loop keyframe id: {}", detectedLoopKeyframe->getId());
-								// performs loop correction 
-								countNewKeyframes = 0;
-								loopCorrector->correct(newKeyframe, detectedLoopKeyframe, sim3Transform, duplicatedPointsIndices);
-							}
-							else
-								LOG_INFO("Cannot detect a loop closure from last keyframe");
+					// Local bundle adjustment
+					std::vector<uint32_t> bestIdx;
+					covisibilityGraph->getNeighbors(newKeyframe->getId(), MIN_WEIGHT_NEIGHBOR_KEYFRAME, bestIdx);						
+					bestIdx.push_back(newKeyframe->getId());
+                    bundleReprojError = bundler->bundleAdjustment(calibration, distortion, bestIdx);
+					// loop closure
+					countNewKeyframes++;
+					if (countNewKeyframes >= NB_NEWKEYFRAMES_LOOP) {
+						LOG_INFO("Last keyframe id: {}", newKeyframe->getId());
+						SRef<Keyframe> detectedLoopKeyframe;
+						Transform3Df sim3Transform;
+						std::vector<std::pair<uint32_t, uint32_t>> duplicatedPointsIndices;
+						if (loopDetector->detect(newKeyframe, detectedLoopKeyframe, sim3Transform, duplicatedPointsIndices) == FrameworkReturnCode::_SUCCESS) {
+							// detected loop keyframe
+							LOG_INFO("Detected loop keyframe id: {}", detectedLoopKeyframe->getId());
+							// performs loop correction 
+							countNewKeyframes = 0;
+							loopCorrector->correct(newKeyframe, detectedLoopKeyframe, sim3Transform, duplicatedPointsIndices);
 						}
+						else
+							LOG_INFO("Cannot detect a loop closure from last keyframe");
 					}
 					// update data
 					LOG_INFO("Update data");
