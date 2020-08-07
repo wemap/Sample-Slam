@@ -110,7 +110,7 @@ int main(int argc, char **argv) {
     LOG_INFO("Resolving descriptor extractor");
     auto descriptorExtractor = xpcfComponentManager->resolve<features::IDescriptorsExtractor>();
     LOG_INFO("Resolving descriptor matcher");
-    auto matcher = xpcfComponentManager->resolve<features::IDescriptorMatcher>("Matcher");
+    auto matcher = xpcfComponentManager->resolve<features::IDescriptorMatcher>("Matcher-Main");
     LOG_INFO("Resolving triangulator");
     auto triangulator = xpcfComponentManager->resolve<solver::map::ITriangulator>();
     LOG_INFO("Resolving matches filter");

@@ -198,8 +198,10 @@
 			<bind interface="ICamera" to="SolARCameraOpencv" scope="Singleton"/>
 			<!--bind interface="ICamera" to="SolARVideoAsCameraOpencv" /-->
 			<bind interface="IDescriptorsExtractor" to="SolARDescriptorsExtractorAKAZE2Opencv" />
-			<bind name="Matcher" interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" />
-			<bind interface="IDescriptorMatcher" to="SolARDescriptorMatcherRadiusOpencv" />
+			<bind name="Matcher-Main" interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" />
+			<bind name="Matcher-Loop" interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" />
+			<bind name="Matcher-Bootstrap" interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" />
+			<bind name="Matcher-Fiducial" interface="IDescriptorMatcher" to="SolARDescriptorMatcherRadiusOpencv" />
 			<bind interface="IPointCloudManager" to="SolARPointCloudManager" scope="Singleton"/>
 			<bind interface="IKeyframesManager" to="SolARKeyframesManager" scope="Singleton"/>
 			<bind interface="ICovisibilityGraph" to="SolARCovisibilityGraph" scope="Singleton"/>
@@ -219,6 +221,7 @@
 		<configure component="SolARSLAMBootstrapper">
 			<property name="useMarker" type="Integer" value="1"/>
 			<property name="nbMinInitPointCloud" type="Integer" value="50"/>
+			<property name="angleThres" type="Float" value="0.05"/>
 		</configure>
 		<configure component="SolARMapper">
 			<property name="directory" type="string" value="map"/>

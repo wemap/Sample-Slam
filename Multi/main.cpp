@@ -101,7 +101,7 @@ int main(int argc, char **argv) {
 	auto camera = xpcfComponentManager->resolve<input::devices::ICamera>();
 	auto keypointsDetector = xpcfComponentManager->resolve<features::IKeypointDetector>();
 	auto descriptorExtractor = xpcfComponentManager->resolve<features::IDescriptorsExtractor>();
-	auto matcher = xpcfComponentManager->resolve<features::IDescriptorMatcher>("Matcher");
+	auto matcher = xpcfComponentManager->resolve<features::IDescriptorMatcher>("Matcher-Main");
 	auto triangulator = xpcfComponentManager->resolve<solver::map::ITriangulator>();
 	auto matchesFilter = xpcfComponentManager->resolve<features::IMatchesFilter>();
 	auto pnpRansac = xpcfComponentManager->resolve<solver::pose::I3DTransformSACFinderFrom2D3D>();
