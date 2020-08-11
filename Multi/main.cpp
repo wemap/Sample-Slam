@@ -20,9 +20,6 @@
 #include <set>
 #include <cmath>
 #include <boost/log/core.hpp>
-
-// ADD MODULES TRAITS HEADERS HERE
-
 // ADD XPCF HEADERS HERE
 #include "xpcf/xpcf.h"
 #include "xpcf/threading/BaseTask.h"
@@ -32,32 +29,20 @@
 #include "api/input/devices/ICamera.h"
 #include "api/features/IKeypointDetector.h"
 #include "api/features/IDescriptorsExtractor.h"
-#include "api/features/IDescriptorMatcher.h"
-#include "api/solver/map/ITriangulator.h"
 #include "api/solver/map/IMapper.h"
-#include "api/solver/map/IKeyframeSelector.h"
-#include "api/solver/map/IMapFilter.h"
-#include "api/solver/map/IBundler.h"
-#include "api/solver/pose/I2D3DCorrespondencesFinder.h"
-#include "api/solver/pose/I3DTransformSACFinderFrom2D3D.h"
-#include "api/solver/pose/I3DTransformFinderFrom2D3D.h"
-#include "api/features/IMatchesFilter.h"
-#include "api/display/I2DOverlay.h"
-#include "api/display/IMatchesOverlay.h"
 #include "api/display/I3DOverlay.h"
 #include "api/display/IImageViewer.h"
 #include "api/display/I3DPointsViewer.h"
 #include "api/reloc/IKeyframeRetriever.h"
-#include "api/geom/IProject.h"
 #include "api/storage/ICovisibilityGraph.h"
 #include "api/storage/IKeyframesManager.h"
 #include "api/storage/IPointCloudManager.h"
 #include "api/loop/ILoopClosureDetector.h"
 #include "api/loop/ILoopCorrector.h"
 #include "api/slam/IBootstrapper.h"
+#include "api/slam/ITracking.h"
+#include "api/slam/IMapping.h"
 
-#define MIN_WEIGHT_NEIGHBOR_KEYFRAME 50
-#define MIN_POINT_DISTANCE 0.04
 #define NB_NEWKEYFRAMES_LOOP 5
 
 using namespace SolAR;
@@ -89,66 +74,32 @@ int main(int argc, char **argv) {
 
 	// declare and create components
 	LOG_INFO("Start creating components");
-
-	// storage components
 	auto pointCloudManager = xpcfComponentManager->resolve<IPointCloudManager>();
 	auto keyframesManager = xpcfComponentManager->resolve<IKeyframesManager>();
 	auto covisibilityGraph = xpcfComponentManager->resolve<ICovisibilityGraph>();
 	auto keyframeRetriever = xpcfComponentManager->resolve<IKeyframeRetriever>();
 	auto mapper = xpcfComponentManager->resolve<solver::map::IMapper>();
-
-	// processing components
 	auto camera = xpcfComponentManager->resolve<input::devices::ICamera>();
 	auto keypointsDetector = xpcfComponentManager->resolve<features::IKeypointDetector>();
 	auto descriptorExtractor = xpcfComponentManager->resolve<features::IDescriptorsExtractor>();
-	auto matcher = xpcfComponentManager->resolve<features::IDescriptorMatcher>("Matcher-Main");
-	auto triangulator = xpcfComponentManager->resolve<solver::map::ITriangulator>();
-	auto matchesFilter = xpcfComponentManager->resolve<features::IMatchesFilter>();
-	auto pnpRansac = xpcfComponentManager->resolve<solver::pose::I3DTransformSACFinderFrom2D3D>();
-	auto pnp = xpcfComponentManager->resolve<solver::pose::I3DTransformFinderFrom2D3D>();
-	auto corr2D3DFinder = xpcfComponentManager->resolve<solver::pose::I2D3DCorrespondencesFinder>();
-	auto mapFilter = xpcfComponentManager->resolve<solver::map::IMapFilter>();
-	auto keyframeSelector = xpcfComponentManager->resolve<solver::map::IKeyframeSelector>();
-	auto matchesOverlay = xpcfComponentManager->resolve<display::IMatchesOverlay>();
 	auto imageViewer = xpcfComponentManager->resolve<display::IImageViewer>();
 	auto viewer3DPoints = xpcfComponentManager->resolve<display::I3DPointsViewer>();
-	auto projector = xpcfComponentManager->resolve<geom::IProject>();
-	auto bundler = xpcfComponentManager->resolve<api::solver::map::IBundler>();
 	auto loopDetector = xpcfComponentManager->resolve<loop::ILoopClosureDetector>();
 	auto loopCorrector = xpcfComponentManager->resolve<loop::ILoopCorrector>();
 	auto overlay3D = xpcfComponentManager->resolve<display::I3DOverlay>();
-	auto overlay2D = xpcfComponentManager->resolve<display::I2DOverlay>();
 	auto bootstrapper = xpcfComponentManager->resolve<slam::IBootstrapper>();
-
+	auto tracking = xpcfComponentManager->resolve<slam::ITracking>();
+	auto mapping = xpcfComponentManager->resolve<slam::IMapping>();
 	LOG_INFO("Loaded all components");
-
-	// declarations					
-	SRef<Image>											view;
-	Transform3Df										poseFrame;
-	std::vector<Keypoint>								keypoints;
-	SRef<DescriptorBuffer>								descriptors;
-	std::vector<DescriptorMatch>                        matches;
-	Transform3Df                                        newFramePose;
-	Transform3Df                                        lastPose;
-	std::vector<Transform3Df>                           keyframePoses;
-	std::vector<Transform3Df>                           framePoses;
-	SRef<Frame>											frameToTrack;
-	SRef<Keyframe>                                      referenceKeyframe, updatedRefKf;
-	SRef<Image>                                         imageMatches;
-	std::vector<SRef<CloudPoint>>						localMap;
-	bool												isLostTrack = false;
-	double												bundleReprojError;
 
 	// initialize pose estimation with the camera intrinsic parameters (please refeer to the use of intrinsec parameters file)
 	CamCalibration calibration = camera->getIntrinsicsParameters();
 	CamDistortion distortion = camera->getDistortionParameters();
 	overlay3D->setCameraParameters(calibration, distortion);
-	pnpRansac->setCameraParameters(calibration, distortion);
-	pnp->setCameraParameters(calibration, distortion);
-	triangulator->setCameraParameters(calibration, distortion);
-	projector->setCameraParameters(calibration, distortion);
 	loopCorrector->setCameraParameters(calibration, distortion);
 	bootstrapper->setCameraParameters(calibration, distortion);
+	tracking->setCameraParameters(calibration, distortion);
+	mapping->setCameraParameters(calibration, distortion);
 	LOG_DEBUG("Intrincic parameters : \n {}", calibration);
 
 	if (camera->start() != FrameworkReturnCode::_SUCCESS)
@@ -159,7 +110,7 @@ int main(int argc, char **argv) {
 
 	// Load map from file
 	bool stop = false;
-	SRef<Keyframe>	keyframe1, keyframe2;
+	SRef<Keyframe> keyframe2;
 	if (mapper->loadFromFile() == FrameworkReturnCode::_SUCCESS) {
 		LOG_INFO("Load map done!");
 		keyframesManager->getKeyframe(0, keyframe2);
@@ -168,284 +119,15 @@ int main(int argc, char **argv) {
 		LOG_INFO("Initialization from scratch");
 		if (bootstrapper->run() == FrameworkReturnCode::_ERROR_)
 			return 1;
-		keyframesManager->getKeyframe(0, keyframe1);
 		keyframesManager->getKeyframe(1, keyframe2);
-		keyframePoses.push_back(keyframe1->getPose());
-		keyframePoses.push_back(keyframe2->getPose());
 	}
 
 	LOG_INFO("Number of initial point cloud: {}", pointCloudManager->getNbPoints());
 	LOG_INFO("Number of initial keyframes: {}", keyframesManager->getNbKeyframes());
 
-	// check need to make a new keyframe based on all existed keyframes
-	std::function<bool(const SRef<Frame>&)> checkNeedNewKfWithAllKfs = [&](const SRef<Frame>& newFrame) -> bool {
-		std::vector < uint32_t> ret_keyframesId, neighborsKfs;
-		covisibilityGraph->getNeighbors(newFrame->getReferenceKeyframe()->getId(), MIN_WEIGHT_NEIGHBOR_KEYFRAME, neighborsKfs);
-		std::set<uint32_t> candidates;
-		for (const auto &it : neighborsKfs)
-			candidates.insert(it);
-		if (keyframeRetriever->retrieve(newFrame, candidates, ret_keyframesId) == FrameworkReturnCode::_SUCCESS) {
-			keyframesManager->getKeyframe(ret_keyframesId[0], updatedRefKf);
-			LOG_INFO("Update new reference keyframe with id {}", updatedRefKf->getId());
-			return true;
-		}
-		else {
-			LOG_INFO("Need to make new keyframe");
-			return false;
-		}
-	};
-
-	// checkDisparityDistance
-	std::function<bool(const SRef<Frame>&)> checkDisparityDistance = [&referenceKeyframe, &mapper, &projector, &pointCloudManager](const SRef<Frame>& newFrame) -> bool {
-		const std::vector<Keypoint> &refKeypoints = referenceKeyframe->getKeypoints();
-		const std::map<uint32_t, uint32_t> &refMapVisibility = referenceKeyframe->getVisibility();
-		std::vector<SRef<CloudPoint>> cpRef;
-		std::vector<Point2Df> projected2DPts, ref2DPts;
-
-		for (auto const & it : refMapVisibility) {
-			SRef<CloudPoint> cloudPoint;
-			if (pointCloudManager->getPoint(it.second, cloudPoint) == FrameworkReturnCode::_SUCCESS) {
-				cpRef.push_back(cloudPoint);
-				ref2DPts.push_back(Point2Df(refKeypoints[it.first].getX(), refKeypoints[it.first].getY()));
-			}
-		}
-		projector->project(cpRef, projected2DPts, newFrame->getPose());
-
-		unsigned int imageWidth = newFrame->getView()->getWidth();
-		double totalMatchesDist = 0.0;
-		for (int i = 0; i < projected2DPts.size(); i++)
-		{
-			Point2Df pt1 = ref2DPts[i];
-			Point2Df pt2 = projected2DPts[i];
-			totalMatchesDist += (pt1 - pt2).norm() / imageWidth;
-		}
-		double meanMatchesDist = totalMatchesDist / projected2DPts.size();
-		LOG_DEBUG("Keyframe Selector Mean Matches Dist: {}", meanMatchesDist);
-		return (meanMatchesDist > 0.07);
-	};
-
-	// Update keypoint visibility, descriptor in cloud point
-	auto updateAssociateCloudPoint = [&](SRef<Keyframe> & newKf) {
-		const std::map<uint32_t, uint32_t> &newkf_mapVisibility = newKf->getVisibility();
-		std::map<uint32_t, int> kfCounter;
-		// calculate the number of connections to other keyframes
-		for (auto const &it : newkf_mapVisibility) {
-			SRef<CloudPoint> cloudPoint;
-			if (pointCloudManager->getPoint(it.second, cloudPoint) == FrameworkReturnCode::_SUCCESS) {
-				const std::map<uint32_t, uint32_t> &cpKfVisibility = cloudPoint->getVisibility();
-				for (auto const &it_kf : cpKfVisibility)
-					kfCounter[it_kf.first]++;
-				// add new visibility to cloud point
-				cloudPoint->addVisibility(newKf->getId(), it.first);
-				// update view direction
-				Transform3Df poseNewKf = newKf->getPose();
-				Vector3f newViewDirection(poseNewKf(0, 3) - cloudPoint->getX(), poseNewKf(1, 3) - cloudPoint->getY(), poseNewKf(2, 3) - cloudPoint->getZ());
-				cloudPoint->addNewViewDirection(newViewDirection);
-				// update descriptor
-				cloudPoint->addNewDescriptor(newKf->getDescriptors()->getDescriptor(it.first));
-			}
-		}
-
-		// Add to covisibility graph
-		for (auto const &it : kfCounter)
-			if (it.first != newKf->getId())
-				covisibilityGraph->increaseEdge(newKf->getId(), it.first, it.second);
-	};
-
-	// find matches between unmatching keypoints in the new keyframe and the best neighboring keyframes
-	auto findMatchesAndTriangulation = [&](const SRef<Keyframe> & newKf, const std::vector<uint32_t> &idxBestNeighborKfs, std::vector<SRef<CloudPoint>> &cloudPoint) {
-		const std::map<unsigned int, unsigned int> &newKf_mapVisibility = newKf->getVisibility();
-		const SRef<DescriptorBuffer> &newKf_des = newKf->getDescriptors();
-		const std::vector<Keypoint> & newKf_kp = newKf->getKeypoints();
-		const Transform3Df& newKf_pose = newKf->getPose();
-
-		// Vector indices keypoints have no visibility to map point
-		std::vector<bool> checkMatches(newKf_kp.size(), false);
-		for (int i = 0; i < newKf_kp.size(); ++i)
-			if (newKf_mapVisibility.find(i) != newKf_mapVisibility.end()) {
-				checkMatches[i] = true;
-			}
-
-		// Triangulate to neighboring keyframes
-		for (int i = 0; i < idxBestNeighborKfs.size(); ++i) {
-			// get non map point view keypoints
-			std::vector<int> newKf_indexKeypoints;
-			for (int j = 0; j < checkMatches.size(); ++j)
-				if (!checkMatches[j])
-					newKf_indexKeypoints.push_back(j);
-
-			// get neighbor keyframe i
-			SRef<Keyframe> tmpKf;
-			keyframesManager->getKeyframe(idxBestNeighborKfs[i], tmpKf);
-			const Transform3Df &tmpKf_pose = tmpKf->getPose();
-
-			// Matching based on BoW
-			std::vector < DescriptorMatch> tmpMatches, goodMatches;
-			keyframeRetriever->match(newKf_indexKeypoints, newKf_des, tmpKf, tmpMatches);
-
-			// matches filter based epipolar lines
-			matchesFilter->filter(tmpMatches, tmpMatches, newKf_kp, tmpKf->getKeypoints(), newKf_pose, tmpKf_pose, camera->getIntrinsicsParameters());
-
-			// find info to triangulate				
-			const std::map<unsigned int, unsigned int> & tmpMapVisibility = tmpKf->getVisibility();
-			for (int j = 0; j < tmpMatches.size(); ++j) {
-				unsigned int idx_newKf = tmpMatches[j].getIndexInDescriptorA();
-				unsigned int idx_tmpKf = tmpMatches[j].getIndexInDescriptorB();
-				if ((!checkMatches[idx_newKf]) && (tmpMapVisibility.find(idx_tmpKf) == tmpMapVisibility.end())) {
-					goodMatches.push_back(tmpMatches[j]);
-				}
-			}
-
-			// triangulation
-			std::vector<SRef<CloudPoint>> tmpCloudPoint, tmpFilteredCloudPoint;
-			std::vector<int> indexFiltered;
-			if (goodMatches.size() > 0)
-				triangulator->triangulate(newKf_kp, tmpKf->getKeypoints(), newKf_des, tmpKf->getDescriptors(), goodMatches,
-					std::make_pair(newKf->getId(), idxBestNeighborKfs[i]), newKf_pose, tmpKf_pose, tmpCloudPoint);
-
-			// filter cloud points
-			if (tmpCloudPoint.size() > 0)
-				mapFilter->filter(newKf_pose, tmpKf_pose, tmpCloudPoint, tmpFilteredCloudPoint, indexFiltered);
-			for (int i = 0; i < indexFiltered.size(); ++i) {
-				checkMatches[goodMatches[indexFiltered[i]].getIndexInDescriptorA()] = true;
-				cloudPoint.push_back(tmpFilteredCloudPoint[i]);
-			}
-		}
-	};
-
-	// check and fuse cloud point
-	auto fuseCloudPoint = [&](const SRef<Keyframe> &newKeyframe, const std::vector<uint32_t> &idxNeigborKfs, std::vector<SRef<CloudPoint>> &newCloudPoint) {
-		std::vector<bool> checkMatches(newCloudPoint.size(), true);
-		std::vector<SRef<DescriptorBuffer>> desNewCloudPoint;
-		for (auto const &it_cp : newCloudPoint) {
-			desNewCloudPoint.push_back(it_cp->getDescriptor());
-		}
-
-		for (int i = 0; i < idxNeigborKfs.size(); ++i) {
-			// get a neighbor
-			SRef<Keyframe> neighborKf;
-			if (keyframesManager->getKeyframe(idxNeigborKfs[i], neighborKf) == FrameworkReturnCode::_ERROR_)
-				continue;
-			const std::map<uint32_t, uint32_t> &mapVisibilitiesNeighbor = neighborKf->getVisibility();
-
-			//  projection points
-			std::vector< Point2Df > projected2DPts;
-			projector->project(newCloudPoint, projected2DPts, neighborKf->getPose());
-
-			std::vector<DescriptorMatch> allMatches;
-			matcher->matchInRegion(projected2DPts, desNewCloudPoint, neighborKf, allMatches, 5.f);
-
-			for (int j = 0; j < allMatches.size(); ++j) {
-				int idxNewCloudPoint = allMatches[j].getIndexInDescriptorA();
-				int idxKpNeighbor = allMatches[j].getIndexInDescriptorB();
-				if (!checkMatches[idxNewCloudPoint])
-					continue;
-
-				const std::map<uint32_t, uint32_t> &newCloudPointVisibility = newCloudPoint[idxNewCloudPoint]->getVisibility();
-				// check this cloud point is created from the same neighbor keyframe
-				if (newCloudPointVisibility.find(idxNeigborKfs[i]) != newCloudPointVisibility.end())
-					continue;
-
-				// check if have a cloud point in the neighbor keyframe is coincide with this cloud point.
-				auto it_cp = mapVisibilitiesNeighbor.find(idxKpNeighbor);
-				if (it_cp == mapVisibilitiesNeighbor.end())
-					continue;
-
-				SRef<CloudPoint> existedCloudPoint;
-				if (pointCloudManager->getPoint(it_cp->second, existedCloudPoint) == FrameworkReturnCode::_SUCCESS) {
-					const std::map<uint32_t, uint32_t> &existedCloudPointVisibility = existedCloudPoint->getVisibility();
-					bool goodCheck = true;
-					for (const auto &vExistedCP : existedCloudPointVisibility)
-						if (newCloudPointVisibility.find(vExistedCP.first) != newCloudPointVisibility.end()) {
-							goodCheck = false;
-							break;
-						}
-					if (goodCheck && ((*existedCloudPoint - *newCloudPoint[idxNewCloudPoint]).magnitude() < MIN_POINT_DISTANCE)) {
-						// add visibilities to this cloud point and keyframes
-						std::vector<uint32_t> keyframeIds;
-						for (auto const &vNewCP : newCloudPointVisibility) {
-							existedCloudPoint->addVisibility(vNewCP.first, vNewCP.second);
-							keyframeIds.push_back(vNewCP.first);
-							SRef<Keyframe> tmpKeyframe;
-							keyframesManager->getKeyframe(vNewCP.first, tmpKeyframe);
-							tmpKeyframe->addVisibility(vNewCP.second, it_cp->second);
-							// modify cloud point descriptor
-							existedCloudPoint->addNewDescriptor(tmpKeyframe->getDescriptors()->getDescriptor(vNewCP.second));
-							// modify view direction
-							Transform3Df poseTmpKf = tmpKeyframe->getPose();
-							Vector3f newViewDirection(poseTmpKf(0, 3) - existedCloudPoint->getX(), poseTmpKf(1, 3) - existedCloudPoint->getY(), poseTmpKf(2, 3) - existedCloudPoint->getZ());
-							existedCloudPoint->addNewViewDirection(newViewDirection);
-						}
-						// update covisibility graph
-						covisibilityGraph->increaseEdge(idxNeigborKfs[i], keyframeIds[0], 1);
-						covisibilityGraph->increaseEdge(idxNeigborKfs[i], keyframeIds[1], 1);
-						covisibilityGraph->increaseEdge(keyframeIds[0], keyframeIds[1], 1);
-						// this new cloud point is existed
-						checkMatches[idxNewCloudPoint] = false;
-					}
-				}
-			}
-		}
-
-		std::vector<std::tuple<uint32_t, int, uint32_t>> tmpInfoMatches;
-		std::vector<SRef<CloudPoint>> tmpNewCloudPoint;
-		for (int i = 0; i < checkMatches.size(); ++i)
-			if (checkMatches[i])
-				tmpNewCloudPoint.push_back(newCloudPoint[i]);
-		tmpNewCloudPoint.swap(newCloudPoint);
-	};
-
-	// process to add a new keyframe
-	auto processNewKeyframe = [&](SRef<Frame> &newFrame) -> SRef<Keyframe> {
-		// create a new keyframe from the current frame
-		SRef<Keyframe> newKeyframe = xpcf::utils::make_shared<Keyframe>(newFrame);
-		// Add to keyframe manager
-		keyframesManager->addKeyframe(newKeyframe);
-		// Add to BOW retrieval			
-		keyframeRetriever->addKeyframe(newKeyframe);
-		// Update keypoint visibility, descriptor in cloud point and connections between new keyframe with other keyframes
-		updateAssociateCloudPoint(newKeyframe);
-		// get best neighbor keyframes
-		std::vector<uint32_t> idxBestNeighborKfs;
-		covisibilityGraph->getNeighbors(newKeyframe->getId(), MIN_WEIGHT_NEIGHBOR_KEYFRAME, idxBestNeighborKfs);
-		// find matches between unmatching keypoints in the new keyframe and the best neighboring keyframes
-		std::vector<SRef<CloudPoint>> newCloudPoint;
-		findMatchesAndTriangulation(newKeyframe, idxBestNeighborKfs, newCloudPoint);
-		LOG_DEBUG("Number of new 3D points before fusing: {} using nb of neighbors: {}", newCloudPoint.size(), idxBestNeighborKfs.size());
-		if (newCloudPoint.size() > 0) {
-			// fuse duplicate points
-			std::vector<uint32_t> idxNeigborKfs;
-			covisibilityGraph->getNeighbors(newKeyframe->getId(), MIN_WEIGHT_NEIGHBOR_KEYFRAME - 10, idxNeigborKfs);
-			fuseCloudPoint(newKeyframe, idxNeigborKfs, newCloudPoint);
-		}
-		LOG_DEBUG("Keyframe: {} -> Number of new 3D points: {}", newKeyframe->getId(), newCloudPoint.size());
-		// add new points to point cloud manager, update visibility map and covisibility graph
-		for (auto const &point : newCloudPoint)
-			mapper->addCloudPoint(point);
-		return newKeyframe;
-	};
-
-	std::mutex refKeyframeMutex;
-
-	auto updateReferenceKeyframe = [&referenceKeyframe, &refKeyframeMutex](const SRef<Keyframe>& refKf)
-	{
-		std::unique_lock<std::mutex> lock(refKeyframeMutex);
-		referenceKeyframe = refKf;
-	};
-
-	auto updateData = [&](const SRef<Keyframe> &refKf, std::vector<SRef<CloudPoint>> &localMap, SRef<Frame> &frameToTrack)
-	{
-		frameToTrack = xpcf::utils::make_shared<Frame>(refKf);
-		frameToTrack->setReferenceKeyframe(refKf);
-		localMap.clear();
-		// get local point cloud
-		mapper->getLocalPointCloud(refKf, MIN_WEIGHT_NEIGHBOR_KEYFRAME, localMap);
-	};
 
 	// Prepare for tracking
-	lastPose = keyframe2->getPose();
-	updateReferenceKeyframe(keyframe2);
-	updateData(keyframe2, localMap, frameToTrack);
+	tracking->updateReferenceKeyframe(keyframe2);
 
 	xpcf::DropBuffer<SRef<Image>>												m_dropBufferCamImageCapture;
 	xpcf::DropBuffer<SRef<Frame>>												m_dropBufferAddKeyframe;
@@ -458,166 +140,74 @@ int main(int argc, char **argv) {
 	// Camera image capture task
 	auto fnCamImageCapture = [&]()
 	{
-		if (!stop)
+		SRef<Image> view;
+		if (camera->getNextImage(view) != SolAR::FrameworkReturnCode::_SUCCESS)
 		{
-			SRef<Image> view;
-			if (camera->getNextImage(view) != SolAR::FrameworkReturnCode::_SUCCESS)
-			{
-				stop = true;
-				return;
-			}
-			m_dropBufferCamImageCapture.push(view);
+			stop = true;
+			return;
 		}
+		m_dropBufferCamImageCapture.push(view);
 	};
 
 	// Keypoint detection task
 	auto fnDetection = [&]()
-	{
-		if (!stop)
-		{
-			SRef<Image> frame;
-			if (!m_dropBufferCamImageCapture.tryPop(frame)) {
-				xpcf::DelegateTask::yield();
-				return;
-			}
-			keypointsDetector->detect(frame, keypoints);
-			m_dropBufferKeypoints.push(std::make_pair(frame, keypoints));
+	{		
+		SRef<Image> frame;
+		if (!m_dropBufferCamImageCapture.tryPop(frame)) {
+			xpcf::DelegateTask::yield();
+			return;
 		}
+		std::vector<Keypoint> keypoints;
+		keypointsDetector->detect(frame, keypoints);
+		m_dropBufferKeypoints.push(std::make_pair(frame, keypoints));
 	};
 
 	// Feature extraction task
 	auto fnExtraction = [&]()
 	{
-		if (!stop)
-		{
-			std::pair<SRef<Image>, std::vector<Keypoint>> frameKeypoints;
-			if (!m_dropBufferKeypoints.tryPop(frameKeypoints)) {
-				xpcf::DelegateTask::yield();
-				return;
-			}
-			descriptorExtractor->extract(frameKeypoints.first, frameKeypoints.second, descriptors);
-			SRef<Frame> frame = xpcf::utils::make_shared<Frame>(frameKeypoints.second, descriptors, frameKeypoints.first);
-			m_dropBufferFrameDescriptors.push(frame);
-		}
-	};
-
-
-	SRef<Frame> newFrame;
-	int count = 0;
-	// Tracking task
-	auto fnTracking = [&]()
-	{
-		if (!m_dropBufferFrameDescriptors.tryPop(newFrame)) {
+		std::pair<SRef<Image>, std::vector<Keypoint>> frameKeypoints;
+		if (!m_dropBufferKeypoints.tryPop(frameKeypoints)) {
 			xpcf::DelegateTask::yield();
 			return;
 		}
-		LOG_INFO("fn tracking start");
+		SRef<DescriptorBuffer> descriptors;
+		descriptorExtractor->extract(frameKeypoints.first, frameKeypoints.second, descriptors);
+		SRef<Frame> frame = xpcf::utils::make_shared<Frame>(frameKeypoints.second, descriptors, frameKeypoints.first);
+		m_dropBufferFrameDescriptors.push(frame);
+	};
+
+	// Tracking task	
+	std::vector<Transform3Df>   framePoses;
+	int count = 0;
+	auto fnTracking = [&]()
+	{
+		SRef<Frame> frame;
+		if (!m_dropBufferFrameDescriptors.tryPop(frame)) {
+			xpcf::DelegateTask::yield();
+			return;
+		}
 		SRef<Keyframe> newKeyframe;
 		if (m_dropBufferNewKeyframe.tryPop(newKeyframe))
 		{
-			updateData(newKeyframe, localMap, frameToTrack);
+			tracking->updateReferenceKeyframe(newKeyframe);
 		}
-		newFrame->setReferenceKeyframe(referenceKeyframe);
-		matcher->match(frameToTrack->getDescriptors(), newFrame->getDescriptors(), matches);
-		matchesFilter->filter(matches, matches, frameToTrack->getKeypoints(), newFrame->getKeypoints());
-
-		std::vector<Point2Df> pt2d;
-		std::vector<Point3Df> pt3d;
-		std::vector<CloudPoint> foundPoints;
-		std::vector<DescriptorMatch> foundMatches;
-		std::vector<DescriptorMatch> remainingMatches;
-		corr2D3DFinder->find(frameToTrack, newFrame, matches, pt3d, pt2d, foundMatches, remainingMatches);
-		// display matches
-		imageMatches = newFrame->getView()->copy();
-
-		std::vector<Point2Df> imagePoints_inliers;
-		std::vector<Point3Df> worldPoints_inliers;
-		if (pnpRansac->estimate(pt2d, pt3d, imagePoints_inliers, worldPoints_inliers, newFramePose, lastPose) == FrameworkReturnCode::_SUCCESS) {
-			LOG_DEBUG(" pnp inliers size: {} / {}", worldPoints_inliers.size(), pt3d.size());
-			LOG_DEBUG("Estimated pose: \n {}", newFramePose.matrix());
-			// Set the pose of the new frame
-			newFrame->setPose(newFramePose);
-
-			// refine pose and update map visibility of frame
-			{
-				// get all keypoints of the new frame
-				const std::vector<Keypoint> &keypoints = newFrame->getKeypoints();
-
-				//  projection points
-				std::vector< Point2Df > projected2DPts;
-				projector->project(localMap, projected2DPts, newFrame->getPose());
-
-				std::vector<SRef<DescriptorBuffer>> desAllLocalMap;
-				for (auto &it_cp : localMap) {
-					desAllLocalMap.push_back(it_cp->getDescriptor());
-				}
-				std::vector<DescriptorMatch> allMatches;
-				matcher->matchInRegion(projected2DPts, desAllLocalMap, newFrame, allMatches, 5.f);
-
-				std::vector<Point2Df> pt2d;
-				std::vector<Point3Df> pt3d;
-				std::map<unsigned int, unsigned int> newMapVisibility;
-				for (auto &it_match : allMatches) {
-					int idx_2d = it_match.getIndexInDescriptorB();
-					int idx_3d = it_match.getIndexInDescriptorA();
-					pt2d.push_back(Point2Df(keypoints[idx_2d].getX(), keypoints[idx_2d].getY()));
-					pt3d.push_back(Point3Df(localMap[idx_3d]->getX(), localMap[idx_3d]->getY(), localMap[idx_3d]->getZ()));
-					newMapVisibility[idx_2d] = localMap[idx_3d]->getId();
-				}
-
-				// pnp optimization
-				Transform3Df refinedPose;
-				pnp->estimate(pt2d, pt3d, refinedPose, newFrame->getPose());
-				newFrame->setPose(refinedPose);
-
-				// update map visibility of current frame
-				newFrame->addVisibilities(newMapVisibility);
-				LOG_DEBUG("Number of map visibility of frame to track: {}", newMapVisibility.size());
-				overlay2D->drawCircles(pt2d, imageMatches);
-				overlay3D->draw(refinedPose, imageMatches);
-			}
-			LOG_DEBUG("Refined pose: \n {}", newFrame->getPose().matrix());
-			lastPose = newFrame->getPose();
-
-			// update frame to track
-			frameToTrack = newFrame;
-
-			// add new frame to check need new keyframe
-			m_dropBufferAddKeyframe.push(newFrame);
-
-			framePoses.push_back(newFrame->getPose()); // used for display
-
-			isLostTrack = false;	// tracking is good
-
-		}
-		else {
-			LOG_DEBUG("Pose estimation has failed");
-			isLostTrack = true;		// lost tracking
-			// reloc
-			std::vector < uint32_t> retKeyframesId;
-			if (keyframeRetriever->retrieve(newFrame, retKeyframesId) == FrameworkReturnCode::_SUCCESS) {
-				LOG_INFO("Tracking: lost need update keyframe id {}", retKeyframesId[0]);
-				SRef<Keyframe> bestRetKeyframe;
-				keyframesManager->getKeyframe(retKeyframesId[0], bestRetKeyframe);
-				updateReferenceKeyframe(bestRetKeyframe);
-				updateData(bestRetKeyframe, localMap, frameToTrack);
-				lastPose = referenceKeyframe->getPose();
-				LOG_DEBUG("Retrieval Success");
-			}
-			else
-				LOG_DEBUG("Retrieval Failed");
+		// tracking
+		SRef<Image>	displayImage;
+		if (tracking->process(frame, displayImage) == FrameworkReturnCode::_SUCCESS) {
+			// used for display
+			framePoses.push_back(frame->getPose());
+			// draw cube
+			overlay3D->draw(frame->getPose(), displayImage);
+			// send frame to mapping task
+			m_dropBufferAddKeyframe.push(frame);
 		}
 
-		if (imageViewer->display(imageMatches) == SolAR::FrameworkReturnCode::_STOP)
-		{
+		if (imageViewer->display(displayImage) == SolAR::FrameworkReturnCode::_STOP) {
 			stop = true;
 		}
 
-		LOG_DEBUG("Nb of Local Map / World Map: {} / {}", localMap.size(), pointCloudManager->getNbPoints());
-		LOG_DEBUG("Index of current reference keyframe: {}", referenceKeyframe->getId());
-
 		// get all keyframes and point cloud
-		keyframePoses.clear();
+		std::vector<Transform3Df> keyframePoses;
 		std::vector<SRef<Keyframe>> allKeyframes;
 		keyframesManager->getAllKeyframes(allKeyframes);
 		for (auto const &it : allKeyframes)
@@ -625,50 +215,33 @@ int main(int argc, char **argv) {
 		std::vector<SRef<CloudPoint>> pointCloud;
 		pointCloudManager->getAllPoints(pointCloud);
 		// display point cloud 
-		if (viewer3DPoints->display(pointCloud, lastPose, keyframePoses, framePoses, localMap) == FrameworkReturnCode::_STOP)
+		if (viewer3DPoints->display(pointCloud, frame->getPose(), keyframePoses, framePoses) == FrameworkReturnCode::_STOP)
 			stop = true;
 		++count;
-		LOG_INFO("fn tracking done");
 	};
 
 	// check need new keyframe
 	int countNewKeyframes = 0;
+	std::mutex mutexMapping;
 	auto fnMapping = [&]()
 	{
-		if (!stop)
-		{
-			SRef<Frame> newFrame;
-			if (!m_dropBufferAddKeyframe.tryPop(newFrame)) {
-				xpcf::DelegateTask::yield();
-				return;
-			}
-			LOG_INFO("fn mapping start");
-			// check need new keyframe
-			if (keyframeSelector->select(newFrame, checkDisparityDistance))
-			{
-				if (keyframeSelector->select(newFrame, checkNeedNewKfWithAllKfs)) {
-					updateReferenceKeyframe(updatedRefKf);
-					m_dropBufferNewKeyframe.push(updatedRefKf);
-				}
-				else {
-					// create new keyframe
-					SRef<Keyframe> newKeyframe = processNewKeyframe(newFrame);
-					// Local bundle adjustment
-					std::vector<uint32_t> bestIdx;
-					covisibilityGraph->getNeighbors(newKeyframe->getId(), MIN_WEIGHT_NEIGHBOR_KEYFRAME, bestIdx);
-					bestIdx.push_back(newKeyframe->getId());
-					bundleReprojError = bundler->bundleAdjustment(calibration, distortion, bestIdx);
-					countNewKeyframes++;
-					// Update new reference keyframe
-					updateReferenceKeyframe(newKeyframe);
-					keyframePoses.push_back(newKeyframe->getPose());
-					LOG_INFO("Number of keyframe: {} -> cloud current size: {} \n", keyframesManager->getNbKeyframes(), pointCloudManager->getNbPoints());
-					m_dropBufferNewKeyframe.push(newKeyframe);
-					m_dropBufferNewKeyframeLoop.push(newKeyframe);
-				}
-			}
-			LOG_INFO("fn mapping done");
+		std::unique_lock<std::mutex> lock(mutexMapping);
+		SRef<Frame> frame;
+		if (!m_dropBufferAddKeyframe.tryPop(frame)) {
+			xpcf::DelegateTask::yield();
+			return;
 		}
+		SRef<Keyframe> keyframe;
+		if (mapping->process(frame, keyframe) == FrameworkReturnCode::_SUCCESS) {
+			LOG_INFO("New keyframe id: {}", keyframe->getId());
+			countNewKeyframes++;
+			m_dropBufferNewKeyframeLoop.push(keyframe);
+		}
+
+		if (keyframe) {
+			m_dropBufferNewKeyframe.push(keyframe);
+		}
+
 	};
 
 
@@ -679,9 +252,7 @@ int main(int argc, char **argv) {
 			xpcf::DelegateTask::yield();
 			return;
 		}
-		LOG_INFO("fn loop closure start");		
 		uint32_t lastKeyframeId = lastKeyframe->getId();
-		LOG_INFO("Last keyframe id: {}", lastKeyframeId);
 		SRef<Keyframe> detectedLoopKeyframe;
 		Transform3Df sim3Transform;
 		std::vector<std::pair<uint32_t, uint32_t>> duplicatedPointsIndices;
@@ -690,11 +261,9 @@ int main(int argc, char **argv) {
 			LOG_INFO("Detected loop keyframe id: {}", detectedLoopKeyframe->getId());
 			// performs loop correction 
 			countNewKeyframes = 0;
+			std::unique_lock<std::mutex> lock(mutexMapping);
 			loopCorrector->correct(lastKeyframe, detectedLoopKeyframe, sim3Transform, duplicatedPointsIndices);			
 		}
-		else
-			LOG_INFO("Cannot detect a loop closure from last keyframe");
-		LOG_INFO("fn loop closure done");
 	};
 
 	// instantiate and start tasks

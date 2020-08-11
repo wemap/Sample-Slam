@@ -174,10 +174,18 @@
 		<component uuid="cddd23c4-da4e-4c5c-b3f9-7d095d097c97" name="SolARFiducialMarkerPoseEstimator" description="SolARFiducialMarkerPoseEstimator">
 			<interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" name="IComponentIntrospect" description="IComponentIntrospect"/>
 			<interface uuid="d5247968-b74e-4afb-9abd-546021441ad4" name="IFiducialMarkerPose" description="IFiducialMarkerPose"/>
-		</component>
+		</component>		
 		<component uuid="8f43eed0-1a2e-4c47-83f0-8dd5b259cdb0" name="SolARSLAMBootstrapper" description="SolARSLAMBootstrapper">
 			<interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" name="IComponentIntrospect" description="IComponentIntrospect"/>
 			<interface uuid="b0515c62-cc81-4600-835c-8acdfedf39b5" name="IBootstrapper" description="IBootstrapper"/>
+		</component>
+		<component uuid="c45da19d-9637-48b6-ab52-33d3f0af6f72" name="SolARSLAMTracking" description="SolARSLAMTracking">
+			<interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" name="IComponentIntrospect" description="IComponentIntrospect"/>
+			<interface uuid="c2182b8e-03e9-43a3-a5b9-326e80554cf8" name="ITracking" description="ITracking"/>
+		</component>
+		<component uuid="c276bcb1-2ac8-42f2-806d-d4fe0ce7d4be" name="SolARSLAMMapping" description="SolARSLAMMapping">
+			<interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" name="IComponentIntrospect" description="IComponentIntrospect"/>
+			<interface uuid="33db5a56-9be2-4e5a-8fdc-de25e1633cf6" name="IMapping" description="IMapping"/>
 		</component>
 	</module>
 	<module uuid="b81f0b90-bdbc-11e8-a355-529269fb1459" name="SolARModuleFBOW" description="SolARModuleFBOW" path="$REMAKEN_PKG_ROOT/packages/SolARBuild/win-cl-14.1/SolARModuleFBOW/0.8.1/lib/x86_64/shared">
@@ -198,9 +206,10 @@
 			<bind interface="ICamera" to="SolARCameraOpencv" scope="Singleton"/>
 			<!--bind interface="ICamera" to="SolARVideoAsCameraOpencv" /-->
 			<bind interface="IDescriptorsExtractor" to="SolARDescriptorsExtractorAKAZE2Opencv" />
-			<bind name="Matcher-Main" interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" />
 			<bind name="Matcher-Loop" interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" />
 			<bind name="Matcher-Bootstrap" interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" />
+			<bind name="Matcher-Tracking" interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" />
+			<bind name="Matcher-Mapping" interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" />
 			<bind name="Matcher-Fiducial" interface="IDescriptorMatcher" to="SolARDescriptorMatcherRadiusOpencv" />
 			<bind interface="IPointCloudManager" to="SolARPointCloudManager" scope="Singleton"/>
 			<bind interface="IKeyframesManager" to="SolARKeyframesManager" scope="Singleton"/>
@@ -223,6 +232,13 @@
 			<property name="nbMinInitPointCloud" type="Integer" value="50"/>
 			<property name="angleThres" type="Float" value="0.05"/>
 		</configure>
+		<configure component="SolARSLAMTracking">
+			<property name="minWeightNeighbor" type="Float" value="20.0"/>
+			<property name="displayTrackedPoints" type="Integer" value="1"/>
+		</configure>
+		<configure component="SolARSLAMMapping">
+			<property name="minWeightNeighbor" type="Float" value="20.0"/>
+		</configure>
 		<configure component="SolARMapper">
 			<property name="directory" type="string" value="map"/>
 			<property name="identificationFileName" type="string" value="identification.bin"/>
@@ -231,6 +247,7 @@
 			<property name="keyframesManagerFileName" type="string" value="keyframes.bin"/>
 			<property name="covisibilityGraphFileName" type="string" value="covisibility_graph.bin"/>
 			<property name="keyframeRetrieverFileName" type="string" value="keyframe_retriever.bin"/>
+			<property name="reprojErrorThreshold" type="float" value="3.0"/>
 		</configure>
 		<configure component="SolARKeypointDetectorOpencv">
 			<property name="type" type="string" value="AKAZE2"/>
@@ -315,7 +332,7 @@
 			</property>
 		</configure>
 		<configure component="SolAROptimizationG2O">
-			<property name="nbIterations" type="Integer" value="20"/>
+			<property name="nbIterations" type="Integer" value="10"/>
 			<property name="setVerbose" type="Integer" value="0"/>
 			<property name="nbMaxFixedKeyframes" type="Integer" value="30"/>
 			<property name="errorOutlier" type="Float" value="4.0"/>
