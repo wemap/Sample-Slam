@@ -5,6 +5,10 @@
 			<interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" name="IComponentIntrospect" description="IComponentIntrospect"/>
 			<interface uuid="5DDC7DF0-8377-437F-9C81-3643F7676A5B" name="ICamera" description="ICamera"/>
 		</component>
+		<component uuid="b8a8b963-ba55-4ea4-b045-d9e7e8f6db02" name="SolARImagesAsCameraOpencv" description="SolARImagesAsCameraOpencv">
+			<interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" name="IComponentIntrospect" description="IComponentIntrospect"/>
+			<interface uuid="5DDC7DF0-8377-437F-9C81-3643F7676A5B" name="ICamera" description="ICamera"/>
+		</component>
 		<component uuid="fa4a780a-9720-11e8-9eb6-529269fb1459" name="SolARVideoAsCameraOpencv" description="SolARVideoAsCameraOpencv">
 			<interface uuid="125f2007-1bf9-421d-9367-fbdc1210d006" name="IComponentIntrospect" description="IComponentIntrospect"/>
 			<interface uuid="5DDC7DF0-8377-437F-9C81-3643F7676A5B" name="ICamera" description="ICamera"/>
@@ -204,13 +208,15 @@
 	<factory>
 		<bindings>
 			<bind interface="ICamera" to="SolARCameraOpencv" scope="Singleton"/>
-			<!--bind interface="ICamera" to="SolARVideoAsCameraOpencv" /-->
+			<!--bind interface="ICamera" to="SolARVideoAsCameraOpencv" scope="Singleton"/-->
+			<!--bind interface="ICamera" to="SolARImagesAsCameraOpencv" scope="Singleton"/-->
 			<bind interface="IDescriptorsExtractor" to="SolARDescriptorsExtractorAKAZE2Opencv" />
 			<bind name="Matcher-Loop" interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" />
 			<bind name="Matcher-Bootstrap" interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" />
 			<bind name="Matcher-Tracking" interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" />
 			<bind name="Matcher-Mapping" interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" />
 			<bind name="Matcher-Fiducial" interface="IDescriptorMatcher" to="SolARDescriptorMatcherRadiusOpencv" />
+			<bind interface="IMapper" to="SolARMapper" scope="Singleton"/>
 			<bind interface="IPointCloudManager" to="SolARPointCloudManager" scope="Singleton"/>
 			<bind interface="IKeyframesManager" to="SolARKeyframesManager" scope="Singleton"/>
 			<bind interface="ICovisibilityGraph" to="SolARCovisibilityGraph" scope="Singleton"/>
