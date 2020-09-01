@@ -71,7 +71,7 @@ config_files.files= $$files($${PWD}/conf_SLAM_Mono.xml)\
                     $$files($${PWD}/akaze.fbow)
 INSTALLS += config_files
 
-DISTFILES += \
+OTHER_FILES += \
     packagedependencies.txt
 
 #NOTE : Must be placed at the end of the .pro
