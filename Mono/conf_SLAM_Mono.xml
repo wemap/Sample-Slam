@@ -221,7 +221,7 @@
 	<properties>
 		<configure component="SolARCameraOpencv">
 			<property name="calibrationFile" type="string" value="camera_calibration.yml"/>
-			<property name="deviceID" type="UnsignedInteger" value="1"/>
+            <property name="deviceID" type="UnsignedInteger" value="0"/>
 		</configure>
 		<configure component="SolARVideoAsCameraOpencv">
 			<property name="calibrationFile" type="string" value="camera_calibration.yml"/>
