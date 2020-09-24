@@ -24,7 +24,7 @@ CONFIG(release,debug|release) {
     DEFINES += NDEBUG=1
 }
 
-DEPENDENCIESCONFIG = sharedlib recursive install
+DEPENDENCIESCONFIG = shared recursive install
 
 PROJECTCONFIG = QTVS
 
