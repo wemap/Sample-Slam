@@ -1,7 +1,26 @@
-dir("Multi") {
-    SolArModulePipeline {
-        moduleName="PipelineSlam"
-        dirName="SolARBuild"
-        android=true
-    }
+node("master") {
+
+SolArModulePipeline {
+    moduleName="PipelineSlam"
+    dirName="SolARBuild"
+    buildDir="Plugin"
+    android=true
+}    
+
+SolArModulePipeline {
+    moduleName="PipelineSlam"
+    dirName="SolARBuild"
+    buildDir="Multi"
+    android=false
 }
+
+SolArModulePipeline {
+    moduleName="PipelineSlam"
+    dirName="SolARBuild"
+    buildDir="Mono"
+    android=false
+}
+
+}
+
+
