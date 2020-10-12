@@ -20,38 +20,25 @@
 #include "api/input/devices/ICamera.h"
 #include "api/features/IKeypointDetector.h"
 #include "api/features/IDescriptorsExtractor.h"
-#include "api/features/IDescriptorMatcher.h"
-#include "api/solver/pose/I3DTransformFinderFrom2D2D.h"
-#include "api/solver/map/ITriangulator.h"
 #include "api/solver/map/IMapper.h"
-#include "api/solver/map/IKeyframeSelector.h"
-#include "api/solver/map/IMapFilter.h"
-#include "api/solver/pose/I2D3DCorrespondencesFinder.h"
-#include "api/solver/pose/I3DTransformSACFinderFrom2D3D.h"
-#include "api/solver/pose/I3DTransformFinderFrom2D3D.h"
-#include "api/features/IMatchesFilter.h"
 #include "api/display/I2DOverlay.h"
 #include "api/display/IMatchesOverlay.h"
 #include "api/display/I3DOverlay.h"
 #include "api/display/IImageViewer.h"
 #include "api/display/I3DPointsViewer.h"
 #include "api/reloc/IKeyframeRetriever.h"
-#include "api/geom/IProject.h"
-#include "api/solver/map/IBundler.h"
 #include "api/storage/ICovisibilityGraph.h"
 #include "api/storage/IKeyframesManager.h"
 #include "api/storage/IPointCloudManager.h"
+#include "api/solver/pose/IFiducialMarkerPose.h"
+#include "api/solver/map/IBundler.h"
+#include "api/loop/ILoopClosureDetector.h"
+#include "api/loop/ILoopCorrector.h"
+#include "api/slam/IBootstrapper.h"
+#include "api/slam/ITracking.h"
+#include "api/slam/IMapping.h"
 #include "core/Log.h"
-
-#include "api/input/files/IMarker2DSquaredBinary.h"
-#include "api/image/IImageFilter.h"
 #include "api/image/IImageConvertor.h"
-#include "api/features/IContoursExtractor.h"
-#include "api/features/IContoursFilter.h"
-#include "api/image/IPerspectiveController.h"
-#include "api/features/IDescriptorsExtractorSBPattern.h"
-#include "api/features/ISBPatternReIndexer.h"
-#include "api/geom/IImage2WorldMapper.h"
 
 #ifdef USE_OPENGL
     #include "api/sink/ISinkPoseTextureBuffer.h"
@@ -135,36 +122,7 @@ private:
 	void mapping();	
 
 	// global bundle adjustment task
-	void globalBundleAdjustment();
-
-
-	// detect fiducial marker
-	bool detectFiducialMarker(SRef<Image>& image, Transform3Df &pose);
-
-	// update data to track
-	void updateData(const SRef<Keyframe> &refKf);
-
-	// update reference keyframe
-	void updateReferenceKeyframe(const SRef<Keyframe> &refKf);
-
-	// check need new keyframe based on FBoW
-	bool checkNeedNewKfWithAllKfs(const SRef<Frame>& newFrame);
-
-	// check need new keyframe based on disparity distance
-	bool checkDisparityDistance(const SRef<Frame>& newFrame);
-
-	// process to add a new keyframe
-	SRef<Keyframe> processNewKeyframe(SRef<Frame> &newFrame);
-
-	// Update keypoint visibility, descriptor in cloud point
-	void updateAssociateCloudPoint(SRef<Keyframe> & newKf);
-
-	// find matches between unmatching keypoints in the new keyframe and the best neighboring keyframes
-	void findMatchesAndTriangulation(const SRef<Keyframe> & newKf, const std::vector<uint32_t> &idxBestNeighborKfs, std::vector<SRef<CloudPoint>> &cloudPoint);
-
-	// check and fuse cloud point
-	void fuseCloudPoint(const SRef<Keyframe> &newKeyframe, const std::vector<uint32_t> &idxNeigborKfs, std::vector<SRef<CloudPoint>> &newCloudPoint);
-
+	void loopClosure();
 private:
 
 	// State flag of the pipeline
@@ -182,32 +140,16 @@ private:
 
 	// components
     SRef<input::devices::ICamera>						m_camera;
-    SRef<input::files::IMarker2DSquaredBinary>			m_binaryMarker;
-    SRef<DescriptorBuffer>								m_markerPatternDescriptor;
-    SRef<features::IDescriptorsExtractorSBPattern>		m_patternDescriptorExtractor;
-    SRef<image::IImageFilter>							m_imageFilterBinary;
-    SRef<image::IImageConvertor>						m_imageConvertor;
-    SRef<image::IImageConvertor>						m_imageConvertorUnity;
-    SRef<features::IContoursExtractor>					m_contoursExtractor ;
-    SRef<features::IContoursFilter>						m_contoursFilter;
-    SRef<image::IPerspectiveController>					m_perspectiveController;
-    SRef<features::IDescriptorMatcher>					m_patternMatcher;
-    SRef<features::ISBPatternReIndexer>					m_patternReIndexer;
-    SRef<geom::IImage2WorldMapper>						m_img2worldMapper;
-
+	SRef<image::IImageConvertor>						m_imageConvertorUnity;
     SRef<features::IKeypointDetector>					m_keypointsDetector;
     SRef<features::IDescriptorsExtractor>				m_descriptorExtractor;
-    SRef<features::IDescriptorMatcher>					m_matcher;
-    SRef<features::IMatchesFilter>						m_matchesFilter;
-    SRef<solver::pose::I3DTransformFinderFrom2D2D>		m_poseFinderFrom2D2D;
-	SRef<solver::pose::I3DTransformFinderFrom2D3D>		m_pnp;
-	SRef<solver::pose::I3DTransformSACFinderFrom2D3D>	m_pnpRansac;
-	SRef<solver::map::ITriangulator>					m_triangulator;    
-    SRef<solver::pose::I2D3DCorrespondencesFinder>		m_corr2D3DFinder;
-    SRef<geom::IProject>								m_projector;
-    SRef<solver::map::IMapFilter>						m_mapFilter;    
-    SRef<solver::map::IKeyframeSelector>				m_keyframeSelector;    
 	SRef<solver::map::IBundler>							m_bundler;
+	SRef<solver::pose::IFiducialMarkerPose>				m_fiducialMarkerPoseEstimator;
+	SRef<loop::ILoopClosureDetector>					m_loopDetector;
+	SRef<loop::ILoopCorrector>							m_loopCorrector;
+	SRef<slam::IBootstrapper>							m_bootstrapper;
+	SRef<slam::ITracking>								m_tracking;
+	SRef<slam::IMapping>								m_mapping;
 
     // display stuff
     SRef<api::display::I2DOverlay>						m_i2DOverlay;
@@ -224,46 +166,34 @@ private:
 	Transform3Df										m_pose;
 	SRef<Image>											m_camImage;
     Transform3Df                                        m_poseFrame;
-	SRef<Frame>											m_frame1, m_frame2;
     SRef<Keyframe>                                      m_keyframe1, m_keyframe2;
-	bool												m_firstKeyframeCaptured = false;
 	bool												m_bootstrapOk = false;
-	bool												m_startCaptureFirstKeyframe = false;
 	bool												m_haveToBeFlip;
 	int													m_countNewKeyframes = 0;
-
+	float												m_minWeightNeighbor;
+	float												m_reprojErrorThreshold;
     CamCalibration                                      m_calibration;
     CamDistortion                                       m_distortion;
 	std::vector<Keypoint>								m_keypoints;
 	SRef<DescriptorBuffer>								m_descriptors;
-	std::vector<DescriptorMatch>                        m_matches;
-	std::vector<SRef<CloudPoint>>						m_cloud, m_filteredCloud;
-    SRef<Keyframe>                                      m_referenceKeyframe;
-    SRef<Keyframe>                                      m_updatedRefKf;
-    SRef<Frame>											m_frameToTrack;
-    Transform3Df                                        m_lastPose;
-    bool                                                m_isLostTrack;
-
-	std::vector<SRef<CloudPoint>>						m_localMap;
 	double												m_bundleReprojError;
-
-
+	std::mutex											m_mutexMapping;
 
 	xpcf::DropBuffer< SRef<Image>>						m_CameraImagesBuffer;
 	xpcf::DropBuffer< std::pair< SRef<Image>, std::vector<Keypoint> >> m_keypointsBuffer;
 	xpcf::DropBuffer< SRef<Frame >>						m_descriptorsBuffer;
 	xpcf::DropBuffer<SRef<Frame>>						m_addKeyframeBuffer;
 	xpcf::DropBuffer<SRef<Keyframe>>					m_newKeyframeBuffer;
+	xpcf::DropBuffer<SRef<Keyframe>>					m_newKeyframeLoopBuffer;
 
 	// tasks
     xpcf::DelegateTask*									m_taskGetCameraImages;
-    xpcf::DelegateTask*									m_taskDetectFirstKeyframe;
     xpcf::DelegateTask*									m_taskDoBootStrap;
     xpcf::DelegateTask*									m_taskGetKeyPoints;
     xpcf::DelegateTask*									m_taskGetDescriptors;
     xpcf::DelegateTask*									m_taskTracking;
     xpcf::DelegateTask*									m_taskMapping;        
-    xpcf::DelegateTask*									m_taskGlobalBA;        
+    xpcf::DelegateTask*									m_taskLoopClosure;
 
 };
 

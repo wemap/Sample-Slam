@@ -37,6 +37,8 @@
 #include "api/storage/ICovisibilityGraph.h"
 #include "api/storage/IKeyframesManager.h"
 #include "api/storage/IPointCloudManager.h"
+#include "api/solver/pose/IFiducialMarkerPose.h"
+#include "api/solver/map/IBundler.h"
 #include "api/loop/ILoopClosureDetector.h"
 #include "api/loop/ILoopCorrector.h"
 #include "api/slam/IBootstrapper.h"
@@ -84,6 +86,8 @@ int main(int argc, char **argv) {
 	auto descriptorExtractor = xpcfComponentManager->resolve<features::IDescriptorsExtractor>();
 	auto imageViewer = xpcfComponentManager->resolve<display::IImageViewer>();
 	auto viewer3DPoints = xpcfComponentManager->resolve<display::I3DPointsViewer>();
+	auto fiducialMarkerPoseEstimator = xpcfComponentManager->resolve<solver::pose::IFiducialMarkerPose>();
+	auto bundler = xpcfComponentManager->resolve<api::solver::map::IBundler>();
 	auto loopDetector = xpcfComponentManager->resolve<loop::ILoopClosureDetector>();
 	auto loopCorrector = xpcfComponentManager->resolve<loop::ILoopCorrector>();
 	auto overlay3D = xpcfComponentManager->resolve<display::I3DOverlay>();
@@ -96,17 +100,27 @@ int main(int argc, char **argv) {
 	CamCalibration calibration = camera->getIntrinsicsParameters();
 	CamDistortion distortion = camera->getDistortionParameters();
 	overlay3D->setCameraParameters(calibration, distortion);
+	loopDetector->setCameraParameters(calibration, distortion);
 	loopCorrector->setCameraParameters(calibration, distortion);
+	fiducialMarkerPoseEstimator->setCameraParameters(calibration, distortion);
 	bootstrapper->setCameraParameters(calibration, distortion);
 	tracking->setCameraParameters(calibration, distortion);
 	mapping->setCameraParameters(calibration, distortion);
 	LOG_DEBUG("Intrincic parameters : \n {}", calibration);
+
+	// get properties
+	float minWeightNeighbor = mapping->bindTo<xpcf::IConfigurable>()->getProperty("minWeightNeighbor")->getFloatingValue();
+	float reprojErrorThreshold = mapper->bindTo<xpcf::IConfigurable>()->getProperty("reprojErrorThreshold")->getFloatingValue();
 
 	if (camera->start() != FrameworkReturnCode::_SUCCESS)
 	{
 		LOG_ERROR("Camera cannot start");
 		return -1;
 	}
+
+	//SRef<Image> tmpImage;
+	//for (int i = 0; i < 818; i++)
+	//	camera->getNextImage(tmpImage);
 
 	// Load map from file
 	bool stop = false;
@@ -117,8 +131,21 @@ int main(int argc, char **argv) {
 	}
 	else {
 		LOG_INFO("Initialization from scratch");
-		if (bootstrapper->run() == FrameworkReturnCode::_ERROR_)
-			return 1;
+		bool bootstrapOk = false;
+		while (!bootstrapOk) {
+			SRef<Image> image, view;
+			camera->getNextImage(image);
+			Transform3Df pose = Transform3Df::Identity();
+			fiducialMarkerPoseEstimator->estimate(image, pose);
+			if (bootstrapper->process(image, view, pose) == FrameworkReturnCode::_SUCCESS) {
+				double bundleReprojError = bundler->bundleAdjustment(calibration, distortion);
+				bootstrapOk = true;
+			}
+			if (!pose.isApprox(Transform3Df::Identity()))
+				overlay3D->draw(pose, view);
+			if (imageViewer->display(view) == SolAR::FrameworkReturnCode::_STOP)
+				return 1;
+		}
 		keyframesManager->getKeyframe(1, keyframe2);
 	}
 
@@ -135,7 +162,8 @@ int main(int argc, char **argv) {
 	xpcf::DropBuffer<SRef<Keyframe>>											m_dropBufferNewKeyframeLoop;
 	xpcf::DropBuffer<SRef<Image>>												m_dropBufferDisplay;
 	xpcf::DropBuffer< std::pair<SRef<Image>, std::vector<Keypoint>>>			m_dropBufferKeypoints;
-	xpcf::DropBuffer<SRef<Frame>>												m_dropBufferFrameDescriptors;
+	xpcf::DropBuffer<SRef<Frame>>												m_dropBufferFrameDescriptors;	
+
 
 	// Camera image capture task
 	auto fnCamImageCapture = [&]()
@@ -147,6 +175,7 @@ int main(int argc, char **argv) {
 			return;
 		}
 		m_dropBufferCamImageCapture.push(view);
+		//std::this_thread::sleep_for(std::chrono::milliseconds(50));
 	};
 
 	// Keypoint detection task
@@ -234,6 +263,13 @@ int main(int argc, char **argv) {
 		SRef<Keyframe> keyframe;
 		if (mapping->process(frame, keyframe) == FrameworkReturnCode::_SUCCESS) {
 			LOG_INFO("New keyframe id: {}", keyframe->getId());
+			// Local bundle adjustment
+			std::vector<uint32_t> bestIdx;
+			covisibilityGraph->getNeighbors(keyframe->getId(), minWeightNeighbor, bestIdx);
+			bestIdx.push_back(keyframe->getId());
+			LOG_INFO("Nb keyframe to local bundle: {}", bestIdx.size());
+			double bundleReprojError = bundler->bundleAdjustment(calibration, distortion, bestIdx);
+			mapper->pruning();
 			countNewKeyframes++;
 			m_dropBufferNewKeyframeLoop.push(keyframe);
 		}
@@ -259,10 +295,13 @@ int main(int argc, char **argv) {
 		if (loopDetector->detect(lastKeyframe, detectedLoopKeyframe, sim3Transform, duplicatedPointsIndices) == FrameworkReturnCode::_SUCCESS) {
 			// detected loop keyframe
 			LOG_INFO("Detected loop keyframe id: {}", detectedLoopKeyframe->getId());
-			// performs loop correction 
-			countNewKeyframes = 0;
+			// performs loop correction 			
 			std::unique_lock<std::mutex> lock(mutexMapping);
-			loopCorrector->correct(lastKeyframe, detectedLoopKeyframe, sim3Transform, duplicatedPointsIndices);			
+			loopCorrector->correct(lastKeyframe, detectedLoopKeyframe, sim3Transform, duplicatedPointsIndices);	
+			countNewKeyframes = 0;
+			// Loop optimisation
+			bundler->bundleAdjustment(calibration, distortion);
+			mapper->pruning();
 		}
 	};
 
@@ -299,6 +338,19 @@ int main(int argc, char **argv) {
 	double duration = double(end - start) / CLOCKS_PER_SEC;
 	printf("\n\nElasped time is %.2lf seconds.\n", duration);
 	printf("Number of processed frame per second : %8.2f\n", count / duration);	
+
+	// display	
+	while (true) {
+		std::vector<Transform3Df> keyframePoses;
+		std::vector<SRef<Keyframe>> allKeyframes;
+		keyframesManager->getAllKeyframes(allKeyframes);
+		for (auto const &it : allKeyframes)
+			keyframePoses.push_back(it->getPose());
+		std::vector<SRef<CloudPoint>> pointCloud;
+		pointCloudManager->getAllPoints(pointCloud);
+		if (viewer3DPoints->display(pointCloud, keyframePoses[0], keyframePoses, framePoses) == FrameworkReturnCode::_STOP)
+			break;
+	}
 
 	// Save map
 	mapper->saveToFile();

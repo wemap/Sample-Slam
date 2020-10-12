@@ -212,10 +212,11 @@
 			<!--bind interface="ICamera" to="SolARImagesAsCameraOpencv" scope="Singleton"/-->
 			<bind interface="IDescriptorsExtractor" to="SolARDescriptorsExtractorAKAZE2Opencv" />
 			<bind name="Matcher-Loop" interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" />
-			<bind name="Matcher-Bootstrap" interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" />
 			<bind name="Matcher-Tracking" interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" />
 			<bind name="Matcher-Mapping" interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" />
 			<bind name="Matcher-Fiducial" interface="IDescriptorMatcher" to="SolARDescriptorMatcherRadiusOpencv" />
+			<bind interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" name="Bootstrap"/>
+			<bind interface="IKeyframeSelector" to="SolARKeyframeSelector" name="Bootstrap" properties="BootstrapProperties"/>
 			<bind interface="IPointCloudManager" to="SolARPointCloudManager" scope="Singleton"/>
 			<bind interface="IKeyframesManager" to="SolARKeyframesManager" scope="Singleton"/>
 			<bind interface="ICovisibilityGraph" to="SolARCovisibilityGraph" scope="Singleton"/>
@@ -229,13 +230,18 @@
 			<property name="deviceID" type="UnsignedInteger" value="1"/>
 		</configure>
 		<configure component="SolARVideoAsCameraOpencv">
-			<property name="calibrationFile" type="string" value="camera_calibration.yml"/>
-			<property name="videoPath" type="string" value="../../video.mp4"/>
+			<property name="calibrationFile" type="string" value="camera_calibration_wemap.yml"/>
+			<property name="videoPath" type="string" value="corridors-offline-pixel3-480p-3.mp4"/>
+		</configure>
+		<configure component="SolARImagesAsCameraOpencv">
+			<property name="calibrationFile" type="string" value="data/tum/03/03_calibration.yml"/>
+			<property name="imagesDirectoryPath" type="string" value="data/tum/03/%06d.png"/>
+			<property name="delayTime" type="Integer" value="1"/>
 		</configure>
 		<configure component="SolARSLAMBootstrapper">
-			<property name="useMarker" type="Integer" value="1"/>
+			<property name="hasPose" type="Integer" value="1"/>
 			<property name="nbMinInitPointCloud" type="Integer" value="50"/>
-			<property name="angleThres" type="Float" value="0.05"/>
+			<property name="angleThres" type="Float" value="0.1"/>
 		</configure>
 		<configure component="SolARSLAMTracking">
 			<property name="minWeightNeighbor" type="Float" value="20.0"/>
@@ -243,6 +249,7 @@
 		</configure>
 		<configure component="SolARSLAMMapping">
 			<property name="minWeightNeighbor" type="Float" value="20.0"/>
+			<property name="minTrackedPoints" type="Integer" value="100"/>
 		</configure>
 		<configure component="SolARMapper">
 			<property name="directory" type="string" value="map"/>
@@ -253,11 +260,12 @@
 			<property name="covisibilityGraphFileName" type="string" value="covisibility_graph.bin"/>
 			<property name="keyframeRetrieverFileName" type="string" value="keyframe_retriever.bin"/>
 			<property name="reprojErrorThreshold" type="float" value="3.0"/>
+			<property name="thresConfidence" type="float" value="0.5"/>
 		</configure>
 		<configure component="SolARKeypointDetectorOpencv">
 			<property name="type" type="string" value="AKAZE2"/>
-			<property name="imageRatio" type="Float" value="0.5"/>
-			<property name="nbDescriptors" type="Integer" value="1000"/>
+			<property name="imageRatio" type="Float" value="0.6"/>
+			<property name="nbDescriptors" type="Integer" value="1500"/>
 			<property name="threshold" type="Float" value="0.0001"/>
 		</configure>
 		<configure component="SolARDescriptorsExtractorAKAZEOpencv">
@@ -270,7 +278,9 @@
 			<property name="threshold" type="Float" value="3e-4"/>
 		</configure>
 		<configure component="SolARDescriptorMatcherKNNOpencv">
-			<property name="distanceRatio" type="Float" value="0.75"/>
+			<property name="distanceRatio" type="Float" value="0.8"/>
+			<property name="radius" type="Float" value="5"/>
+			<property name="matchingDistanceMax" type="Float" value="600"/>
 		</configure>
 		<configure component="SolARDescriptorMatcherHammingBruteForceOpencv">
 			<property name="distanceRatio" type="Float" value="0.9"/>
@@ -285,37 +295,43 @@
 		<configure component="SolARGeometricMatchesFilterOpencv">
 			<property name="confidence" type="Float" value="0.99"/>
 			<property name="outlierDistanceRatio" type="Float" value="0.005"/>
-			<property name="epilinesDistance" type="Float" value="1.0"/>
+			<property name="epilinesDistance" type="Float" value="3.0"/>
 		</configure>
 		<configure component="SolARPoseEstimationSACPnpOpencv">
 			<property name="iterationsCount" type="Integer" value="500"/>
-			<property name="reprojError" type="Float" value="2.5"/>
+			<property name="reprojError" type="Float" value="3.0"/>
 			<property name="confidence" type="Float" value="0.99"/>
 			<property name="minNbInliers" type="Integer" value="25"/>
 		</configure>
 		<configure component="SolARMapFilter">
 			<property name="reprojErrorThreshold" type="float" value="3.0"/>
+			<property name="minTriangulationAngle" type="float" value="0.02"/>
+			<property name="maxTriangulationAngle" type="float" value="1.0"/>
 			<property name="cheiralityCheck" type="integer" value ="1"/>
 		</configure>
 		<configure component="SolARKeyframeSelector">
-			<property name="minNbMatchesIsKeyframe" type="Integer" value="60"/>
-			<property name="minMeanDistanceIsKeyframe" type="Float" value="0.07"/>
+			<property name="minNbMatchesIsKeyframe" type="Integer" value="10"/>
+			<property name="minMeanDistanceIsKeyframe" type="Float" value="0.07"/>			
+		</configure>
+		<configure component="SolARKeyframeSelector" name="BootstrapProperties">
+			<property name="minNbMatchesIsKeyframe" type="Integer" value="50"/>
+			<property name="minMeanDistanceIsKeyframe" type="Float" value="0.03"/>			
 		</configure>
 		<configure component="SolARKeyframeRetrieverFBOW">
 			<property name="VOCpath" type="String" value="akaze.fbow"/>
-			<property name="threshold" type="Float" value="0.05"/>
+			<property name="threshold" type="Float" value="0.03"/>
 			<property name="level" type="Integer" value="3"/>
-			<property name="matchingDistanceRatio" type="Float" value="0.7"/>
-			<property name="matchingDistanceMax" type="Float" value="100"/>
+			<property name="matchingDistanceRatio" type="Float" value="0.8"/>
+			<property name="matchingDistanceMax" type="Float" value="600"/>
 		</configure>
 		<configure component="SolAR3DTransformEstimationSACFrom3D3D">
-			<property name="iterationsCount" type="Integer" value="100"/>
-			<property name="reprojError" type="Float" value="0.1"/>
+			<property name="iterationsCount" type="Integer" value="500"/>
+			<property name="reprojError" type="Float" value="10.0"/>
 			<property name="confidence" type="Float" value="0.9"/>
-			<property name="minNbInliers" type="Integer" value="5"/>
+			<property name="minNbInliers" type="Integer" value="10"/>
 		</configure>
 		<configure component="SolARLoopClosureDetector">
-			<property name="minNbInliers" type="Integer" value="10"/>
+			<property name="minNbInliers" type="Integer" value="30"/>
 		</configure>
 		<configure component="SolAR2DOverlayOpencv">
 			<property name="thickness" type="UnsignedInteger" value="1"/>
@@ -337,11 +353,15 @@
 			</property>
 		</configure>
 		<configure component="SolAROptimizationG2O">
-			<property name="nbIterations" type="Integer" value="10"/>
+			<property name="nbIterationsLocal" type="Integer" value="10"/>
+			<property name="nbIterationsGlobal" type="Integer" value="20"/>
 			<property name="setVerbose" type="Integer" value="0"/>
 			<property name="nbMaxFixedKeyframes" type="Integer" value="30"/>
 			<property name="errorOutlier" type="Float" value="4.0"/>
 			<property name="useSpanningTree" type="Integer" value="0"/>
+			<property name="isRobust" type="Integer" value="0"/>
+			<property name="fixedMap" type="Integer" value="0"/>
+			<property name="fixedKeyframes" type="Integer" value="0"/>
 		</configure>
 		<configure component="SolARImageViewerOpencv">
 			<property name="title" type="string" value="SLAM (press esc to exit)"/>
@@ -373,7 +393,7 @@
 			<property name="drawSceneAxis" type="UnsignedInteger" value="1"/>
 			<property name="drawWorldAxis" type="UnsignedInteger" value="1"/>
 			<property name="axisScale" type="Float" value="1.0"/>
-			<property name="pointSize" type="Float" value="3.0"/>
+			<property name="pointSize" type="Float" value="1.0"/>
 			<property name="cameraScale" type="Float" value="1.0"/>
 			<property name="keyframeAsCamera" type="UnsignedInteger" value="1"/>
 			<property name="framesColor" type="UnsignedInteger">

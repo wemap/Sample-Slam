@@ -24,9 +24,6 @@
 #include "api/display/IImageViewer.h"
 #include "api/display/I3DOverlay.h"
 
-
-#define MARKER_CONFIGFILE "FiducialMarker.yml"
-
 namespace xpcf  = org::bcom::xpcf;
 
 using namespace SolAR;
