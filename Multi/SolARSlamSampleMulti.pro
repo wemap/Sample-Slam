@@ -15,13 +15,13 @@ include(findremakenrules.pri)
 QT += opengl
 
 CONFIG(debug,debug|release) {
-    TARGETDEPLOYDIR = $${PWD}../../bin/Debug
+    TARGETDEPLOYDIR = $${PWD}/../bin/Debug
     DEFINES += _DEBUG=1
     DEFINES += DEBUG=1
 }
 
 CONFIG(release,debug|release) {
-    TARGETDEPLOYDIR = $${PWD}../../bin/Release
+    TARGETDEPLOYDIR = $${PWD}/../bin/Release
     DEFINES += _NDEBUG=1
     DEFINES += NDEBUG=1
 }
@@ -30,7 +30,7 @@ win32:CONFIG -= static
 win32:CONFIG += shared
 QMAKE_TARGET.arch = x86_64 #must be defined prior to include
 
-DEPENDENCIESCONFIG = sharedlib recursive install_recurse
+DEPENDENCIESCONFIG = sharedlib install_recurse
 PROJECTCONFIG = QTVS
 
 #NOTE : CONFIG as staticlib or sharedlib, DEPENDENCIESCONFIG as staticlib or sharedlib, QMAKE_TARGET.arch and PROJECTDEPLOYDIR MUST BE DEFINED BEFORE templatelibconfig.pri inclusion
@@ -71,6 +71,9 @@ config_files.files=$$files($${PWD}/conf_SLAM_Multi.xml)\
                     $$files($${PWD}/FiducialMarker.gif)\
                     $$files($${PWD}/akaze.fbow)
 INSTALLS += config_files
+
+OTHER_FILES += \
+    packagedependencies.txt
 
 #NOTE : Must be placed at the end of the .pro
 include ($$shell_quote($$shell_path($${QMAKE_REMAKEN_RULES_ROOT}/remaken_install_target.pri)))) # Shell_quote & shell_path required for visual on windows

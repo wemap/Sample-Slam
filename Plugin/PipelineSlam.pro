@@ -24,7 +24,7 @@ CONFIG(release,debug|release) {
     DEFINES += NDEBUG=1
 }
 
-DEPENDENCIESCONFIG = sharedlib recursive install
+DEPENDENCIESCONFIG = shared recursive install
 
 PROJECTCONFIG = QTVS
 
@@ -44,7 +44,7 @@ HEADERS += interfaces/pipelineSlam.h \
 SOURCES += src/pipelineSlam.cpp \
            src/component.cpp
 
-unix {
+unix:!android {
     QMAKE_CXXFLAGS += -Wignored-qualifiers
 }
 
@@ -62,6 +62,10 @@ win32 {
     DEFINES += WIN64 UNICODE _UNICODE
     QMAKE_COMPILER_DEFINES += _WIN64
     QMAKE_CXXFLAGS += -wd4250 -wd4251 -wd4244 -wd4275
+}
+
+android {
+    ANDROID_ABIS="arm64-v8a"
 }
 
 header_files.path = $${PROJECTDEPLOYDIR}/interfaces
