@@ -126,7 +126,7 @@ private:
 private:
 
 	// State flag of the pipeline
-	bool m_stopFlag, m_initOK, m_startedOK;
+	bool m_stopFlag, m_initOK, m_startedOK, m_isStopMapping;
 
 	// mutex
 	std::mutex globalVarsMutex;
@@ -144,6 +144,7 @@ private:
     SRef<features::IKeypointDetector>					m_keypointsDetector;
     SRef<features::IDescriptorsExtractor>				m_descriptorExtractor;
 	SRef<solver::map::IBundler>							m_bundler;
+	SRef<solver::map::IBundler>							m_globalBundler;
 	SRef<solver::pose::IFiducialMarkerPose>				m_fiducialMarkerPoseEstimator;
 	SRef<loop::ILoopClosureDetector>					m_loopDetector;
 	SRef<loop::ILoopCorrector>							m_loopCorrector;

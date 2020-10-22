@@ -25,6 +25,7 @@ PipelineSlam::PipelineSlam():ConfigurableBase(xpcf::toUUID<PipelineSlam>())
 	declareInjectable<reloc::IKeyframeRetriever>(m_kfRetriever);
 	declareInjectable<solver::map::IMapper>(m_mapper);
 	declareInjectable<solver::map::IBundler>(m_bundler);
+	declareInjectable<solver::map::IBundler>(m_globalBundler);
 	declareInjectable<features::IKeypointDetector>(m_keypointsDetector);
 	declareInjectable<features::IDescriptorsExtractor>(m_descriptorExtractor);
 	declareInjectable<solver::pose::IFiducialMarkerPose>(m_fiducialMarkerPoseEstimator);
@@ -40,6 +41,7 @@ PipelineSlam::PipelineSlam():ConfigurableBase(xpcf::toUUID<PipelineSlam>())
     m_bootstrapOk=false;
 	m_stopFlag = false;
 	m_startedOK = false;
+	m_isStopMapping = false;
 
     LOG_DEBUG(" Pipeline constructor");	
 }
@@ -282,6 +284,9 @@ void PipelineSlam::tracking()
 	if (m_newKeyframeBuffer.tryPop(newKeyframe))
 	{
 		m_tracking->updateReferenceKeyframe(newKeyframe);
+		SRef<Frame> tmpFrame;
+		m_addKeyframeBuffer.tryPop(tmpFrame);
+		m_isStopMapping = false;
 	}
 	// tracking
 	SRef<Image>	displayImage;
@@ -298,7 +303,7 @@ void PipelineSlam::mapping()
 {
 	std::unique_lock<std::mutex> lock(m_mutexMapping);
 	SRef<Frame> newFrame;
-	if (m_stopFlag || !m_initOK || !m_startedOK || !m_addKeyframeBuffer.tryPop(newFrame)) {
+	if (m_stopFlag || !m_initOK || !m_startedOK || m_isStopMapping || !m_addKeyframeBuffer.tryPop(newFrame)) {
 		xpcf::DelegateTask::yield();
 		return;
 	}
@@ -318,6 +323,7 @@ void PipelineSlam::mapping()
 	}
 
 	if (keyframe) {
+		m_isStopMapping = true;
 		m_newKeyframeBuffer.push(keyframe);
 	}
 }
@@ -341,7 +347,7 @@ void PipelineSlam::loopClosure()
 		m_countNewKeyframes = 0;
 		m_loopCorrector->correct(lastKeyframe, detectedLoopKeyframe, sim3Transform, duplicatedPointsIndices);		
 		// Loop optimisation
-		m_bundler->bundleAdjustment(m_calibration, m_distortion);
+		m_globalBundler->bundleAdjustment(m_calibration, m_distortion);
 		m_mapper->pruning();
 	}
 }

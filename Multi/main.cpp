@@ -88,6 +88,7 @@ int main(int argc, char **argv) {
 	auto viewer3DPoints = xpcfComponentManager->resolve<display::I3DPointsViewer>();
 	auto fiducialMarkerPoseEstimator = xpcfComponentManager->resolve<solver::pose::IFiducialMarkerPose>();
 	auto bundler = xpcfComponentManager->resolve<api::solver::map::IBundler>();
+	auto globalBundler = xpcfComponentManager->resolve<api::solver::map::IBundler>();
 	auto loopDetector = xpcfComponentManager->resolve<loop::ILoopClosureDetector>();
 	auto loopCorrector = xpcfComponentManager->resolve<loop::ILoopCorrector>();
 	auto overlay3D = xpcfComponentManager->resolve<display::I3DOverlay>();
@@ -162,7 +163,7 @@ int main(int argc, char **argv) {
 	xpcf::DropBuffer<SRef<Keyframe>>											m_dropBufferNewKeyframeLoop;
 	xpcf::DropBuffer<SRef<Image>>												m_dropBufferDisplay;
 	xpcf::DropBuffer< std::pair<SRef<Image>, std::vector<Keypoint>>>			m_dropBufferKeypoints;
-	xpcf::DropBuffer<SRef<Frame>>												m_dropBufferFrameDescriptors;	
+	xpcf::DropBuffer<SRef<Frame>>												m_dropBufferFrameDescriptors;
 
 
 	// Camera image capture task
@@ -175,12 +176,11 @@ int main(int argc, char **argv) {
 			return;
 		}
 		m_dropBufferCamImageCapture.push(view);
-		//std::this_thread::sleep_for(std::chrono::milliseconds(50));
 	};
 
 	// Keypoint detection task
 	auto fnDetection = [&]()
-	{		
+	{
 		SRef<Image> frame;
 		if (!m_dropBufferCamImageCapture.tryPop(frame)) {
 			xpcf::DelegateTask::yield();
@@ -208,6 +208,7 @@ int main(int argc, char **argv) {
 	// Tracking task	
 	std::vector<Transform3Df>   framePoses;
 	int count = 0;
+	bool isStopMapping = false;
 	auto fnTracking = [&]()
 	{
 		SRef<Frame> frame;
@@ -219,6 +220,9 @@ int main(int argc, char **argv) {
 		if (m_dropBufferNewKeyframe.tryPop(newKeyframe))
 		{
 			tracking->updateReferenceKeyframe(newKeyframe);
+			SRef<Frame> tmpFrame;
+			m_dropBufferAddKeyframe.tryPop(tmpFrame);
+			isStopMapping = false;
 		}
 		// tracking
 		SRef<Image>	displayImage;
@@ -251,12 +255,10 @@ int main(int argc, char **argv) {
 
 	// check need new keyframe
 	int countNewKeyframes = 0;
-	std::mutex mutexMapping;
 	auto fnMapping = [&]()
 	{
-		std::unique_lock<std::mutex> lock(mutexMapping);
 		SRef<Frame> frame;
-		if (!m_dropBufferAddKeyframe.tryPop(frame)) {
+		if (isStopMapping || (!m_dropBufferAddKeyframe.tryPop(frame))) {
 			xpcf::DelegateTask::yield();
 			return;
 		}
@@ -267,7 +269,6 @@ int main(int argc, char **argv) {
 			std::vector<uint32_t> bestIdx;
 			covisibilityGraph->getNeighbors(keyframe->getId(), minWeightNeighbor, bestIdx);
 			bestIdx.push_back(keyframe->getId());
-			LOG_INFO("Nb keyframe to local bundle: {}", bestIdx.size());
 			double bundleReprojError = bundler->bundleAdjustment(calibration, distortion, bestIdx);
 			mapper->pruning();
 			countNewKeyframes++;
@@ -275,6 +276,7 @@ int main(int argc, char **argv) {
 		}
 
 		if (keyframe) {
+			isStopMapping = true;
 			m_dropBufferNewKeyframe.push(keyframe);
 		}
 
@@ -296,11 +298,11 @@ int main(int argc, char **argv) {
 			// detected loop keyframe
 			LOG_INFO("Detected loop keyframe id: {}", detectedLoopKeyframe->getId());
 			// performs loop correction 			
-			std::unique_lock<std::mutex> lock(mutexMapping);
 			loopCorrector->correct(lastKeyframe, detectedLoopKeyframe, sim3Transform, duplicatedPointsIndices);	
 			countNewKeyframes = 0;
 			// Loop optimisation
-			bundler->bundleAdjustment(calibration, distortion);
+			globalBundler->bundleAdjustment(calibration, distortion);
+			LOG_INFO("Global BA done");
 			mapper->pruning();
 		}
 	};

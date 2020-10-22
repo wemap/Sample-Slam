@@ -179,7 +179,8 @@ int main(int argc, char **argv) {
 		SRef<Frame>                                         frame;
 		SRef<Keyframe>										keyframe;
 		// Get current image
-		camera->getNextImage(view);
+		if (camera->getNextImage(view) != FrameworkReturnCode::_SUCCESS)
+			break;
 		// feature extraction
 		keypointsDetector->detect(view, keypoints);
 		LOG_INFO("Number of keypoints: {}", keypoints.size());
@@ -249,6 +250,19 @@ int main(int argc, char **argv) {
 	double duration = double(end - start) / CLOCKS_PER_SEC;
 	printf("\n\nElasped time is %.2lf seconds.\n", duration);
 	printf("Number of processed frame per second : %8.2f\n", count / duration);
+
+	// display	
+	while (true) {
+		std::vector<Transform3Df> keyframePoses;
+		std::vector<SRef<Keyframe>> allKeyframes;
+		keyframesManager->getAllKeyframes(allKeyframes);
+		for (auto const &it : allKeyframes)
+			keyframePoses.push_back(it->getPose());
+		std::vector<SRef<CloudPoint>> pointCloud;
+		pointCloudManager->getAllPoints(pointCloud);
+		if (viewer3DPoints->display(pointCloud, keyframePoses[0], keyframePoses, framePoses) == FrameworkReturnCode::_STOP)
+			break;
+	}
 
 	// Save map
 	mapper->saveToFile();
