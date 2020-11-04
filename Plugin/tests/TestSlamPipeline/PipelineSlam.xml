@@ -225,23 +225,27 @@
 
 	<factory>
 		<bindings>
-			<bind interface="ICamera" to="SolARCameraOpencv" scope="Singleton"/>
+			<bind interface="ICamera" to="SolARCameraOpencv"/>
 			<!--bind interface="ICamera" to="SolARVideoAsCameraOpencv" scope="Singleton"/-->
 			<!--bind interface="ICamera" to="SolARImagesAsCameraOpencv" scope="Singleton"/-->
 			<bind interface="IDescriptorsExtractor" to="SolARDescriptorsExtractorAKAZE2Opencv" />
 			<bind interface="IImageConvertor" to="SolARImageConvertorOpencv" />
             <bind name="ImageConvertorUnity" interface="IImageConvertor" to="SolARImageConvertorUnity" />
-			<bind name="Matcher-Loop" interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" />
-			<bind name="Matcher-Tracking" interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" />
-			<bind name="Matcher-Mapping" interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" />
-			<bind name="Matcher-Fiducial" interface="IDescriptorMatcher" to="SolARDescriptorMatcherRadiusOpencv" />
-			<bind interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" name="Bootstrap"/>
-			<bind interface="IKeyframeSelector" to="SolARKeyframeSelector" name="Bootstrap" properties="BootstrapProperties"/>
+			<bind interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" />
+			<bind interface="IKeyframeSelector" to="SolARKeyframeSelector"/>
 			<bind interface="IPointCloudManager" to="SolARPointCloudManager" scope="Singleton"/>
 			<bind interface="IKeyframesManager" to="SolARKeyframesManager" scope="Singleton"/>
 			<bind interface="ICovisibilityGraph" to="SolARCovisibilityGraph" scope="Singleton"/>
 			<bind interface="IKeyframeRetriever" to="SolARKeyframeRetrieverFBOW" scope="Singleton"/>
 		</bindings>
+		<injects>
+			<inject to="SolARFiducialMarkerPoseEstimator">
+				<bind interface="IDescriptorMatcher" to="SolARDescriptorMatcherRadiusOpencv"/>
+			</inject>
+			<inject to="SolARSLAMBootstrapper">
+				<bind interface="IKeyframeSelector" to="SolARKeyframeSelector" properties="BootstrapProperties"/>
+			</inject>
+		</injects>
 	</factory>
 
 	<properties>
