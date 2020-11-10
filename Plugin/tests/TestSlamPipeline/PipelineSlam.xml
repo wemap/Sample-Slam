@@ -228,9 +228,8 @@
 			<bind interface="ICamera" to="SolARCameraOpencv"/>
 			<!--bind interface="ICamera" to="SolARVideoAsCameraOpencv" scope="Singleton"/-->
 			<!--bind interface="ICamera" to="SolARImagesAsCameraOpencv" scope="Singleton"/-->
-			<bind interface="IDescriptorsExtractor" to="SolARDescriptorsExtractorAKAZE2Opencv" />
-			<bind interface="IImageConvertor" to="SolARImageConvertorOpencv" />
-            <bind name="ImageConvertorUnity" interface="IImageConvertor" to="SolARImageConvertorUnity" />
+			<bind interface="IDescriptorsExtractor" to="SolARDescriptorsExtractorAKAZE2Opencv"/>
+			<bind interface="IBundler" to="SolAROptimizationG2O"/>
 			<bind interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" />
 			<bind interface="IKeyframeSelector" to="SolARKeyframeSelector"/>
 			<bind interface="IPointCloudManager" to="SolARPointCloudManager" scope="Singleton"/>
@@ -241,9 +240,14 @@
 		<injects>
 			<inject to="SolARFiducialMarkerPoseEstimator">
 				<bind interface="IDescriptorMatcher" to="SolARDescriptorMatcherRadiusOpencv"/>
+				<bind interface="IImageConvertor" to="SolARImageConvertorOpencv"/>
 			</inject>
 			<inject to="SolARSLAMBootstrapper">
 				<bind interface="IKeyframeSelector" to="SolARKeyframeSelector" properties="BootstrapProperties"/>
+			</inject>
+			<inject to="PipelineSlam">
+				<bind interface="IImageConvertor" to="SolARImageConvertorUnity"/>
+				<bind interface="IBundler" to="SolAROptimizationG2O" name="GlobalBA"/>
 			</inject>
 		</injects>
 	</factory>

@@ -25,11 +25,11 @@ PipelineSlam::PipelineSlam():ConfigurableBase(xpcf::toUUID<PipelineSlam>())
 	declareInjectable<reloc::IKeyframeRetriever>(m_kfRetriever);
 	declareInjectable<solver::map::IMapper>(m_mapper);
 	declareInjectable<solver::map::IBundler>(m_bundler);
-	declareInjectable<solver::map::IBundler>(m_globalBundler);
+	declareInjectable<solver::map::IBundler>(m_globalBundler, "GlobalBA");
 	declareInjectable<features::IKeypointDetector>(m_keypointsDetector);
 	declareInjectable<features::IDescriptorsExtractor>(m_descriptorExtractor);
 	declareInjectable<solver::pose::IFiducialMarkerPose>(m_fiducialMarkerPoseEstimator);
-	declareInjectable<image::IImageConvertor>(m_imageConvertorUnity, "ImageConvertorUnity");
+	declareInjectable<image::IImageConvertor>(m_imageConvertorUnity);
 	declareInjectable<loop::ILoopClosureDetector>(m_loopDetector);
 	declareInjectable<loop::ILoopCorrector>(m_loopCorrector);
 	declareInjectable<slam::IBootstrapper>(m_bootstrapper);
