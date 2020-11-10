@@ -20,7 +20,7 @@
 
 
 // ADD COMPONENTS HEADERS HERE, e.g #include "SolarComponent.h"
-#include "api/pipeline/IPipeline.h"
+#include "api/pipeline/IPoseEstimationPipeline.h"
 #include "api/display/IImageViewer.h"
 #include "api/display/I3DOverlay.h"
 
@@ -43,7 +43,7 @@ int main(){
             LOG_ERROR("The file PipelineSlam.xml has an error");
         }
 
-        auto pipeline = componentMgr->resolve<pipeline::IPipeline>();
+        auto pipeline = componentMgr->resolve<pipeline::IPoseEstimationPipeline>();
 
         if (pipeline->init(componentMgr) == FrameworkReturnCode::_SUCCESS )
         {

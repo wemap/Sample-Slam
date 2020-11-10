@@ -13,7 +13,7 @@
 
 #include "xpcf/core/traits.h"
 #include "xpcf/component/ConfigurableBase.h"
-#include "api/pipeline/IPipeline.h"
+#include "api/pipeline/IPoseEstimationPipeline.h"
 
 // Add the headers to datastructures and component interfaces used by the pipeline
 
@@ -68,7 +68,7 @@ using namespace api::pipeline;
 namespace PIPELINES {
 
 class SOLARPIPELINESLAM_EXPORT_API PipelineSlam : public org::bcom::xpcf::ConfigurableBase,
-    public api::pipeline::IPipeline
+    public api::pipeline::IPoseEstimationPipeline
 {
 public:
     PipelineSlam();
@@ -85,6 +85,11 @@ public:
 
     /// @brief Starts the pipeline and provides a texture buffer which will be updated when required.
     /// @param[in] textureHandle a pointer to the texture buffer which will be updated at each call of the update method.
+
+    /// @brief Start the pipeline
+    /// @return FrameworkReturnCode::_ERROR_ by default as the pipeline needs to be construct with an imageDataBuffer as parameter
+    FrameworkReturnCode start() override { return FrameworkReturnCode::_ERROR_; }
+
 #ifdef USE_OPENGL
     FrameworkReturnCode start(void* textureHandle) override;
 #else

@@ -17,7 +17,7 @@ namespace PIPELINES {
 
 PipelineSlam::PipelineSlam():ConfigurableBase(xpcf::toUUID<PipelineSlam>())
 {
-    declareInterface<api::pipeline::IPipeline>(this);
+    declareInterface<api::pipeline::IPoseEstimationPipeline>(this);
     declareInjectable<input::devices::ICamera>(m_camera);
 	declareInjectable<IPointCloudManager>(m_pointCloudManager);
 	declareInjectable<IKeyframesManager>(m_keyframesManager);

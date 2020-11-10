@@ -4,7 +4,7 @@ CONFIG -= qt
 
 ## global defintions : target lib name, version
 TARGET = SolARSlamSampleMono
-VERSION=0.8.1
+VERSION=0.8.2
 
 DEFINES += MYVERSION=$${VERSION}
 CONFIG += c++1z
@@ -72,7 +72,8 @@ config_files.files= $$files($${PWD}/conf_SLAM_Mono.xml)\
 INSTALLS += config_files
 
 OTHER_FILES += \
-    packagedependencies.txt
+    packagedependencies.txt \
+    conf_SLAM_mono.xml
 
 #NOTE : Must be placed at the end of the .pro
 include ($$shell_quote($$shell_path($${QMAKE_REMAKEN_RULES_ROOT}/remaken_install_target.pri)))) # Shell_quote & shell_path required for visual on windows
