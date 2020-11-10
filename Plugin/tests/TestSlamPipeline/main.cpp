@@ -105,11 +105,17 @@ int main(){
             delete[] r_imageData;
         }
     }
+    catch (xpcf::InjectableNotFoundException e)
+    {
+        LOG_ERROR ("The following exception in relation to a unfound injectable has been catched: {}", e.what());
+        return -1;
+    }
     catch (xpcf::Exception e)
     {
         LOG_ERROR ("The following exception has been catched: {}", e.what());
         return -1;
     }
+
 }
 
 
