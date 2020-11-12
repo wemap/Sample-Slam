@@ -70,22 +70,17 @@ int main(){
 
                     sink::SinkReturnCode returnCode = pipeline->update(pose);
 
-                    if (returnCode == SinkReturnCode::_ERROR)
-                        break;
+                    if (returnCode == SinkReturnCode::_ERROR) {
+						pipeline->stop();
+						break;
+					}
 
                     if (returnCode == sink::SinkReturnCode::_NOTHING)
                         continue;
 
                     if ((returnCode == sink::SinkReturnCode::_NEW_POSE) || (returnCode == sink::SinkReturnCode::_NEW_POSE_AND_IMAGE))
                     {
-                        for(int i=0;i<3;i++)
-                             for(int j=0;j<3;j++)
-                                 s_pose(i,j)=pose(i,j);
-                        for(int i=0;i<3;i++)
-                                 s_pose(i,3)=pose(i,3);
-                        for(int j=0;j<3;j++)
-                            s_pose(3,j)=0;
-                        s_pose(3,3)=1;
+						s_pose = pose;
                         //LOG_INFO("pose.matrix():\n {} \n",s_pose.matrix())
                         overlay3DComponent->draw(s_pose, camImage);
                     }

@@ -226,8 +226,7 @@
 	<factory>
 		<bindings>
 			<bind interface="ICamera" to="SolARCameraOpencv"/>
-			<!--bind interface="ICamera" to="SolARVideoAsCameraOpencv" scope="Singleton"/-->
-			<!--bind interface="ICamera" to="SolARImagesAsCameraOpencv" scope="Singleton"/-->
+			<!--bind interface="ICamera" to="SolARImagesAsCameraOpencv"/-->
 			<bind interface="IDescriptorsExtractor" to="SolARDescriptorsExtractorAKAZE2Opencv"/>
 			<bind interface="IBundler" to="SolAROptimizationG2O"/>
 			<bind interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" />
@@ -255,11 +254,7 @@
 	<properties>
 		<configure component="SolARCameraOpencv">
 			<property name="calibrationFile" type="string" value="camera_calibration.yml"/>
-			<property name="deviceID" type="UnsignedInteger" value="1"/>
-		</configure>
-		<configure component="SolARVideoAsCameraOpencv">
-			<property name="calibrationFile" type="string" value="camera_calibration_wemap.yml"/>
-			<property name="videoPath" type="string" value="corridors-offline-pixel3-480p-3.mp4"/>
+			<property name="deviceID" type="UnsignedInteger" value="0"/>
 		</configure>
 		<configure component="SolARImagesAsCameraOpencv">
 			<property name="calibrationFile" type="string" value="data/tum/03/03_calibration.yml"/>
@@ -268,15 +263,16 @@
 		</configure>
 		<configure component="SolARSLAMBootstrapper">
 			<property name="hasPose" type="Integer" value="1"/>
-			<property name="nbMinInitPointCloud" type="Integer" value="80"/>
+			<property name="nbMinInitPointCloud" type="Integer" value="50"/>
 			<property name="angleThres" type="Float" value="0.05"/>
 		</configure>
 		<configure component="SolARSLAMTracking">
-			<property name="minWeightNeighbor" type="Float" value="15.0"/>
+			<property name="minWeightNeighbor" type="Float" value="10.0"/>
 			<property name="displayTrackedPoints" type="Integer" value="1"/>
+			<property name="thresAngleViewDirection" type="Float" value="0.8"/>			
 		</configure>
 		<configure component="SolARSLAMMapping">
-			<property name="minWeightNeighbor" type="Float" value="15.0"/>
+			<property name="minWeightNeighbor" type="Float" value="10.0"/>
 			<property name="minTrackedPoints" type="Integer" value="100"/>
 		</configure>
 		<configure component="SolARMapper">
@@ -288,7 +284,7 @@
 			<property name="covisibilityGraphFileName" type="string" value="covisibility_graph.bin"/>
 			<property name="keyframeRetrieverFileName" type="string" value="keyframe_retriever.bin"/>
 			<property name="reprojErrorThreshold" type="float" value="3.0"/>
-			<property name="thresConfidence" type="float" value="0.5"/>
+			<property name="thresConfidence" type="float" value="0.25"/>
 		</configure>
 		<configure component="SolARKeypointDetectorOpencv">
 			<property name="type" type="string" value="AKAZE2"/>
@@ -330,6 +326,7 @@
 			<property name="reprojError" type="Float" value="3.0"/>
 			<property name="confidence" type="Float" value="0.99"/>
 			<property name="minNbInliers" type="Integer" value="25"/>
+			<property name="method" type="String" value="EPNP"/>
 		</configure>
 		<configure component="SolARMapFilter">
 			<property name="reprojErrorThreshold" type="float" value="3.0"/>
@@ -339,7 +336,7 @@
 		</configure>
 		<configure component="SolARKeyframeSelector">
 			<property name="minNbMatchesIsKeyframe" type="Integer" value="10"/>
-			<property name="minMeanDistanceIsKeyframe" type="Float" value="0.03"/>			
+			<property name="minMeanDistanceIsKeyframe" type="Float" value="0.05"/>			
 		</configure>
 		<configure component="SolARKeyframeSelector" name="BootstrapProperties">
 			<property name="minNbMatchesIsKeyframe" type="Integer" value="50"/>
@@ -356,7 +353,7 @@
 			<property name="iterationsCount" type="Integer" value="500"/>
 			<property name="reprojError" type="Float" value="10.0"/>
 			<property name="confidence" type="Float" value="0.9"/>
-			<property name="minNbInliers" type="Integer" value="10"/>
+			<property name="minNbInliers" type="Integer" value="10"/>			
 		</configure>
 		<configure component="SolARLoopClosureDetector">
 			<property name="minNbInliers" type="Integer" value="30"/>
@@ -385,7 +382,7 @@
 			<property name="nbIterationsGlobal" type="Integer" value="20"/>
 			<property name="setVerbose" type="Integer" value="0"/>
 			<property name="nbMaxFixedKeyframes" type="Integer" value="30"/>
-			<property name="errorOutlier" type="Float" value="4.0"/>
+			<property name="errorOutlier" type="Float" value="5.0"/>
 			<property name="useSpanningTree" type="Integer" value="0"/>
 			<property name="isRobust" type="Integer" value="0"/>
 			<property name="fixedMap" type="Integer" value="0"/>
@@ -406,7 +403,7 @@
 				<value>0</value>
 				<value>0</value>
 			</property>
-			<property name="fixedPointsColor" type="UnsignedInteger" value="1"/>
+			<property name="fixedPointsColor" type="UnsignedInteger" value="0"/>
 			<property name="pointsColor" type="UnsignedInteger">
 				<value>0</value>
 				<value>255</value>
@@ -418,7 +415,7 @@
 				<value>255</value>
 			</property>
 			<property name="drawCameraAxis" type="UnsignedInteger" value="1"/>
-			<property name="drawSceneAxis" type="UnsignedInteger" value="1"/>
+			<property name="drawSceneAxis" type="UnsignedInteger" value="0"/>
 			<property name="drawWorldAxis" type="UnsignedInteger" value="1"/>
 			<property name="axisScale" type="Float" value="1.0"/>
 			<property name="pointSize" type="Float" value="1.0"/>

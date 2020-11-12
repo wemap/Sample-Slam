@@ -160,16 +160,36 @@ int main(int argc, char **argv) {
 	}
 	
 	LOG_INFO("Number of initial point cloud: {}", pointCloudManager->getNbPoints());
-	LOG_INFO("Number of initial keyframes: {}", keyframesManager->getNbKeyframes());
+	LOG_INFO("Number of initial keyframes: {}", keyframesManager->getNbKeyframes());	
+
+	// display point cloud function
+	auto fnDisplay = [&keyframesManager, &pointCloudManager, &viewer3DPoints](const std::vector<Transform3Df>& framePoses) {
+		// get all keyframes and point cloud
+		std::vector<Transform3Df>   keyframePoses;
+		std::vector<SRef<Keyframe>> allKeyframes;
+		keyframesManager->getAllKeyframes(allKeyframes);
+		for (auto const &it : allKeyframes)
+			keyframePoses.push_back(it->getPose());
+		std::vector<SRef<CloudPoint>> pointCloud;
+		pointCloudManager->getAllPoints(pointCloud);
+		// display point cloud 
+		if (viewer3DPoints->display(pointCloud, framePoses.back(), keyframePoses, framePoses) == FrameworkReturnCode::_STOP)
+			return false;
+		else
+			return true;
+	};
 
 	// Prepare for tracking
 	tracking->updateReferenceKeyframe(keyframe2);
+
+	// init display point cloud
+	fnDisplay({ keyframe2->getPose() });
 
 	// Start tracking
 	clock_t start, end;
 	int count = 0;
 	int countNewKeyframes = 0;	
-	std::vector<Transform3Df>   framePoses;
+	std::vector<Transform3Df>   framePoses{keyframe2->getPose()};
 	start = clock();
 	while (true)
 	{
@@ -183,7 +203,9 @@ int main(int argc, char **argv) {
 			break;
 		// feature extraction
 		keypointsDetector->detect(view, keypoints);
-		LOG_INFO("Number of keypoints: {}", keypoints.size());
+		LOG_DEBUG("Number of keypoints: {}", keypoints.size());
+		if (keypoints.size() == 0)
+			continue;
 		descriptorExtractor->extract(view, keypoints, descriptors);		
 		frame = xpcf::utils::make_shared<Frame>(keypoints, descriptors, view);
 
@@ -195,12 +217,12 @@ int main(int argc, char **argv) {
 			overlay3D->draw(frame->getPose(), displayImage);
 			// mapping
 			if (mapping->process(frame, keyframe) == FrameworkReturnCode::_SUCCESS) {
-				LOG_INFO("New keyframe id: {}", keyframe->getId());
+				LOG_DEBUG("New keyframe id: {}", keyframe->getId());
 				// Local bundle adjustment
 				std::vector<uint32_t> bestIdx;
 				covisibilityGraph->getNeighbors(keyframe->getId(), minWeightNeighbor, bestIdx);
 				bestIdx.push_back(keyframe->getId());
-				LOG_INFO("Nb keyframe to local bundle: {}", bestIdx.size());
+				LOG_DEBUG("Nb keyframe to local bundle: {}", bestIdx.size());
 				double bundleReprojError = bundler->bundleAdjustment(calibration, distortion, bestIdx);				
 				// loop closure
 				countNewKeyframes++;
@@ -226,24 +248,16 @@ int main(int argc, char **argv) {
 				tracking->updateReferenceKeyframe(keyframe);
 			}
 		}
+		count++;
 
 		// display matches and a cube on the origin of coordinate system
 		if (imageViewer->display(displayImage) == FrameworkReturnCode::_STOP)
-			break;
+			break;		
 
-		// get all keyframes and point cloud
-		std::vector<Transform3Df>   keyframePoses;
-		std::vector<SRef<Keyframe>> allKeyframes;
-		keyframesManager->getAllKeyframes(allKeyframes);
-		for (auto const &it : allKeyframes)
-			keyframePoses.push_back(it->getPose());
-		std::vector<SRef<CloudPoint>> pointCloud;
-		pointCloudManager->getAllPoints(pointCloud);
-		// display point cloud 
-		if (viewer3DPoints->display(pointCloud, frame->getPose(), keyframePoses, framePoses) == FrameworkReturnCode::_STOP)
+		// display point cloud
+		if (!fnDisplay(framePoses))
 			break;
-		count++;
-	}
+	}	
 
 	// display stats on frame rate
 	end = clock();
@@ -251,18 +265,14 @@ int main(int argc, char **argv) {
 	printf("\n\nElasped time is %.2lf seconds.\n", duration);
 	printf("Number of processed frame per second : %8.2f\n", count / duration);
 
-	// display	
-	while (true) {
-		std::vector<Transform3Df> keyframePoses;
-		std::vector<SRef<Keyframe>> allKeyframes;
-		keyframesManager->getAllKeyframes(allKeyframes);
-		for (auto const &it : allKeyframes)
-			keyframePoses.push_back(it->getPose());
-		std::vector<SRef<CloudPoint>> pointCloud;
-		pointCloudManager->getAllPoints(pointCloud);
-		if (viewer3DPoints->display(pointCloud, keyframePoses[0], keyframePoses, framePoses) == FrameworkReturnCode::_STOP)
-			break;
-	}
+	// run global BA before exit
+	bundler->bundleAdjustment(calibration, distortion);
+	mapper->pruning();
+	LOG_INFO("Nb keyframes of map: {}", keyframesManager->getNbKeyframes());
+	LOG_INFO("Nb cloud points of map: {}", pointCloudManager->getNbPoints());
+
+	// visualize final map	
+	while (fnDisplay(framePoses)) {}
 
 	// Save map
 	mapper->saveToFile();

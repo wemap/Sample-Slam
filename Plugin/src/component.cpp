@@ -212,7 +212,7 @@ void PipelineSlam::getCameraImages() {
 		m_source->getNextImage(view);
 		m_imageConvertorUnity->convert(view, view, Image::ImageLayout::LAYOUT_RGB);
 	}
-	else if (m_camera->getNextImage(view) == SolAR::FrameworkReturnCode::_ERROR_LOAD_IMAGE) {
+	else if (m_camera->getNextImage(view) != FrameworkReturnCode::_SUCCESS) {
 		m_stopFlag = true;
 		return;
 	}
@@ -240,10 +240,10 @@ void PipelineSlam::doBootStrap()
 		m_bootstrapOk = true;
 	}
 	if (!m_poseFrame.isApprox(Transform3Df::Identity())){
-		m_sink->set(m_poseFrame, m_camImage);
+		m_sink->set(m_poseFrame, view);
 	}
 	else
-		m_sink->set(m_camImage);
+		m_sink->set(view);
 }
 
 void PipelineSlam::getKeyPoints() {
@@ -253,9 +253,9 @@ void PipelineSlam::getKeyPoints() {
 		xpcf::DelegateTask::yield();
 		return;
 	}
-
 	m_keypointsDetector->detect(camImage, m_keypoints);
-	m_keypointsBuffer.push(std::make_pair(camImage, m_keypoints));
+	if (m_keypoints.size() > 0)
+		m_keypointsBuffer.push(std::make_pair(camImage, m_keypoints));
 };
 
 void PipelineSlam::getDescriptors()
@@ -310,12 +310,12 @@ void PipelineSlam::mapping()
 
 	SRef<Keyframe> keyframe;
 	if (m_mapping->process(newFrame, keyframe) == FrameworkReturnCode::_SUCCESS) {
-		LOG_INFO("New keyframe id: {}", keyframe->getId());
+		LOG_DEBUG("New keyframe id: {}", keyframe->getId());
 		// Local bundle adjustment
 		std::vector<uint32_t> bestIdx;
 		m_covisibilityGraph->getNeighbors(keyframe->getId(), m_minWeightNeighbor, bestIdx);
 		bestIdx.push_back(keyframe->getId());
-		LOG_INFO("Nb keyframe to local bundle: {}", bestIdx.size());
+		LOG_DEBUG("Nb keyframe to local bundle: {}", bestIdx.size());
 		double bundleReprojError = m_bundler->bundleAdjustment(m_calibration, m_distortion, bestIdx);
 		m_mapper->pruning();
 		m_countNewKeyframes++;
@@ -331,7 +331,7 @@ void PipelineSlam::mapping()
 void PipelineSlam::loopClosure()
 {		
 	SRef<Keyframe> lastKeyframe;
-	if ((m_countNewKeyframes < NB_NEWKEYFRAMES_BA) || (!m_newKeyframeLoopBuffer.tryPop(lastKeyframe))) {
+	if (m_stopFlag || !m_initOK || !m_startedOK || (m_countNewKeyframes < NB_NEWKEYFRAMES_BA) || (!m_newKeyframeLoopBuffer.tryPop(lastKeyframe))) {
 		xpcf::DelegateTask::yield();
 		return;
 	}
