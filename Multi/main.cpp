@@ -119,10 +119,6 @@ int main(int argc, char **argv) {
 		return -1;
 	}
 
-	//SRef<Image> tmpImage;
-	//for (int i = 0; i < 818; i++)
-	//	camera->getNextImage(tmpImage);
-
 	// Load map from file
 	bool stop = false;
 	SRef<Keyframe> keyframe2;
@@ -153,9 +149,28 @@ int main(int argc, char **argv) {
 	LOG_INFO("Number of initial point cloud: {}", pointCloudManager->getNbPoints());
 	LOG_INFO("Number of initial keyframes: {}", keyframesManager->getNbKeyframes());
 
+	// display point cloud function
+	auto fnDisplay = [&keyframesManager, &pointCloudManager, &viewer3DPoints](const std::vector<Transform3Df>& framePoses) {
+		// get all keyframes and point cloud
+		std::vector<Transform3Df>   keyframePoses;
+		std::vector<SRef<Keyframe>> allKeyframes;
+		keyframesManager->getAllKeyframes(allKeyframes);
+		for (auto const &it : allKeyframes)
+			keyframePoses.push_back(it->getPose());
+		std::vector<SRef<CloudPoint>> pointCloud;
+		pointCloudManager->getAllPoints(pointCloud);
+		// display point cloud 
+		if (viewer3DPoints->display(pointCloud, framePoses.back(), keyframePoses, framePoses) == FrameworkReturnCode::_STOP)
+			return false;
+		else
+			return true;
+	};
 
 	// Prepare for tracking
 	tracking->updateReferenceKeyframe(keyframe2);
+
+	// init display point cloud
+	fnDisplay({ keyframe2->getPose() });
 
 	xpcf::DropBuffer<SRef<Image>>												m_dropBufferCamImageCapture;
 	xpcf::DropBuffer<SRef<Frame>>												m_dropBufferAddKeyframe;
@@ -188,7 +203,8 @@ int main(int argc, char **argv) {
 		}
 		std::vector<Keypoint> keypoints;
 		keypointsDetector->detect(frame, keypoints);
-		m_dropBufferKeypoints.push(std::make_pair(frame, keypoints));
+		if (keypoints.size() > 0)
+			m_dropBufferKeypoints.push(std::make_pair(frame, keypoints));
 	};
 
 	// Feature extraction task
@@ -206,7 +222,7 @@ int main(int argc, char **argv) {
 	};
 
 	// Tracking task	
-	std::vector<Transform3Df>   framePoses;
+	std::vector<Transform3Df>   framePoses{keyframe2->getPose()};
 	int count = 0;
 	bool isStopMapping = false;
 	auto fnTracking = [&]()
@@ -239,16 +255,8 @@ int main(int argc, char **argv) {
 			stop = true;
 		}
 
-		// get all keyframes and point cloud
-		std::vector<Transform3Df> keyframePoses;
-		std::vector<SRef<Keyframe>> allKeyframes;
-		keyframesManager->getAllKeyframes(allKeyframes);
-		for (auto const &it : allKeyframes)
-			keyframePoses.push_back(it->getPose());
-		std::vector<SRef<CloudPoint>> pointCloud;
-		pointCloudManager->getAllPoints(pointCloud);
-		// display point cloud 
-		if (viewer3DPoints->display(pointCloud, frame->getPose(), keyframePoses, framePoses) == FrameworkReturnCode::_STOP)
+		// display point cloud
+		if (!fnDisplay(framePoses))
 			stop = true;
 		++count;
 	};
@@ -264,7 +272,7 @@ int main(int argc, char **argv) {
 		}
 		SRef<Keyframe> keyframe;
 		if (mapping->process(frame, keyframe) == FrameworkReturnCode::_SUCCESS) {
-			LOG_INFO("New keyframe id: {}", keyframe->getId());
+			LOG_DEBUG("New keyframe id: {}", keyframe->getId());
 			// Local bundle adjustment
 			std::vector<uint32_t> bestIdx;
 			covisibilityGraph->getNeighbors(keyframe->getId(), minWeightNeighbor, bestIdx);
@@ -302,7 +310,7 @@ int main(int argc, char **argv) {
 			countNewKeyframes = 0;
 			// Loop optimisation
 			globalBundler->bundleAdjustment(calibration, distortion);
-			LOG_INFO("Global BA done");
+			LOG_DEBUG("Global BA done");
 			mapper->pruning();
 		}
 	};
@@ -341,18 +349,14 @@ int main(int argc, char **argv) {
 	printf("\n\nElasped time is %.2lf seconds.\n", duration);
 	printf("Number of processed frame per second : %8.2f\n", count / duration);	
 
-	// display	
-	while (true) {
-		std::vector<Transform3Df> keyframePoses;
-		std::vector<SRef<Keyframe>> allKeyframes;
-		keyframesManager->getAllKeyframes(allKeyframes);
-		for (auto const &it : allKeyframes)
-			keyframePoses.push_back(it->getPose());
-		std::vector<SRef<CloudPoint>> pointCloud;
-		pointCloudManager->getAllPoints(pointCloud);
-		if (viewer3DPoints->display(pointCloud, keyframePoses[0], keyframePoses, framePoses) == FrameworkReturnCode::_STOP)
-			break;
-	}
+	// run global BA before exit
+	bundler->bundleAdjustment(calibration, distortion);
+	mapper->pruning();
+	LOG_INFO("Nb keyframes of map: {}", keyframesManager->getNbKeyframes());
+	LOG_INFO("Nb cloud points of map: {}", pointCloudManager->getNbPoints());
+
+	// visualize final map	
+	while (fnDisplay(framePoses)) {}
 
 	// Save map
 	mapper->saveToFile();
