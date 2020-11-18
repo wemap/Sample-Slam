@@ -254,8 +254,7 @@ void PipelineSlam::getKeyPoints() {
 		return;
 	}
 	m_keypointsDetector->detect(camImage, m_keypoints);
-	if (m_keypoints.size() > 0)
-		m_keypointsBuffer.push(std::make_pair(camImage, m_keypoints));
+	m_keypointsBuffer.push(std::make_pair(camImage, m_keypoints));
 };
 
 void PipelineSlam::getDescriptors()

@@ -203,8 +203,7 @@ int main(int argc, char **argv) {
 		}
 		std::vector<Keypoint> keypoints;
 		keypointsDetector->detect(frame, keypoints);
-		if (keypoints.size() > 0)
-			m_dropBufferKeypoints.push(std::make_pair(frame, keypoints));
+		m_dropBufferKeypoints.push(std::make_pair(frame, keypoints));
 	};
 
 	// Feature extraction task
