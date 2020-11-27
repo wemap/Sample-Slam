@@ -209,6 +209,7 @@
 		<bindings>
 			<bind interface="ICamera" to="SolARCameraOpencv"/>
 			<!--bind interface="ICamera" to="SolARImagesAsCameraOpencv"/-->
+			<!--bind interface="ICamera" to="SolARVideoAsCameraOpencv"/-->
 			<bind interface="IDescriptorsExtractor" to="SolARDescriptorsExtractorAKAZE2Opencv" />
 			<bind interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" />
 			<bind interface="IBundler" to="SolAROptimizationG2O"/>
@@ -226,6 +227,10 @@
 			<inject to="SolARSLAMBootstrapper">
 				<bind interface="IKeyframeSelector" to="SolARKeyframeSelector" properties="BootstrapProperties"/>
 			</inject>
+			<inject to="SolARSLAMTracking">
+				<bind interface="I2DOverlay" to="SolAR2DOverlayOpencv" name="Green" properties="GreenProperties"/>
+				<bind interface="I2DOverlay" to="SolAR2DOverlayOpencv" name="Red" properties="RedProperties"/>
+			</inject>
 		</injects>
 	</factory>
 
@@ -235,9 +240,14 @@
             <property name="deviceID" type="UnsignedInteger" value="0"/>
 		</configure>
 		<configure component="SolARImagesAsCameraOpencv">
-			<property name="calibrationFile" type="string" value="data/tum/03/03_calibration.yml"/>
-			<property name="imagesDirectoryPath" type="string" value="data/tum/03/%06d.png"/>
-			<property name="delayTime" type="Integer" value="50"/>
+			<property name="calibrationFile" type="string" value="path to camera calibration file"/>
+			<property name="imagesDirectoryPath" type="string" value="path to image folder"/>
+			<property name="delayTime" type="Integer" value="30"/>
+		</configure>
+		<configure component="SolARVideoAsCameraOpencv">
+			<property name="calibrationFile" type="string" value="path to camera calibration file"/>
+			<property name="videoPath" type="string" value="path to video"/>
+			<property name="delayTime" type="Integer" value="30"/>
 		</configure>
 		<configure component="SolARSLAMBootstrapper">
 			<property name="hasPose" type="Integer" value="1"/>
@@ -263,7 +273,7 @@
 			<property name="covisibilityGraphFileName" type="string" value="covisibility_graph.bin"/>
 			<property name="keyframeRetrieverFileName" type="string" value="keyframe_retriever.bin"/>
 			<property name="reprojErrorThreshold" type="float" value="3.0"/>
-			<property name="thresConfidence" type="float" value="0.25"/>
+			<property name="thresConfidence" type="float" value="0.03"/>
 		</configure>
 		<configure component="SolARKeypointDetectorOpencv">
 			<property name="type" type="string" value="AKAZE2"/>
@@ -337,13 +347,23 @@
 		<configure component="SolARLoopClosureDetector">
 			<property name="minNbInliers" type="Integer" value="30"/>
 		</configure>
-		<configure component="SolAR2DOverlayOpencv">
+		<configure component="SolAR2DOverlayOpencv" name="GreenProperties">
 			<property name="thickness" type="UnsignedInteger" value="1"/>
 			<property name="radius" type="UnsignedInteger" value="2"/>
 			<property name="color"  type="UnsignedInteger">
 				<value>0</value>
 				<value>255</value>
 				<value>0</value>
+			</property>
+			<property name="maxMatches" type="UnsignedInteger" value="-1"/>
+		</configure>
+		<configure component="SolAR2DOverlayOpencv" name="RedProperties">
+			<property name="thickness" type="UnsignedInteger" value="1"/>
+			<property name="radius" type="UnsignedInteger" value="2"/>
+			<property name="color"  type="UnsignedInteger">
+				<value>0</value>
+				<value>0</value>
+				<value>255</value>
 			</property>
 			<property name="maxMatches" type="UnsignedInteger" value="-1"/>
 		</configure>

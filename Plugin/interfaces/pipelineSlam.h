@@ -186,6 +186,7 @@ private:
 	std::mutex											m_mutexMapping;
 
 	xpcf::DropBuffer< SRef<Image>>						m_CameraImagesBuffer;
+	xpcf::DropBuffer< SRef<Image>>						m_CameraImagesBootstrapBuffer;
 	xpcf::DropBuffer< std::pair< SRef<Image>, std::vector<Keypoint> >> m_keypointsBuffer;
 	xpcf::DropBuffer< SRef<Frame >>						m_descriptorsBuffer;
 	xpcf::DropBuffer<SRef<Frame>>						m_addKeyframeBuffer;

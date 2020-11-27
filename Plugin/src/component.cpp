@@ -216,7 +216,10 @@ void PipelineSlam::getCameraImages() {
 		m_stopFlag = true;
 		return;
 	}
-	m_CameraImagesBuffer.push(view);
+	if (m_bootstrapOk)
+		m_CameraImagesBuffer.push(view);
+	else
+		m_CameraImagesBootstrapBuffer.push(view);
 
 #ifdef USE_IMAGES_SET
 	std::this_thread::sleep_for(std::chrono::milliseconds(40));
@@ -225,7 +228,7 @@ void PipelineSlam::getCameraImages() {
 
 void PipelineSlam::doBootStrap()
 {
-	if (m_stopFlag || !m_initOK || !m_startedOK || m_bootstrapOk || !m_CameraImagesBuffer.tryPop(m_camImage)) {
+	if (m_stopFlag || !m_initOK || !m_startedOK || m_bootstrapOk || !m_CameraImagesBootstrapBuffer.tryPop(m_camImage)) {
 		xpcf::DelegateTask::yield();
 		return;
 	}
