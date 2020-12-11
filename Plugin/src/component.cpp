@@ -12,7 +12,11 @@ XPCF_DEFINE_FACTORY_CREATE_INSTANCE(SolAR::PIPELINES::PipelineSlam)
 
 namespace SolAR {
 using namespace datastructure;
+using namespace api;
 using namespace api::pipeline;
+using namespace api::source;
+using namespace api::sink;
+using namespace api::storage;
 namespace PIPELINES {
 
 PipelineSlam::PipelineSlam():ConfigurableBase(xpcf::toUUID<PipelineSlam>())
