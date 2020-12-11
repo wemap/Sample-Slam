@@ -54,7 +54,6 @@
 //#define USE_IMAGES_SET
 //#define VIDEO_INPUT
 
-
 namespace xpcf = org::bcom::xpcf;
 
 namespace SolAR {
