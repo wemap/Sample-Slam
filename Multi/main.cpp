@@ -45,7 +45,8 @@
 #include "api/slam/ITracking.h"
 #include "api/slam/IMapping.h"
 
-#define NB_NEWKEYFRAMES_LOOP 5
+#define NB_NEWKEYFRAMES_LOOP 10
+#define NB_LOCALKEYFRAMES 10
 
 using namespace SolAR;
 using namespace SolAR::datastructure;
@@ -110,7 +111,7 @@ int main(int argc, char **argv) {
 	LOG_DEBUG("Intrincic parameters : \n {}", calibration);
 
 	// get properties
-	float minWeightNeighbor = mapping->bindTo<xpcf::IConfigurable>()->getProperty("minWeightNeighbor")->getFloatingValue();
+	float minWeightNeighbor = tracking->bindTo<xpcf::IConfigurable>()->getProperty("minWeightNeighbor")->getFloatingValue();
 	float reprojErrorThreshold = mapper->bindTo<xpcf::IConfigurable>()->getProperty("reprojErrorThreshold")->getFloatingValue();
 
 	if (camera->start() != FrameworkReturnCode::_SUCCESS)
@@ -146,7 +147,7 @@ int main(int argc, char **argv) {
 	xpcf::DropBuffer<SRef<Frame>>												m_dropBufferFrameDescriptors;
 	bool stop = false;
 	bool bootstrapOk = false;
-	SRef<Keyframe> keyframe2;
+	SRef<Keyframe> keyframe2, referenceKeyframe;
 	std::vector<Transform3Df> framePoses;
 	bool isStopMapping = false;
 	int countNewKeyframes = 0;
@@ -194,6 +195,7 @@ int main(int argc, char **argv) {
 			double bundleReprojError = bundler->bundleAdjustment(calibration, distortion);
 			keyframesManager->getKeyframe(1, keyframe2);
 			tracking->updateReferenceKeyframe(keyframe2);
+			referenceKeyframe = keyframe2;
 			framePoses.push_back(keyframe2->getPose());
 			LOG_INFO("Number of initial point cloud: {}", pointCloudManager->getNbPoints());
 			LOG_INFO("Number of initial keyframes: {}", keyframesManager->getNbKeyframes());
@@ -243,6 +245,7 @@ int main(int argc, char **argv) {
 		if (m_dropBufferNewKeyframe.tryPop(newKeyframe))
 		{
 			tracking->updateReferenceKeyframe(newKeyframe);
+			referenceKeyframe = newKeyframe;
 			SRef<Frame> tmpFrame;
 			m_dropBufferAddKeyframe.tryPop(tmpFrame);
 			isStopMapping = false;
@@ -257,7 +260,6 @@ int main(int argc, char **argv) {
 			// send frame to mapping task
 			m_dropBufferAddKeyframe.push(frame);
 		}
-
 		m_dropBufferDisplay.push(displayImage);
 	};
 
@@ -273,15 +275,31 @@ int main(int argc, char **argv) {
 		if (mapping->process(frame, keyframe) == FrameworkReturnCode::_SUCCESS) {
 			LOG_DEBUG("New keyframe id: {}", keyframe->getId());
 			// Local bundle adjustment
-			std::vector<uint32_t> bestIdx;
-			covisibilityGraph->getNeighbors(keyframe->getId(), minWeightNeighbor, bestIdx);
-			bestIdx.push_back(keyframe->getId());
-			double bundleReprojError = bundler->bundleAdjustment(calibration, distortion, bestIdx);
-			mapper->pruning();
+			std::vector<uint32_t> localKfIds, bestKfIds;
+			covisibilityGraph->getNeighbors(keyframe->getId(), minWeightNeighbor, localKfIds);
+			if (localKfIds.size() < NB_LOCALKEYFRAMES)
+				bestKfIds = localKfIds;
+			else
+				bestKfIds.insert(bestKfIds.begin(), localKfIds.begin(), localKfIds.begin() + NB_LOCALKEYFRAMES);
+			bestKfIds.push_back(keyframe->getId());
+			LOG_DEBUG("Nb keyframe to local bundle: {}", bestKfIds.size());
+			double bundleReprojError = bundler->bundleAdjustment(calibration, distortion, bestKfIds);
+			// local map pruning
+			{				
+				std::vector<SRef<CloudPoint>> localPointCloud;
+				mapper->getLocalPointCloud(keyframe, 1.0, localPointCloud);
+				int nbRemovedPC = mapper->pointCloudPruning(localPointCloud);
+				//std::vector<uint32_t> idLocalKeyframes;
+				//for (const auto& it : localKfIds)
+				//	if (it != referenceKeyframe->getId())
+				//		idLocalKeyframes.push_back(it);
+				//std::vector<SRef<Keyframe>> localKeyframes;
+				//keyframesManager->getKeyframes(idLocalKeyframes, localKeyframes);
+				//int nbRemovedKf = mapper->keyframePruning(localKeyframes);
+			}
 			countNewKeyframes++;
 			m_dropBufferNewKeyframeLoop.push(keyframe);
 		}
-
 		if (keyframe) {
 			isStopMapping = true;
 			m_dropBufferNewKeyframe.push(keyframe);
@@ -310,7 +328,9 @@ int main(int argc, char **argv) {
 			// Loop optimisation
 			globalBundler->bundleAdjustment(calibration, distortion);
 			LOG_DEBUG("Global BA done");
-			mapper->pruning();
+			// map pruning
+			mapper->pointCloudPruning();
+			//mapper->keyframePruning();
 		}
 	};
 
@@ -368,7 +388,9 @@ int main(int argc, char **argv) {
 
 	// run global BA before exit
 	bundler->bundleAdjustment(calibration, distortion);
-	mapper->pruning();
+	// map pruning
+	mapper->pointCloudPruning();
+	//mapper->keyframePruning();
 	LOG_INFO("Nb keyframes of map: {}", keyframesManager->getNbKeyframes());
 	LOG_INFO("Nb cloud points of map: {}", pointCloudManager->getNbPoints());
 
