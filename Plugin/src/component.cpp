@@ -197,7 +197,7 @@ SinkReturnCode PipelineSlam::update(Transform3Df& pose)
         return m_sink->tryGet(pose);
 }
 
-CameraParameters PipelineSlam::getCameraParameters()
+CameraParameters PipelineSlam::getCameraParameters() const
 {
     CameraParameters camParam;
     if (m_camera)
