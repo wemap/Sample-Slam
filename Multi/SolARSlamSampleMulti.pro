@@ -68,8 +68,7 @@ config_files.path = $${TARGETDEPLOYDIR}
 config_files.files=$$files($${PWD}/conf_SLAM_Multi.xml)\
                     $$files($${PWD}/camera_calibration.yml)\
                     $$files($${PWD}/fiducialMarker.yml)\
-                    $$files($${PWD}/FiducialMarker.gif)\
-                    $$files($${PWD}/akaze.fbow)
+                    $$files($${PWD}/FiducialMarker.gif)
 INSTALLS += config_files
 
 OTHER_FILES += \
