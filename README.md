@@ -6,7 +6,7 @@
 The SolAR **SLAM samples** show a SolAR pipeline for augmented reality based on a SLAM (Simultaneous Localization And Mapping).
 
 
-| ![](./Multi/cube.jpg) ![](./Multi/pointcloud.jpg) | ![](./Plugin/plugin.jpg) |
+| ![](./SolARSample_SLAM_Multi/cube.jpg) ![](./SolARSample_SLAM_Multi/pointcloud.jpg) | ![](./SolARPipeline_SLAM/plugin.jpg) |
 |:-:|:-:|
 | StandAlone/Multithread | Plugin | 
 
