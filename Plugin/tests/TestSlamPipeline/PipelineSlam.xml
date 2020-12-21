@@ -230,6 +230,7 @@
 			<!--bind interface="ICamera" to="SolARVideoAsCameraOpencv"/-->
 			<bind interface="IDescriptorsExtractor" to="SolARDescriptorsExtractorAKAZE2Opencv"/>
 			<bind interface="IBundler" to="SolAROptimizationG2O"/>
+			<bind interface="IBundler" to="SolAROptimizationG2O" name="GlobalBA"/>
 			<bind interface="IDescriptorMatcher" to="SolARDescriptorMatcherKNNOpencv" />
 			<bind interface="IKeyframeSelector" to="SolARKeyframeSelector"/>
 			<bind interface="IMapper" to="SolARMapper" scope="Singleton"/>
@@ -247,8 +248,7 @@
 				<bind interface="IKeyframeSelector" to="SolARKeyframeSelector" properties="BootstrapProperties"/>
 			</inject>
 			<inject to="PipelineSlam">
-				<bind interface="IImageConvertor" to="SolARImageConvertorUnity"/>
-				<bind interface="IBundler" to="SolAROptimizationG2O" name="GlobalBA"/>
+				<bind interface="IImageConvertor" to="SolARImageConvertorUnity"/>				
 			</inject>
 		</injects>
 	</factory>
