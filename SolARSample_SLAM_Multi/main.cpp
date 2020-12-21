@@ -67,7 +67,7 @@ int main(int argc, char **argv) {
 	/* this is needed in dynamic mode */
 	SRef<xpcf::IComponentManager> xpcfComponentManager = xpcf::getComponentManagerInstance();
 
-	std::string configxml = std::string("conf_SLAM_Multi.xml");
+    std::string configxml = std::string("SolARSample_SLAM_Multi_conf.xml");
 	if (argc == 2)
 		configxml = std::string(argv[1]);
 	if (xpcfComponentManager->load(configxml.c_str()) != org::bcom::xpcf::_SUCCESS)

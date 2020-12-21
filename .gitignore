@@ -92,3 +92,4 @@ Release/
 *.pc
 *.sln
 *aps
+build*
