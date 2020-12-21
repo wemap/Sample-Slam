@@ -31,15 +31,18 @@ using namespace SolAR::api;
 using namespace SolAR::api::sink;
 using namespace SolAR::datastructure;
 
-int main(){
+int main(int argc, char **argv){
 #if NDEBUG
     boost::log::core::get()->set_logging_enabled(false);
 #endif
 
     LOG_ADD_LOG_TO_CONSOLE();
     try{
+		std::string configxml = std::string("PipelineSlam.xml");
+		if (argc == 2)
+			configxml = std::string(argv[1]);
         SRef<xpcf::IComponentManager> componentMgr = xpcf::getComponentManagerInstance();
-        xpcf::XPCFErrorCode errorLoad = componentMgr->load("PipelineSlam.xml");
+        xpcf::XPCFErrorCode errorLoad = componentMgr->load(configxml.c_str());
         if (errorLoad != xpcf::_SUCCESS)
         {
             LOG_ERROR("The file PipelineSlam.xml has an error");
