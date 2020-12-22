@@ -20,7 +20,7 @@
 #include <set>
 #include <cmath>
 #include <boost/log/core.hpp>
-// ADD XPCF HEADERS HERE
+ // ADD XPCF HEADERS HERE
 #include "xpcf/xpcf.h"
 #include "xpcf/threading/BaseTask.h"
 #include "xpcf/threading/DropBuffer.h"
@@ -121,36 +121,6 @@ int main(int argc, char **argv) {
 		return -1;
 	}
 
-	// Load map from file
-	bool stop = false;
-	SRef<Keyframe> keyframe2;
-	if (mapper->loadFromFile() == FrameworkReturnCode::_SUCCESS) {
-		LOG_INFO("Load map done!");
-		keyframesManager->getKeyframe(0, keyframe2);
-	}
-	else {
-		LOG_INFO("Initialization from scratch");
-		bool bootstrapOk = false;
-		while (!bootstrapOk) {
-			SRef<Image> image, view;
-			camera->getNextImage(image);
-			Transform3Df pose = Transform3Df::Identity();
-			fiducialMarkerPoseEstimator->estimate(image, pose);
-			if (bootstrapper->process(image, view, pose) == FrameworkReturnCode::_SUCCESS) {
-				double bundleReprojError = bundler->bundleAdjustment(calibration, distortion);
-				bootstrapOk = true;
-			}
-			if (!pose.isApprox(Transform3Df::Identity()))
-				overlay3D->draw(pose, view);
-			if (imageViewer->display(view) == SolAR::FrameworkReturnCode::_STOP)
-				return 1;
-		}
-		keyframesManager->getKeyframe(1, keyframe2);
-	}
-
-	LOG_INFO("Number of initial point cloud: {}", pointCloudManager->getNbPoints());
-	LOG_INFO("Number of initial keyframes: {}", keyframesManager->getNbKeyframes());
-
 	// display point cloud function
 	auto fnDisplay = [&keyframesManager, &pointCloudManager, &viewer3DPoints](const std::vector<Transform3Df>& framePoses) {
 		// get all keyframes and point cloud
@@ -168,20 +138,33 @@ int main(int argc, char **argv) {
 			return true;
 	};
 
-	// Prepare for tracking
-	tracking->updateReferenceKeyframe(keyframe2);
-
-	// init display point cloud
-	fnDisplay({ keyframe2->getPose() });
-
 	xpcf::DropBuffer<SRef<Image>>												m_dropBufferCamImageCapture;
+	xpcf::DropBuffer<SRef<Image>>												m_dropBufferCamImageCaptureBootstrap;
 	xpcf::DropBuffer<SRef<Frame>>												m_dropBufferAddKeyframe;
 	xpcf::DropBuffer<SRef<Keyframe>>											m_dropBufferNewKeyframe;
 	xpcf::DropBuffer<SRef<Keyframe>>											m_dropBufferNewKeyframeLoop;
 	xpcf::DropBuffer<SRef<Image>>												m_dropBufferDisplay;
 	xpcf::DropBuffer< std::pair<SRef<Image>, std::vector<Keypoint>>>			m_dropBufferKeypoints;
 	xpcf::DropBuffer<SRef<Frame>>												m_dropBufferFrameDescriptors;
+	bool stop = false;
+	bool bootstrapOk = false;
+	SRef<Keyframe> keyframe2;
+	std::vector<Transform3Df> framePoses;
+	bool isStopMapping = false;
+	int countNewKeyframes = 0;
 
+	// Load map from file		
+	if (mapper->loadFromFile() == FrameworkReturnCode::_SUCCESS) {
+		LOG_INFO("Load map done!");
+		keyframesManager->getKeyframe(0, keyframe2);
+		tracking->updateReferenceKeyframe(keyframe2);
+		framePoses.push_back(keyframe2->getPose());
+		LOG_INFO("Number of initial point cloud: {}", pointCloudManager->getNbPoints());
+		LOG_INFO("Number of initial keyframes: {}", keyframesManager->getNbKeyframes());
+		bootstrapOk = true;
+	}
+	else
+		LOG_INFO("Initialization from scratch");
 
 	// Camera image capture task
 	auto fnCamImageCapture = [&]()
@@ -192,7 +175,35 @@ int main(int argc, char **argv) {
 			stop = true;
 			return;
 		}
-		m_dropBufferCamImageCapture.push(view);
+		if (bootstrapOk)
+			m_dropBufferCamImageCapture.push(view);
+		else
+			m_dropBufferCamImageCaptureBootstrap.push(view);
+	};
+
+	// Bootstrap task
+	auto fnBootstrap = [&]()
+	{
+		SRef<Image> image;
+		if (bootstrapOk || !m_dropBufferCamImageCaptureBootstrap.tryPop(image)) {
+			xpcf::DelegateTask::yield();
+			return;
+		}
+		SRef<Image> view;
+		Transform3Df pose = Transform3Df::Identity();
+		fiducialMarkerPoseEstimator->estimate(image, pose);
+		if (bootstrapper->process(image, view, pose) == FrameworkReturnCode::_SUCCESS) {
+			double bundleReprojError = bundler->bundleAdjustment(calibration, distortion);
+			keyframesManager->getKeyframe(1, keyframe2);
+			tracking->updateReferenceKeyframe(keyframe2);
+			framePoses.push_back(keyframe2->getPose());
+			LOG_INFO("Number of initial point cloud: {}", pointCloudManager->getNbPoints());
+			LOG_INFO("Number of initial keyframes: {}", keyframesManager->getNbKeyframes());
+			bootstrapOk = true;
+		}
+		if (!pose.isApprox(Transform3Df::Identity()))
+			overlay3D->draw(pose, view);
+		m_dropBufferDisplay.push(view);
 	};
 
 	// Keypoint detection task
@@ -222,14 +233,11 @@ int main(int argc, char **argv) {
 		m_dropBufferFrameDescriptors.push(frame);
 	};
 
-	// Tracking task	
-	std::vector<Transform3Df>   framePoses{keyframe2->getPose()};
-	int count = 0;
-	bool isStopMapping = false;
+	// Tracking task		
 	auto fnTracking = [&]()
 	{
 		SRef<Frame> frame;
-		if (!m_dropBufferFrameDescriptors.tryPop(frame)) {
+		if (!bootstrapOk || !m_dropBufferFrameDescriptors.tryPop(frame)) {
 			xpcf::DelegateTask::yield();
 			return;
 		}
@@ -252,18 +260,10 @@ int main(int argc, char **argv) {
 			m_dropBufferAddKeyframe.push(frame);
 		}
 
-		if (imageViewer->display(displayImage) == SolAR::FrameworkReturnCode::_STOP) {
-			stop = true;
-		}
-
-		// display point cloud
-		if (!fnDisplay(framePoses))
-			stop = true;
-		++count;
+		m_dropBufferDisplay.push(displayImage);
 	};
 
-	// check need new keyframe
-	int countNewKeyframes = 0;
+	// check need new keyframe	
 	auto fnMapping = [&]()
 	{
 		SRef<Frame> frame;
@@ -275,8 +275,12 @@ int main(int argc, char **argv) {
 		if (mapping->process(frame, keyframe) == FrameworkReturnCode::_SUCCESS) {
 			LOG_DEBUG("New keyframe id: {}", keyframe->getId());
 			// Local bundle adjustment
-			std::vector<uint32_t> bestIdx;
-			covisibilityGraph->getNeighbors(keyframe->getId(), minWeightNeighbor, bestIdx);
+			std::vector<uint32_t> bestIdx, bestIdxToOptimize;
+			covisibilityGraph->getNeighbors(keyframe->getId(), minWeightNeighbor+10, bestIdx);
+			if (bestIdx.size() < 10)
+				bestIdxToOptimize.swap(bestIdx);
+			else
+				bestIdxToOptimize.insert(bestIdxToOptimize.begin(), bestIdx.begin(), bestIdx.begin() + 10);
 			bestIdx.push_back(keyframe->getId());
 			double bundleReprojError = bundler->bundleAdjustment(calibration, distortion, bestIdx);
 			mapper->pruning();
@@ -307,7 +311,7 @@ int main(int argc, char **argv) {
 			// detected loop keyframe
 			LOG_INFO("Detected loop keyframe id: {}", detectedLoopKeyframe->getId());
 			// performs loop correction 			
-			loopCorrector->correct(lastKeyframe, detectedLoopKeyframe, sim3Transform, duplicatedPointsIndices);	
+			loopCorrector->correct(lastKeyframe, detectedLoopKeyframe, sim3Transform, duplicatedPointsIndices);
 			countNewKeyframes = 0;
 			// Loop optimisation
 			globalBundler->bundleAdjustment(calibration, distortion);
@@ -318,37 +322,55 @@ int main(int argc, char **argv) {
 
 	// instantiate and start tasks
 	xpcf::DelegateTask taskCamImageCapture(fnCamImageCapture);
-    xpcf::DelegateTask taskDetection(fnDetection);
-    xpcf::DelegateTask taskExtraction(fnExtraction);
+	xpcf::DelegateTask taskBootstrap(fnBootstrap);
+	xpcf::DelegateTask taskDetection(fnDetection);
+	xpcf::DelegateTask taskExtraction(fnExtraction);
+	xpcf::DelegateTask taskTracking(fnTracking);
 	xpcf::DelegateTask taskMapping(fnMapping);
 	xpcf::DelegateTask taskLoopClosure(fnLoopClosure);
 
 	taskCamImageCapture.start();
-    taskDetection.start();
-    taskExtraction.start();
+	taskBootstrap.start();
+	taskDetection.start();
+	taskExtraction.start();
+	taskTracking.start();
 	taskMapping.start();
 	taskLoopClosure.start();
 
 	// Start tracking
-	clock_t start, end;		
+	clock_t start, end;
 	start = clock();
+	int count(0);
 	while (!stop)
 	{
-        fnTracking();
+		SRef<Image> displayImage;
+		if (!m_dropBufferDisplay.tryPop(displayImage)) {
+			xpcf::DelegateTask::yield();
+			continue;
+		}
+		if (imageViewer->display(displayImage) == SolAR::FrameworkReturnCode::_STOP)
+			stop = true;
+		if (bootstrapOk) {
+			if (!fnDisplay(framePoses))
+				stop = true;
+		}
+		++count;
 	}
 
 	// Stop tasks
 	taskCamImageCapture.stop();
-    taskDetection.stop();
-    taskExtraction.stop();
-	taskMapping.stop();	
+	taskBootstrap.stop();
+	taskDetection.stop();
+	taskExtraction.stop();
+	taskTracking.stop();
+	taskMapping.stop();
 	taskLoopClosure.stop();
 
 	// display stats on frame rate
 	end = clock();
 	double duration = double(end - start) / CLOCKS_PER_SEC;
 	printf("\n\nElasped time is %.2lf seconds.\n", duration);
-	printf("Number of processed frame per second : %8.2f\n", count / duration);	
+	printf("Number of processed frame per second : %8.2f\n", count / duration);
 
 	// run global BA before exit
 	bundler->bundleAdjustment(calibration, distortion);
