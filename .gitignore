@@ -95,3 +95,4 @@ Release/
 build*
 data/akaze.fbow
 data/rgbd_dataset_freiburg3_long_office_household_validation-rgb.avi
+*.fbow

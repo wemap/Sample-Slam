@@ -38,7 +38,7 @@ int main(int argc, char **argv){
 
     LOG_ADD_LOG_TO_CONSOLE();
     try{
-		std::string configxml = std::string("PipelineSlam.xml");
+		std::string configxml = std::string("SolARPipelineTest_SLAM_conf.xml");
 		if (argc == 2)
 			configxml = std::string(argv[1]);
         SRef<xpcf::IComponentManager> componentMgr = xpcf::getComponentManagerInstance();
