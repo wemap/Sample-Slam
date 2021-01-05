@@ -32,6 +32,7 @@
 #include "api/storage/IPointCloudManager.h"
 #include "api/solver/pose/IFiducialMarkerPose.h"
 #include "api/solver/map/IBundler.h"
+#include "api/geom/IUndistortPoints.h"
 #include "api/loop/ILoopClosureDetector.h"
 #include "api/loop/ILoopCorrector.h"
 #include "api/slam/IBootstrapper.h"
@@ -129,25 +130,26 @@ private:
 	std::mutex globalVarsMutex;
 
 	// storage components
-	SRef<api::storage::IPointCloudManager>							m_pointCloudManager;
-	SRef<api::storage::IKeyframesManager>								m_keyframesManager;
-	SRef<api::storage::ICovisibilityGraph>							m_covisibilityGraph;
-	SRef<api::reloc::IKeyframeRetriever>						m_kfRetriever;
-	SRef<api::solver::map::IMapper>							m_mapper;
+	SRef<api::storage::IPointCloudManager>				m_pointCloudManager;
+	SRef<api::storage::IKeyframesManager>				m_keyframesManager;
+	SRef<api::storage::ICovisibilityGraph>				m_covisibilityGraph;
+	SRef<api::reloc::IKeyframeRetriever>				m_kfRetriever;
+	SRef<api::solver::map::IMapper>						m_mapper;
 
 	// components
-    SRef<api::input::devices::ICamera>						m_camera;
-	SRef<api::image::IImageConvertor>						m_imageConvertorUnity;
-    SRef<api::features::IKeypointDetector>					m_keypointsDetector;
-    SRef<api::features::IDescriptorsExtractor>				m_descriptorExtractor;
-	SRef<api::solver::map::IBundler>							m_bundler;
-	SRef<api::solver::map::IBundler>							m_globalBundler;
-	SRef<api::solver::pose::IFiducialMarkerPose>				m_fiducialMarkerPoseEstimator;
-	SRef<api::loop::ILoopClosureDetector>					m_loopDetector;
-	SRef<api::loop::ILoopCorrector>							m_loopCorrector;
-	SRef<api::slam::IBootstrapper>							m_bootstrapper;
-	SRef<api::slam::ITracking>								m_tracking;
-	SRef<api::slam::IMapping>								m_mapping;
+    SRef<api::input::devices::ICamera>					m_camera;
+	SRef<api::image::IImageConvertor>					m_imageConvertorUnity;
+    SRef<api::features::IKeypointDetector>				m_keypointsDetector;
+    SRef<api::features::IDescriptorsExtractor>			m_descriptorExtractor;
+	SRef<api::solver::map::IBundler>					m_bundler;
+	SRef<api::solver::map::IBundler>					m_globalBundler;
+	SRef<api::solver::pose::IFiducialMarkerPose>		m_fiducialMarkerPoseEstimator;
+	SRef<api::loop::ILoopClosureDetector>				m_loopDetector;
+	SRef<api::loop::ILoopCorrector>						m_loopCorrector;
+	SRef<api::geom::IUndistortPoints>					m_undistortKeypoints;
+	SRef<api::slam::IBootstrapper>						m_bootstrapper;
+	SRef<api::slam::ITracking>							m_tracking;
+	SRef<api::slam::IMapping>							m_mapping;
 
     // display stuff
     SRef<api::display::I2DOverlay>						m_i2DOverlay;
@@ -156,9 +158,9 @@ private:
 #ifdef USE_OPENGL
     SRef<sink::ISinkPoseTextureBuffer>					m_sink;
 #else
-    SRef<api::sink::ISinkPoseImage>							m_sink;
+    SRef<api::sink::ISinkPoseImage>						m_sink;
 #endif   
-	SRef<api::source::ISourceImage>							m_source;
+	SRef<api::source::ISourceImage>						m_source;
 
 	// SLAM variables
 	datastructure::Transform3Df							m_pose;

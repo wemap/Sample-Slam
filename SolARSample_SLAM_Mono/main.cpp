@@ -40,6 +40,7 @@
 #include "api/loop/ILoopCorrector.h"
 #include "api/solver/pose/IFiducialMarkerPose.h"
 #include "api/solver/map/IBundler.h"
+#include "api/geom/IUndistortPoints.h"
 #include "api/slam/IBootstrapper.h"
 #include "api/slam/ITracking.h"
 #include "api/slam/IMapping.h"
@@ -106,6 +107,8 @@ int main(int argc, char **argv) {
 	auto fiducialMarkerPoseEstimator = xpcfComponentManager->resolve<solver::pose::IFiducialMarkerPose>();
 	LOG_INFO("Resolving bundle adjustment");
 	auto bundler = xpcfComponentManager->resolve<api::solver::map::IBundler>();
+	LOG_INFO("Resolving undistort points");
+	auto undistortKeypoints = xpcfComponentManager->resolve<api::geom::IUndistortPoints>();
 	LOG_INFO("Resolving bootstrapper");
 	auto bootstrapper = xpcfComponentManager->resolve<slam::IBootstrapper>();
 	LOG_INFO("Resolving tracking");
@@ -124,6 +127,7 @@ int main(int argc, char **argv) {
 	bootstrapper->setCameraParameters(calibration, distortion);
 	tracking->setCameraParameters(calibration, distortion);
 	mapping->setCameraParameters(calibration, distortion);
+	undistortKeypoints->setCameraParameters(calibration, distortion);
     LOG_DEBUG("Intrincic parameters : \n {}", calibration);
 	// get properties
 	float minWeightNeighbor = mapping->bindTo<xpcf::IConfigurable>()->getProperty("minWeightNeighbor")->getFloatingValue();
@@ -162,7 +166,7 @@ int main(int argc, char **argv) {
 	}
 	
 	LOG_INFO("Number of initial point cloud: {}", pointCloudManager->getNbPoints());
-	LOG_INFO("Number of initial keyframes: {}", keyframesManager->getNbKeyframes());	
+	LOG_INFO("Number of initial keyframes: {}", keyframesManager->getNbKeyframes());
 
 	// display point cloud function
 	auto fnDisplay = [&keyframesManager, &pointCloudManager, &viewer3DPoints](const std::vector<Transform3Df>& framePoses) {
@@ -196,7 +200,7 @@ int main(int argc, char **argv) {
 	while (true)
 	{
 		SRef<Image>											view, displayImage;
-		std::vector<Keypoint>								keypoints;
+		std::vector<Keypoint>								keypoints, undistortedKeypoints;
 		SRef<DescriptorBuffer>                              descriptors;	
 		SRef<Frame>                                         frame;
 		SRef<Keyframe>										keyframe;
@@ -208,8 +212,10 @@ int main(int argc, char **argv) {
 		LOG_DEBUG("Number of keypoints: {}", keypoints.size());
 		if (keypoints.size() == 0)
 			continue;
-		descriptorExtractor->extract(view, keypoints, descriptors);		
-		frame = xpcf::utils::make_shared<Frame>(keypoints, descriptors, view);
+		descriptorExtractor->extract(view, keypoints, descriptors);	
+		// undistort keypoints
+		undistortKeypoints->undistort(keypoints, undistortedKeypoints);
+		frame = xpcf::utils::make_shared<Frame>(keypoints, undistortedKeypoints, descriptors, view);
 
 		// tracking
 		if (tracking->process(frame, displayImage) == FrameworkReturnCode::_SUCCESS) {
@@ -221,11 +227,15 @@ int main(int argc, char **argv) {
 			if (mapping->process(frame, keyframe) == FrameworkReturnCode::_SUCCESS) {
 				LOG_DEBUG("New keyframe id: {}", keyframe->getId());
 				// Local bundle adjustment
-				std::vector<uint32_t> bestIdx;
+				std::vector<uint32_t> bestIdx, bestIdxToOptimize;
 				covisibilityGraph->getNeighbors(keyframe->getId(), minWeightNeighbor, bestIdx);
+				if (bestIdx.size() < 10)
+					bestIdxToOptimize.swap(bestIdx);
+				else
+					bestIdxToOptimize.insert(bestIdxToOptimize.begin(), bestIdx.begin(), bestIdx.begin() + 10);
 				bestIdx.push_back(keyframe->getId());
 				LOG_DEBUG("Nb keyframe to local bundle: {}", bestIdx.size());
-				double bundleReprojError = bundler->bundleAdjustment(calibration, distortion, bestIdx);				
+				double bundleReprojError = bundler->bundleAdjustment(calibration, distortion, bestIdx);					
 				// loop closure
 				countNewKeyframes++;
 				if (countNewKeyframes >= NB_NEWKEYFRAMES_LOOP) {					

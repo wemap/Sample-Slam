@@ -39,6 +39,7 @@
 #include "api/storage/IPointCloudManager.h"
 #include "api/solver/pose/IFiducialMarkerPose.h"
 #include "api/solver/map/IBundler.h"
+#include "api/geom/IUndistortPoints.h"
 #include "api/loop/ILoopClosureDetector.h"
 #include "api/loop/ILoopCorrector.h"
 #include "api/slam/IBootstrapper.h"
@@ -91,6 +92,7 @@ int main(int argc, char **argv) {
 	auto fiducialMarkerPoseEstimator = xpcfComponentManager->resolve<solver::pose::IFiducialMarkerPose>();
 	auto bundler = xpcfComponentManager->resolve<api::solver::map::IBundler>();
 	auto globalBundler = xpcfComponentManager->resolve<api::solver::map::IBundler>();
+	auto undistortKeypoints = xpcfComponentManager->resolve<api::geom::IUndistortPoints>();
 	auto loopDetector = xpcfComponentManager->resolve<loop::ILoopClosureDetector>();
 	auto loopCorrector = xpcfComponentManager->resolve<loop::ILoopCorrector>();
 	auto overlay3D = xpcfComponentManager->resolve<display::I3DOverlay>();
@@ -106,9 +108,10 @@ int main(int argc, char **argv) {
 	loopDetector->setCameraParameters(calibration, distortion);
 	loopCorrector->setCameraParameters(calibration, distortion);
 	fiducialMarkerPoseEstimator->setCameraParameters(calibration, distortion);
+	undistortKeypoints->setCameraParameters(calibration, distortion);
 	bootstrapper->setCameraParameters(calibration, distortion);
 	tracking->setCameraParameters(calibration, distortion);
-	mapping->setCameraParameters(calibration, distortion);
+	mapping->setCameraParameters(calibration, distortion);	
 	LOG_DEBUG("Intrincic parameters : \n {}", calibration);
 
 	// get properties
@@ -215,7 +218,7 @@ int main(int argc, char **argv) {
 			return;
 		}
 		std::vector<Keypoint> keypoints;
-		keypointsDetector->detect(frame, keypoints);
+		keypointsDetector->detect(frame, keypoints);		
 		m_dropBufferKeypoints.push(std::make_pair(frame, keypoints));
 	};
 
@@ -227,9 +230,11 @@ int main(int argc, char **argv) {
 			xpcf::DelegateTask::yield();
 			return;
 		}
+		std::vector<Keypoint> undistortedKeypoints;
+		undistortKeypoints->undistort(frameKeypoints.second, undistortedKeypoints);
 		SRef<DescriptorBuffer> descriptors;
 		descriptorExtractor->extract(frameKeypoints.first, frameKeypoints.second, descriptors);
-		SRef<Frame> frame = xpcf::utils::make_shared<Frame>(frameKeypoints.second, descriptors, frameKeypoints.first);
+		SRef<Frame> frame = xpcf::utils::make_shared<Frame>(frameKeypoints.second, undistortedKeypoints, descriptors, frameKeypoints.first);
 		m_dropBufferFrameDescriptors.push(frame);
 	};
 
