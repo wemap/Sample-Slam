@@ -315,11 +315,15 @@ void PipelineSlam::mapping()
 	if (m_mapping->process(newFrame, keyframe) == FrameworkReturnCode::_SUCCESS) {
 		LOG_DEBUG("New keyframe id: {}", keyframe->getId());
 		// Local bundle adjustment
-		std::vector<uint32_t> bestIdx;
+		std::vector<uint32_t> bestIdx, bestIdxToOptimize;
 		m_covisibilityGraph->getNeighbors(keyframe->getId(), m_minWeightNeighbor, bestIdx);
-		bestIdx.push_back(keyframe->getId());
+		if (bestIdx.size() < 10)
+			bestIdxToOptimize.swap(bestIdx);
+		else
+			bestIdxToOptimize.insert(bestIdxToOptimize.begin(), bestIdx.begin(), bestIdx.begin() + 10);
+		bestIdxToOptimize.push_back(keyframe->getId());
 		LOG_DEBUG("Nb keyframe to local bundle: {}", bestIdx.size());
-		double bundleReprojError = m_bundler->bundleAdjustment(m_calibration, m_distortion, bestIdx);
+		double bundleReprojError = m_bundler->bundleAdjustment(m_calibration, m_distortion, bestIdxToOptimize);
 		m_mapper->pruning();
 		m_countNewKeyframes++;
 		m_newKeyframeLoopBuffer.push(keyframe);

@@ -276,13 +276,13 @@ int main(int argc, char **argv) {
 			LOG_DEBUG("New keyframe id: {}", keyframe->getId());
 			// Local bundle adjustment
 			std::vector<uint32_t> bestIdx, bestIdxToOptimize;
-			covisibilityGraph->getNeighbors(keyframe->getId(), minWeightNeighbor+10, bestIdx);
+			covisibilityGraph->getNeighbors(keyframe->getId(), minWeightNeighbor, bestIdx);
 			if (bestIdx.size() < 10)
 				bestIdxToOptimize.swap(bestIdx);
 			else
 				bestIdxToOptimize.insert(bestIdxToOptimize.begin(), bestIdx.begin(), bestIdx.begin() + 10);
-			bestIdx.push_back(keyframe->getId());
-			double bundleReprojError = bundler->bundleAdjustment(calibration, distortion, bestIdx);
+			bestIdxToOptimize.push_back(keyframe->getId());
+			double bundleReprojError = bundler->bundleAdjustment(calibration, distortion, bestIdxToOptimize);
 			mapper->pruning();
 			countNewKeyframes++;
 			m_dropBufferNewKeyframeLoop.push(keyframe);

@@ -221,11 +221,15 @@ int main(int argc, char **argv) {
 			if (mapping->process(frame, keyframe) == FrameworkReturnCode::_SUCCESS) {
 				LOG_DEBUG("New keyframe id: {}", keyframe->getId());
 				// Local bundle adjustment
-				std::vector<uint32_t> bestIdx;
+				std::vector<uint32_t> bestIdx, bestIdxToOptimize;
 				covisibilityGraph->getNeighbors(keyframe->getId(), minWeightNeighbor, bestIdx);
-				bestIdx.push_back(keyframe->getId());
-				LOG_DEBUG("Nb keyframe to local bundle: {}", bestIdx.size());
-				double bundleReprojError = bundler->bundleAdjustment(calibration, distortion, bestIdx);				
+				if (bestIdx.size() < 10)
+					bestIdxToOptimize.swap(bestIdx);
+				else
+					bestIdxToOptimize.insert(bestIdxToOptimize.begin(), bestIdx.begin(), bestIdx.begin() + 10);
+				bestIdxToOptimize.push_back(keyframe->getId());
+				LOG_DEBUG("Nb keyframe to local bundle: {}", bestIdxToOptimize.size());
+				double bundleReprojError = bundler->bundleAdjustment(calibration, distortion, bestIdxToOptimize);
 				// loop closure
 				countNewKeyframes++;
 				if (countNewKeyframes >= NB_NEWKEYFRAMES_LOOP) {					
