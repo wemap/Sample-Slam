@@ -233,9 +233,9 @@ int main(int argc, char **argv) {
 					bestIdxToOptimize.swap(bestIdx);
 				else
 					bestIdxToOptimize.insert(bestIdxToOptimize.begin(), bestIdx.begin(), bestIdx.begin() + 10);
-				bestIdx.push_back(keyframe->getId());
-				LOG_DEBUG("Nb keyframe to local bundle: {}", bestIdx.size());
-				double bundleReprojError = bundler->bundleAdjustment(calibration, distortion, bestIdx);					
+				bestIdxToOptimize.push_back(keyframe->getId());
+				LOG_DEBUG("Nb keyframe to local bundle: {}", bestIdxToOptimize.size());
+				double bundleReprojError = bundler->bundleAdjustment(calibration, distortion, bestIdxToOptimize);
 				// loop closure
 				countNewKeyframes++;
 				if (countNewKeyframes >= NB_NEWKEYFRAMES_LOOP) {					
