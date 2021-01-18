@@ -9,5 +9,5 @@ curl https://vision.in.tum.de/rgbd/dataset/freiburg3/rgbd_dataset_freiburg3_long
 
 
 :: Install required external modules
-remaken install packagedependencies_modules.txt
-remaken install packagedependencies_modules.txt -c debug
+remaken install packagedependencies.txt
+remaken install packagedependencies.txt -c debug
