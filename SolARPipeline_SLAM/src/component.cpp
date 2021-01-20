@@ -56,7 +56,7 @@ PipelineSlam::~PipelineSlam()
      LOG_DEBUG(" Pipeline destructor")
 }
 
-FrameworkReturnCode PipelineSlam::init(SRef<xpcf::IComponentManager> xpcfComponentManager)
+FrameworkReturnCode PipelineSlam::init()
 {    
     // component creation
     try {
