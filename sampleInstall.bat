@@ -1,7 +1,7 @@
 @echo off
 :: Download bag of words vocabulary
 curl https://github.com/SolarFramework/SolARModuleFBOW/releases/download/fbowVocabulary/fbow_voc.zip -L -o fbow_voc.zip
-powershell Expand-Archive fbow_voc.zip -DestinationPath .\data\fbow_voc -F
+powershell Expand-Archive fbow_voc.zip -DestinationPath .\data -F
 del fbow_voc.zip
 
 :: Download  captures
