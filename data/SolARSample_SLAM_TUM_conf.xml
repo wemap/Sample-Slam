@@ -295,7 +295,7 @@
 			<property name="distanceRatio" type="Float" value="0.9"/>
 		</configure>
 		<configure component="SolARDescriptorMatcherRadiusOpencv">
-			<property name="distanceRatio" type="Float" value="0.9"/>
+			<property name="maxDistance" type="Float" value="0.9"/>
 		</configure>
 		<configure component="SolARPoseFinderFrom2D2DOpencv">
 			<property name="confidence" type="Float" value="0.99"/>
