@@ -59,6 +59,34 @@ namespace xpcf = org::bcom::xpcf;
 namespace SolAR {
 namespace PIPELINES {
 
+/**
+ * @class PipelineSlam
+ * @brief A pipeline for SLAM.
+ *
+ * @SolARComponentInjectablesBegin
+ * @SolARComponentInjectable{SolAR::api::input::devices::ICamera}
+ * @SolARComponentInjectable{SolAR::api::storage::IPointCloudManager}
+ * @SolARComponentInjectable{SolAR::api::storage::IKeyframesManager}
+ * @SolARComponentInjectable{SolAR::api::storage::ICovisibilityGraph}
+ * @SolARComponentInjectable{SolAR::api::reloc::IKeyframeRetriever}
+ * @SolARComponentInjectable{SolAR::api::solver::map::IMapper}
+ * @SolARComponentInjectable{SolAR::api::solver::map::IBundler}
+ * @SolARComponentInjectable{SolAR::api::solver::map::IBundler}
+ * @SolARComponentInjectable{SolAR::api::features::IKeypointDetector}
+ * @SolARComponentInjectable{SolAR::api::features::IDescriptorsExtractor}
+ * @SolARComponentInjectable{SolAR::api::solver::pose::IFiducialMarkerPose}
+ * @SolARComponentInjectable{SolAR::api::image::IImageConvertor}
+ * @SolARComponentInjectable{SolAR::api::loop::ILoopClosureDetector}
+ * @SolARComponentInjectable{SolAR::api::loop::ILoopCorrector}
+ * @SolARComponentInjectable{SolAR::api::slam::IBootstrapper}
+ * @SolARComponentInjectable{SolAR::api::slam::ITracking}
+ * @SolARComponentInjectable{SolAR::api::slam::IMapping}
+ * @SolARComponentInjectable{SolAR::api::sink::ISinkPoseImage}
+ * @SolARComponentInjectable{SolAR::api::source::ISourceImage}
+ * @SolARComponentInjectablesEnd
+ *
+ */
+
 class SOLARPIPELINESLAM_EXPORT_API PipelineSlam : public org::bcom::xpcf::ConfigurableBase,
     public api::pipeline::IPoseEstimationPipeline
 {
