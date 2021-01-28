@@ -266,7 +266,7 @@
 		<configure component="SolARVideoAsCameraOpencv">
 			<property name="calibrationFile" type="string" value="path to calibration file"/>
 			<property name="videoPath" type="string" value="path to video"/>
-			<property name="delayTime" type="Integer" value="30"/>
+			<property name="delayTime" type="int" value="30"/>
 		</configure>
 		<configure component="SolARSLAMBootstrapper">
 			<property name="hasPose" type="int" value="1"/>
