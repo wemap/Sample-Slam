@@ -108,8 +108,12 @@ FrameworkReturnCode PipelineSlam::start(void* imageDataBuffer)
 	// Load map from file
 	if (m_mapper->loadFromFile() == FrameworkReturnCode::_SUCCESS) {
 		LOG_INFO("Load map done!");
+
+		if (m_keyframesManager->getKeyframe(0, m_keyframe2) != FrameworkReturnCode::_SUCCESS)
+		{
+			return FrameworkReturnCode::_ERROR_;
+		}
 		m_bootstrapOk = true;
-		m_keyframesManager->getKeyframe(0, m_keyframe2);
 		m_tracking->updateReferenceKeyframe(m_keyframe2);
 	}
 	else
