@@ -274,7 +274,7 @@
 		</configure>
 		<configure component="SolARSLAMBootstrapper">
 			<property name="hasPose" type="int" value="0"/>
-			<property name="nbMinInitPointCloud" type="int" value="50"/>
+			<property name="nbMinInitPointCloud" type="int" value="100"/>
 			<property name="angleThres" type="float" value="0.05"/>
 		</configure>
 		<configure component="SolARSLAMTracking">
