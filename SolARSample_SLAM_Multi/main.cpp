@@ -134,7 +134,8 @@ int main(int argc, char **argv) {
             std::vector<SRef<CloudPoint>> pointCloud;
             pointCloudManager->getAllPoints(pointCloud);
             // display point cloud
-            if (viewer3DPoints->display(pointCloud, framePoses.back(), keyframePoses, framePoses) == FrameworkReturnCode::_STOP)
+            if (framePoses.size() == 0
+                || viewer3DPoints->display(pointCloud, framePoses.back(), keyframePoses, framePoses) == FrameworkReturnCode::_STOP)
                 return false;
             else
                 return true;
@@ -155,10 +156,24 @@ int main(int argc, char **argv) {
         bool isStopMapping = false;
         int countNewKeyframes = 0;
 
+
         // Load map from file
-        if (mapper->loadFromFile() == FrameworkReturnCode::_SUCCESS) {
+        if (mapper->loadFromFile() == FrameworkReturnCode::_SUCCESS)
+        {
             LOG_INFO("Load map done!");
-            keyframesManager->getKeyframe(0, keyframe2);
+        }
+        else
+        {
+            LOG_WARNING("Failed to load map from file");
+        }
+
+        if (pointCloudManager->getNbPoints() > 0)
+        {
+            // Map loaded from file and not empty
+            if (keyframesManager->getKeyframe(0, keyframe2) != FrameworkReturnCode::_SUCCESS)
+            {
+                return -1; //FrameworkReturnCode::_ERROR_;
+            }
             tracking->updateReferenceKeyframe(keyframe2);
             framePoses.push_back(keyframe2->getPose());
             LOG_INFO("Number of initial point cloud: {}", pointCloudManager->getNbPoints());
@@ -166,7 +181,11 @@ int main(int argc, char **argv) {
             bootstrapOk = true;
         }
         else
+        {
+            // Either no or empty map files
             LOG_INFO("Initialization from scratch");
+        }
+
 
         // Camera image capture task
         auto fnCamImageCapture = [&]()

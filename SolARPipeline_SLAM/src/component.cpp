@@ -109,9 +109,14 @@ FrameworkReturnCode PipelineSlam::start(void* imageDataBuffer)
 	if (m_mapper->loadFromFile() == FrameworkReturnCode::_SUCCESS) {
 		LOG_INFO("Load map done!");
 	}
-
-	if (m_pointCloudManager->getNbPoints() != 0)
+	else
 	{
+		LOG_WARNING("Failed to load map from file");
+	}
+
+	if (m_pointCloudManager->getNbPoints() > 0)
+	{
+		// Map loaded from file and not empty
 		if (m_keyframesManager->getKeyframe(0, m_keyframe2) != FrameworkReturnCode::_SUCCESS)
 		{
 			return FrameworkReturnCode::_ERROR_;
@@ -121,6 +126,7 @@ FrameworkReturnCode PipelineSlam::start(void* imageDataBuffer)
 	}
 	else
 	{
+		// Either no or empty map files
 		LOG_INFO("Initialization from scratch");
 	}
 
