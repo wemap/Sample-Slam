@@ -136,12 +136,27 @@ int main(int argc, char **argv) {
         }
 
         // Load map from file
-        SRef<Keyframe>	keyframe2;
-        if (mapper->loadFromFile() == FrameworkReturnCode::_SUCCESS) {
+        if (mapper->loadFromFile() == FrameworkReturnCode::_SUCCESS)
+        {
             LOG_INFO("Load map done!");
-            keyframesManager->getKeyframe(0, keyframe2);
         }
-        else {
+        else
+        {
+            LOG_WARNING("Failed to load map from file");
+        }
+
+        SRef<Keyframe>	keyframe2;
+        if (pointCloudManager->getNbPoints() > 0)
+        {
+            // Map loaded from file and not empty
+            if (keyframesManager->getKeyframe(0, keyframe2) != FrameworkReturnCode::_SUCCESS)
+            {
+                return -1; //FrameworkReturnCode::_ERROR_;
+            }
+        }
+        else
+        {
+            // Either no or empty map files
             LOG_INFO("Initialization from scratch");
             bool bootstrapOk = false;
             while (!bootstrapOk) {
