@@ -108,7 +108,10 @@ FrameworkReturnCode PipelineSlam::start(void* imageDataBuffer)
 	// Load map from file
 	if (m_mapper->loadFromFile() == FrameworkReturnCode::_SUCCESS) {
 		LOG_INFO("Load map done!");
+	}
 
+	if (m_pointCloudManager->getNbPoints() != 0)
+	{
 		if (m_keyframesManager->getKeyframe(0, m_keyframe2) != FrameworkReturnCode::_SUCCESS)
 		{
 			return FrameworkReturnCode::_ERROR_;
@@ -117,7 +120,9 @@ FrameworkReturnCode PipelineSlam::start(void* imageDataBuffer)
 		m_tracking->updateReferenceKeyframe(m_keyframe2);
 	}
 	else
+	{
 		LOG_INFO("Initialization from scratch");
+	}
 
     // create and start threads
     auto getCameraImagesThread = [this](){getCameraImages();};
