@@ -83,6 +83,7 @@ Release/
 *.sln
 */debug/
 */release/
+bin/*.zip
 *.vcxproj
 *.vcxproj.filters
 *-packagedependencies.txt

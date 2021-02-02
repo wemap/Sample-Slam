@@ -44,6 +44,13 @@ HEADERS += \
 SOURCES += \
     main.cpp
 
+linux {
+    ## Add rpath to find dependencies at runtime
+    QMAKE_LFLAGS_RPATH=
+    QMAKE_LFLAGS += "-Wl,-rpath,\'\$$ORIGIN\'"
+}
+
+
 unix {
       LIBS += -ldl
 }
@@ -77,6 +84,8 @@ INSTALLS += config_files
 OTHER_FILES += \
     packagedependencies.txt \
     conf_SLAM_mono.xml
+
+
 
 #NOTE : Must be placed at the end of the .pro
 include ($$shell_quote($$shell_path($${QMAKE_REMAKEN_RULES_ROOT}/remaken_install_target.pri)))) # Shell_quote & shell_path required for visual on windows
