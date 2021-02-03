@@ -84,6 +84,7 @@ Release/
 */debug/
 */release/
 bin/*.zip
+run.sh
 *.vcxproj
 *.vcxproj.filters
 *-packagedependencies.txt
