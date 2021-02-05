@@ -315,7 +315,7 @@
 			<property name="reprojError" type="float" value="3.0"/>
 			<property name="confidence" type="float" value="0.99"/>
 			<property name="minNbInliers" type="int" value="25"/>
-			<property name="method" type="String" value="EPNP"/>
+			<property name="method" type="string" value="EPNP"/>
 		</configure>
 		<configure component="SolARMapFilter">
 			<property name="reprojErrorThreshold" type="float" value="3.0"/>
@@ -332,7 +332,7 @@
 			<property name="minMeanDistanceIsKeyframe" type="float" value="0.03"/>			
 		</configure>
 		<configure component="SolARKeyframeRetrieverFBOW">
-			<property name="VOCpath" type="String" value="../../data/akaze.fbow"/>
+			<property name="VOCpath" type="string" value="../../data/akaze.fbow"/>
 			<property name="threshold" type="float" value="0.02"/>
 			<property name="level" type="int" value="3"/>
 			<property name="matchingDistanceRatio" type="float" value="0.8"/>

@@ -316,6 +316,8 @@ int main(int argc, char **argv) {
 			if (loopDetector->detect(lastKeyframe, detectedLoopKeyframe, sim3Transform, duplicatedPointsIndices) == FrameworkReturnCode::_SUCCESS) {
 				// detected loop keyframe
 				LOG_INFO("Detected loop keyframe id: {}", detectedLoopKeyframe->getId());
+				LOG_INFO("Nb of duplicatedPointsIndices: {}", duplicatedPointsIndices.size());
+				LOG_INFO("sim3Transform: \n{}", sim3Transform.matrix());
 				// performs loop correction 			
 				loopCorrector->correct(lastKeyframe, detectedLoopKeyframe, sim3Transform, duplicatedPointsIndices);
 				countNewKeyframes = 0;
