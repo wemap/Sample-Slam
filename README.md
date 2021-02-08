@@ -13,9 +13,22 @@ The SolAR **SLAM samples** show a SolAR pipeline for augmented reality based on 
 
 ## How to run
 
-### Bag Of Word Vocabulary
+### Install required data
 
-:warning: Don't forget to download the [fbow vocabularies](https://github.com/SolarFramework/binaries/releases/download/fbow%2F0.0.1%2Fwin/fbow_voc.zip) unzip this archive and put the `akaze.fbow` in the `./data` folder.
+Before running the samples, you need to download data such as videos and the vocabulary of the bag of word used for image retrieval.
+To install the required data, just launch the following script:
+
+> #### Windows
+>
+	installData.bat
+
+> #### Linux
+>
+	./installData.sh
+
+This script will install the following data into the `./data` folder:
+- The bag of words downloaded from our [GitHub releases] (https://github.com/SolarFramework/binaries/releases/download/fbow%2F0.0.1%2Fwin/fbow_voc.zip) and unzipped in the `./data` folder.
+- A video for test from the TUM RGB-D benchmark dataset downloaded from our [Artifactory](https://vision.in.tum.de/rgbd/dataset/freiburg3/rgbd_dataset_freiburg3_long_office_household_validation-rgb.avi) and copied in the `.\data`.
 
 ### Camera Calibration
 
@@ -38,23 +51,67 @@ SolAR SLAM supports two initialization modes: **fiducial marker based** or **mar
 
 ### Run tests using a video file
 
-Download [freiburg3_long_office_household_validation-rgb.avi](https://vision.in.tum.de/rgbd/dataset/freiburg3/rgbd_dataset_freiburg3_long_office_household_validation-rgb.avi) file from TUM RGB-D benchmark dataset, and put this video into the `./data` folder.
 From the binary directory, run following command for testing SolAR SLAM:
 
 * For mono thread test:
-<pre><code>SolARSample_SLAM_Mono.exe ..\..\data\SolARSample_SLAM_TUM_conf.xml</code></pre>
+> #### Windows
+>
+	SolARSample_SLAM_Mono.exe ..\..\data\SolARSample_SLAM_TUM_conf.xml
+
+> #### Linux
+>
+	\.run.sh .\SolARSample_SLAM_Multi ..\..\data\SolARSample_SLAM_TUM_conf.xml
 
 * For multithreading test:
-<pre><code>SolARSample_SLAM_Multi.exe ..\..\data\SolARSample_SLAM_TUM_conf.xml</code></pre>
+> #### Windows
+>
+	SolARSample_SLAM_Multi.exe ..\..\data\SolARSample_SLAM_TUM_conf.xml
+
+> #### Linux
+>
+	\.run.sh .\SolARSample_SLAM_Multi ..\..\data\SolARSample_SLAM_TUM_conf.xml
 
 * For pipeline plugin test:
-<pre><code>SolARPipelineTest_SLAM.exe ..\..\data\SolARPipelineTest_SLAM_TUM_conf.xml</code></pre>
+> #### Windows
+>
+	SolARPipelineTest_SLAM.exe ..\..\data\SolARPipelineTest_SLAM_TUM_conf.xml
+
+> #### Linux
+>
+	\.run.sh .\SolARPipelineTest_SLAM ..\..\data\SolARPipelineTest_SLAM_TUM_conf.xml
 
 Press `escape` to quit the application.
 
 ### Run tests using a webcam
 
-Change the `deviceID` parameter in the configuration file to the corresponding ID of the camera that you use. From the binary directory, launch the execution for testing SolAR SLAM.
+Change the `deviceID` parameter in the configuration file to the corresponding ID of the camera that you use. From the binary directory, launch the execution for testing SolAR SLAM:
+* For mono thread test:
+> #### Windows
+>
+	SolARSample_SLAM_Mono.exe
+
+> #### Linux
+>
+	\.run.sh .\SolARSample_SLAM_Multi
+
+* For multithreading test:
+> #### Windows
+>
+	SolARSample_SLAM_Multi.exe
+
+> #### Linux
+>
+	\.run.sh .\SolARSample_SLAM_Multi
+
+* For pipeline plugin test:
+> #### Windows
+>
+	SolARPipelineTest_SLAM.exe
+
+> #### Linux
+>
+	\.run.sh .\SolARPipelineTest_SLAM
+
 
 *  When the application is started, if you use the fiducial marker based initialization, point the camera to the fiducial marker (you can see a virtual cube on the marker). Otherwise, point the camera in front of the scene.
 
