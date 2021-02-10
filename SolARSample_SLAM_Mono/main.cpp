@@ -139,31 +139,46 @@ int main(int argc, char **argv) {
 			return -1;
 		}
 
-		// Load map from file
-		SRef<Keyframe>	keyframe2;
-		if (mapper->loadFromFile() == FrameworkReturnCode::_SUCCESS) {
-			LOG_INFO("Load map done!");
-			keyframesManager->getKeyframe(0, keyframe2);
-		}
-		else {
-			LOG_INFO("Initialization from scratch");
-			bool bootstrapOk = false;
-			while (!bootstrapOk) {
-				SRef<Image> image, view;
-				camera->getNextImage(image);
-				Transform3Df pose = Transform3Df::Identity();
-				fiducialMarkerPoseEstimator->estimate(image, pose);
-				if (bootstrapper->process(image, view, pose) == FrameworkReturnCode::_SUCCESS) {
-					double bundleReprojError = bundler->bundleAdjustment(calibration, distortion);
-					bootstrapOk = true;
-				}
-				if (!pose.isApprox(Transform3Df::Identity()))
-					overlay3D->draw(pose, view);
-				if (imageViewer->display(view) == SolAR::FrameworkReturnCode::_STOP)
-					return 1;
-			}
-			keyframesManager->getKeyframe(1, keyframe2);
-		}
+        // Load map from file
+        if (mapper->loadFromFile() == FrameworkReturnCode::_SUCCESS)
+        {
+            LOG_INFO("Load map done!");
+        }
+        else
+        {
+            LOG_WARNING("Failed to load map from file");
+        }
+
+        SRef<Keyframe>	keyframe2;
+        if (pointCloudManager->getNbPoints() > 0)
+        {
+            // Map loaded from file and not empty
+            if (keyframesManager->getKeyframe(0, keyframe2) != FrameworkReturnCode::_SUCCESS)
+            {
+                return -1; //FrameworkReturnCode::_ERROR_;
+            }
+        }
+        else
+        {
+            // Either no or empty map files
+            LOG_INFO("Initialization from scratch");
+            bool bootstrapOk = false;
+            while (!bootstrapOk) {
+                SRef<Image> image, view;
+                camera->getNextImage(image);
+                Transform3Df pose = Transform3Df::Identity();
+                fiducialMarkerPoseEstimator->estimate(image, pose);
+                if (bootstrapper->process(image, view, pose) == FrameworkReturnCode::_SUCCESS) {
+                    double bundleReprojError = bundler->bundleAdjustment(calibration, distortion);
+                    bootstrapOk = true;
+                }
+                if (!pose.isApprox(Transform3Df::Identity()))
+                    overlay3D->draw(pose, view);
+                if (imageViewer->display(view) == SolAR::FrameworkReturnCode::_STOP)
+                    return 1;
+            }
+            keyframesManager->getKeyframe(1, keyframe2);
+        }
 
 		LOG_INFO("Number of initial point cloud: {}", pointCloudManager->getNbPoints());
 		LOG_INFO("Number of initial keyframes: {}", keyframesManager->getNbKeyframes());
@@ -179,7 +194,8 @@ int main(int argc, char **argv) {
 			std::vector<SRef<CloudPoint>> pointCloud;
 			pointCloudManager->getAllPoints(pointCloud);
 			// display point cloud 
-			if (viewer3DPoints->display(pointCloud, framePoses.back(), keyframePoses, framePoses) == FrameworkReturnCode::_STOP)
+			if (framePoses.size() == 0
+				|| viewer3DPoints->display(pointCloud, framePoses.back(), keyframePoses, framePoses) == FrameworkReturnCode::_STOP)
 				return false;
 			else
 				return true;
