@@ -20,6 +20,6 @@ do
    fi 
 done
 
+echo "LD_LIBRARY_PATH=$ld_library_path $1 $2"
 LD_LIBRARY_PATH=$ld_library_path $1 $2
-echo "LD_LIBRARY_PATH=$LD_LIBRARY_PATH"
 
