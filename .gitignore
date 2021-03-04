@@ -2,10 +2,10 @@ build/
 
 *.pro.user
 
-*-Debug
-
-*-Release
-
+*-Debug*
+*-Release*
+*_Debug*
+*_Release*
 
 # Prerequisites
 *.d
@@ -69,7 +69,6 @@ x64*
 *vcxproj.*
 x64/
 .vs/
-*.bat
 *remakeninfo.txt
 Debug/
 Release/
@@ -84,11 +83,16 @@ Release/
 *.sln
 */debug/
 */release/
+bin/*.zip
+run.sh
 *.vcxproj
 *.vcxproj.filters
-*.bat
 *-packagedependencies.txt
 *-packagedependencies-win.txt
 *.pc
 *.sln
 *aps
+build*
+data/akaze.fbow
+data/rgbd_dataset_freiburg3_long_office_household_validation-rgb.avi
+*.fbow

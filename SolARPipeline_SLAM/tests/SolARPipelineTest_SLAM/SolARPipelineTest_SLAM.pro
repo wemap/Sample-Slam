@@ -3,7 +3,7 @@ QT       -= core gui
 CONFIG -= qt
 
 ## global defintions : target lib name, version
-TARGET = TestSlamPlugin
+TARGET = SolARPipelineTest_SLAM
 VERSION=0.9.1
 
 DEFINES += MYVERSION=$${VERSION}
@@ -61,16 +61,27 @@ DISTFILES += \
     PipelineNaturalImageMarker.xml
 
 config_files.path = $${TARGETDEPLOYDIR}
-config_files.files= $$files($${PWD}/PipelineSlam.xml)\
+config_files.files= $$files($${PWD}/SolARPipelineTest_SLAM_conf.xml)\
                     $$files($${PWD}/camera_calibration.yml)\
                     $$files($${PWD}/fiducialMarker.yml)\
-                    $$files($${PWD}/FiducialMarker.gif)\
-                    $$files($${PWD}/akaze.fbow)
+                    $$files($${PWD}/FiducialMarker.gif)
 INSTALLS += config_files
+
+linux {
+  run_install.path = $${TARGETDEPLOYDIR}
+  run_install.files = $${PWD}/../../../run.sh
+  CONFIG(release,debug|release) {
+    run_install.extra = cp $$files($${PWD}/../../../runRelease.sh) $${PWD}/../../../run.sh
+  }
+  CONFIG(debug,debug|release) {
+    run_install.extra = cp $$files($${PWD}/../../../runDebug.sh) $${PWD}/../../../run.sh
+  }
+  INSTALLS += run_install
+}
 
 OTHER_FILES += \
     packagedependencies.txt \
-    PipelineSlam.xml
+    SolARPipelineTest_SLAM_conf.xml
 
 #NOTE : Must be placed at the end of the .pro
 include ($$shell_quote($$shell_path($${QMAKE_REMAKEN_RULES_ROOT}/remaken_install_target.pri)))) # Shell_quote & shell_path required for visual on windows

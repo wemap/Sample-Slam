@@ -12,7 +12,11 @@ XPCF_DEFINE_FACTORY_CREATE_INSTANCE(SolAR::PIPELINES::PipelineSlam)
 
 namespace SolAR {
 using namespace datastructure;
+using namespace api;
 using namespace api::pipeline;
+using namespace api::source;
+using namespace api::sink;
+using namespace api::storage;
 namespace PIPELINES {
 
 PipelineSlam::PipelineSlam():ConfigurableBase(xpcf::toUUID<PipelineSlam>())
@@ -32,6 +36,7 @@ PipelineSlam::PipelineSlam():ConfigurableBase(xpcf::toUUID<PipelineSlam>())
 	declareInjectable<image::IImageConvertor>(m_imageConvertorUnity);
 	declareInjectable<loop::ILoopClosureDetector>(m_loopDetector);
 	declareInjectable<loop::ILoopCorrector>(m_loopCorrector);
+	declareInjectable<geom::IUndistortPoints>(m_undistortKeypoints);
 	declareInjectable<slam::IBootstrapper>(m_bootstrapper);
 	declareInjectable<slam::ITracking>(m_tracking);
 	declareInjectable<slam::IMapping>(m_mapping);
@@ -62,6 +67,7 @@ FrameworkReturnCode PipelineSlam::init(SRef<xpcf::IComponentManager> xpcfCompone
 		m_loopDetector->setCameraParameters(m_calibration, m_distortion);
 		m_loopCorrector->setCameraParameters(m_calibration, m_distortion);
 		m_fiducialMarkerPoseEstimator->setCameraParameters(m_calibration, m_distortion);
+		m_undistortKeypoints->setCameraParameters(m_calibration, m_distortion);
 		m_bootstrapper->setCameraParameters(m_calibration, m_distortion);
 		m_tracking->setCameraParameters(m_calibration, m_distortion);
 		m_mapping->setCameraParameters(m_calibration, m_distortion);
@@ -104,12 +110,27 @@ FrameworkReturnCode PipelineSlam::start(void* imageDataBuffer)
 	// Load map from file
 	if (m_mapper->loadFromFile() == FrameworkReturnCode::_SUCCESS) {
 		LOG_INFO("Load map done!");
+	}
+	else
+	{
+		LOG_WARNING("Failed to load map from file");
+	}
+
+	if (m_pointCloudManager->getNbPoints() > 0)
+	{
+		// Map loaded from file and not empty
+		if (m_keyframesManager->getKeyframe(0, m_keyframe2) != FrameworkReturnCode::_SUCCESS)
+		{
+			return FrameworkReturnCode::_ERROR_;
+		}
 		m_bootstrapOk = true;
-		m_keyframesManager->getKeyframe(0, m_keyframe2);
 		m_tracking->updateReferenceKeyframe(m_keyframe2);
 	}
 	else
+	{
+		// Either no or empty map files
 		LOG_INFO("Initialization from scratch");
+	}
 
     // create and start threads
     auto getCameraImagesThread = [this](){getCameraImages();};
@@ -193,7 +214,7 @@ SinkReturnCode PipelineSlam::update(Transform3Df& pose)
         return m_sink->tryGet(pose);
 }
 
-CameraParameters PipelineSlam::getCameraParameters()
+CameraParameters PipelineSlam::getCameraParameters() const
 {
     CameraParameters camParam;
     if (m_camera)
@@ -269,7 +290,9 @@ void PipelineSlam::getDescriptors()
 	}
 
 	m_descriptorExtractor->extract(frameKeypoints.first, frameKeypoints.second, m_descriptors);
-	SRef<Frame> frame = xpcf::utils::make_shared<Frame>(frameKeypoints.second, m_descriptors, frameKeypoints.first);
+	std::vector<Keypoint> undistortedKeypoints;
+	m_undistortKeypoints->undistort(frameKeypoints.second, undistortedKeypoints);
+	SRef<Frame> frame = xpcf::utils::make_shared<Frame>(frameKeypoints.second, undistortedKeypoints, m_descriptors, frameKeypoints.first);
 	m_descriptorsBuffer.push(frame);
 };
 
@@ -314,11 +337,15 @@ void PipelineSlam::mapping()
 	if (m_mapping->process(newFrame, keyframe) == FrameworkReturnCode::_SUCCESS) {
 		LOG_DEBUG("New keyframe id: {}", keyframe->getId());
 		// Local bundle adjustment
-		std::vector<uint32_t> bestIdx;
+		std::vector<uint32_t> bestIdx, bestIdxToOptimize;
 		m_covisibilityGraph->getNeighbors(keyframe->getId(), m_minWeightNeighbor, bestIdx);
-		bestIdx.push_back(keyframe->getId());
+		if (bestIdx.size() < 10)
+			bestIdxToOptimize.swap(bestIdx);
+		else
+			bestIdxToOptimize.insert(bestIdxToOptimize.begin(), bestIdx.begin(), bestIdx.begin() + 10);
+		bestIdxToOptimize.push_back(keyframe->getId());
 		LOG_DEBUG("Nb keyframe to local bundle: {}", bestIdx.size());
-		double bundleReprojError = m_bundler->bundleAdjustment(m_calibration, m_distortion, bestIdx);
+		double bundleReprojError = m_bundler->bundleAdjustment(m_calibration, m_distortion, bestIdxToOptimize);
 		m_mapper->pruning();
 		m_countNewKeyframes++;
 		m_newKeyframeLoopBuffer.push(keyframe);
@@ -344,6 +371,8 @@ void PipelineSlam::loopClosure()
 	if (m_loopDetector->detect(lastKeyframe, detectedLoopKeyframe, sim3Transform, duplicatedPointsIndices) == FrameworkReturnCode::_SUCCESS) {
 		// detected loop keyframe
 		LOG_INFO("Detected loop keyframe id: {}", detectedLoopKeyframe->getId());
+		LOG_INFO("Nb of duplicatedPointsIndices: {}", duplicatedPointsIndices.size());
+		LOG_INFO("sim3Transform: \n{}", sim3Transform.matrix());
 		// performs loop correction 			
 		std::unique_lock<std::mutex> lock(m_mutexMapping);
 		m_countNewKeyframes = 0;

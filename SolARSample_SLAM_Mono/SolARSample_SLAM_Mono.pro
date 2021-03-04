@@ -3,7 +3,7 @@ QT       -= core gui
 CONFIG -= qt
 
 ## global defintions : target lib name, version
-TARGET = SolARSlamSampleMono
+TARGET = SolARSample_SLAM_Mono
 VERSION=0.9.1
 
 DEFINES += MYVERSION=$${VERSION}
@@ -44,6 +44,13 @@ HEADERS += \
 SOURCES += \
     main.cpp
 
+linux {
+    ## Add rpath to find dependencies at runtime
+    QMAKE_LFLAGS_RPATH=
+    QMAKE_LFLAGS += "-Wl,-rpath,\'\$$ORIGIN\'"
+}
+
+
 unix {
       LIBS += -ldl
 }
@@ -63,17 +70,35 @@ win32 {
     INCLUDEPATH += $$(WINDOWSSDKDIR)lib/winv6.3/um/x64
 }
 
+android {
+    ANDROID_ABIS="arm64-v8a"
+}
+
 config_files.path = $${TARGETDEPLOYDIR}
-config_files.files= $$files($${PWD}/conf_SLAM_Mono.xml)\
+config_files.files= $$files($${PWD}/SolARSample_SLAM_Mono_conf.xml)\
                     $$files($${PWD}/camera_calibration.yml)\
                     $$files($${PWD}/fiducialMarker.yml)\
-                    $$files($${PWD}/FiducialMarker.gif)\
-                    $$files($${PWD}/akaze.fbow)
+                    $$files($${PWD}/FiducialMarker.gif)
 INSTALLS += config_files
+
+linux {
+  run_install.path = $${TARGETDEPLOYDIR}
+  run_install.files = $${PWD}/../run.sh
+  CONFIG(release,debug|release) {
+    run_install.extra = cp $$files($${PWD}/../runRelease.sh) $${PWD}/../run.sh
+  }
+  CONFIG(debug,debug|release) {
+    run_install.extra = cp $$files($${PWD}/../runDebug.sh) $${PWD}/../run.sh
+  }
+  INSTALLS += run_install
+}
+
 
 OTHER_FILES += \
     packagedependencies.txt \
     conf_SLAM_mono.xml
+
+
 
 #NOTE : Must be placed at the end of the .pro
 include ($$shell_quote($$shell_path($${QMAKE_REMAKEN_RULES_ROOT}/remaken_install_target.pri)))) # Shell_quote & shell_path required for visual on windows

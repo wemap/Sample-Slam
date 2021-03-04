@@ -28,16 +28,21 @@ namespace xpcf  = org::bcom::xpcf;
 
 using namespace SolAR;
 using namespace SolAR::api;
+using namespace SolAR::api::sink;
+using namespace SolAR::datastructure;
 
-int main(){
+int main(int argc, char **argv){
 #if NDEBUG
     boost::log::core::get()->set_logging_enabled(false);
 #endif
 
     LOG_ADD_LOG_TO_CONSOLE();
     try{
+		std::string configxml = std::string("SolARPipelineTest_SLAM_conf.xml");
+		if (argc == 2)
+			configxml = std::string(argv[1]);
         SRef<xpcf::IComponentManager> componentMgr = xpcf::getComponentManagerInstance();
-        xpcf::XPCFErrorCode errorLoad = componentMgr->load("PipelineSlam.xml");
+        xpcf::XPCFErrorCode errorLoad = componentMgr->load(configxml.c_str());
         if (errorLoad != xpcf::_SUCCESS)
         {
             LOG_ERROR("The file PipelineSlam.xml has an error");
@@ -55,7 +60,7 @@ int main(){
             overlay3DComponent->setCameraParameters(camParam.intrinsic, camParam.distortion);
 
             unsigned char* r_imageData=new unsigned char[camParam.resolution.width * camParam.resolution.height * 3];
-            SRef<Image> camImage=xpcf::utils::make_shared<Image>(r_imageData,camParam.resolution.width,camParam.resolution.height,SolAR::Image::LAYOUT_BGR,SolAR::Image::INTERLEAVED,SolAR::Image::TYPE_8U);
+            SRef<Image> camImage=xpcf::utils::make_shared<Image>(r_imageData,camParam.resolution.width,camParam.resolution.height, Image::LAYOUT_BGR, Image::INTERLEAVED, Image::TYPE_8U);
 
             Transform3Df s_pose;
 

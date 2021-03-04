@@ -3,7 +3,7 @@ QT       -= core gui
 CONFIG -= qt
 
 ## global defintions : target lib name, version
-TARGET = SolARSlamSampleMulti
+TARGET = SolARSample_SLAM_Multi
 VERSION=0.9.1
 
 DEFINES += MYVERSION=$${VERSION}
@@ -45,8 +45,14 @@ HEADERS += \
 SOURCES += \
     main.cpp
 
+linux {
+    ## Add rpath to find dependencies at runtime
+    QMAKE_LFLAGS_RPATH=
+    QMAKE_LFLAGS += "-Wl,-rpath,\'\$$ORIGIN\'"
+}
+
 unix {
-      LIBS += -ldl
+    LIBS += -ldl
 }
 
 macx {
@@ -64,13 +70,29 @@ win32 {
     INCLUDEPATH += $$(WINDOWSSDKDIR)lib/winv6.3/um/x64
 }
 
+android {
+    ANDROID_ABIS="arm64-v8a"
+}
+
 config_files.path = $${TARGETDEPLOYDIR}
-config_files.files=$$files($${PWD}/conf_SLAM_Multi.xml)\
+config_files.files=$$files($${PWD}/SolARSample_SLAM_Multi_conf.xml)\
                     $$files($${PWD}/camera_calibration.yml)\
                     $$files($${PWD}/fiducialMarker.yml)\
-                    $$files($${PWD}/FiducialMarker.gif)\
-                    $$files($${PWD}/akaze.fbow)
+                    $$files($${PWD}/FiducialMarker.gif)
 INSTALLS += config_files
+
+linux {
+  run_install.path = $${TARGETDEPLOYDIR}
+  run_install.files = $${PWD}/../run.sh
+  CONFIG(release,debug|release) {
+    run_install.extra = cp $$files($${PWD}/../runRelease.sh) $${PWD}/../run.sh
+  }
+  CONFIG(debug,debug|release) {
+    run_install.extra = cp $$files($${PWD}/../runDebug.sh) $${PWD}/../run.sh
+  }
+  INSTALLS += run_install
+}
+
 
 OTHER_FILES += \
     packagedependencies.txt \

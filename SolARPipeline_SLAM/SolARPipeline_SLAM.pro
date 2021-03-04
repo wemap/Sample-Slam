@@ -1,11 +1,11 @@
 ## remove Qt dependencies
 QT       -= core gui
-CONFIG -= qt
+CONFIG -= app_bundle qt
 
 ## global defintions : target lib name, version
-TARGET = PipelineSlam
 INSTALLSUBDIR = SolARBuild
-FRAMEWORK = $$TARGET
+TARGET = SolARPipeline_SLAM
+FRAMEWORK = $${TARGET}
 VERSION=0.9.1
 
 DEFINES += MYVERSION=$${VERSION}
@@ -24,13 +24,13 @@ CONFIG(release,debug|release) {
     DEFINES += NDEBUG=1
 }
 
-DEPENDENCIESCONFIG = shared recursive install
+DEPENDENCIESCONFIG = sharedlib install_recurse
 
+## Configuration for Visual Studio to install binaries and dependencies. Work also for QT Creator by replacing QMAKE_INSTALL
 PROJECTCONFIG = QTVS
 
-#NOTE : CONFIG as staticlib or sharedlib, DEPENDENCIESCONFIG as staticlib or sharedlib, QMAKE_TARGET.arch and PROJECTDEPLOYDIR MUST BE DEFINED BEFORE templatelibconfig.pri inclusion
+#NOTE : CONFIG as staticlib or sharedlib, DEPENDENCIESCONFIG as staticlib or sharedlib and PROJECTDEPLOYDIR MUST BE DEFINED BEFORE templatelibbundle.pri inclusion
 include ($$shell_quote($$shell_path($${QMAKE_REMAKEN_RULES_ROOT}/templatelibconfig.pri)))  # Shell_quote & shell_path required for visual on windows
-
 
 ## DEFINES FOR MSVC/INTEL C++ compilers
 msvc {
@@ -58,10 +58,10 @@ macx {
 }
 
 win32 {
-    LIBS += User32.Lib
+
     DEFINES += WIN64 UNICODE _UNICODE
     QMAKE_COMPILER_DEFINES += _WIN64
-    QMAKE_CXXFLAGS += -wd4250 -wd4251 -wd4244 -wd4275
+    QMAKE_CXXFLAGS += -wd4250 -wd4251 -wd4244 -wd4275 /Od
 }
 
 android {
@@ -75,7 +75,7 @@ xpcf_xml_files.path = $${USERHOMEFOLDER}/.xpcf/SolAR
 xpcf_xml_files.files=$$files($${PWD}/xpcf*.xml)
 
 configuration_files.path = $${PROJECTDEPLOYDIR}/configuration
-configuration_files.files = $$files($${PWD}/tests/TestSlamPipeline/PipelineSlam.xml)
+configuration_files.files = $$files($${PWD}/tests/SolARPipelineTest_SLAM/SolARPipelineTest_SLAM_conf.xml)
 
 INSTALLS += header_files
 INSTALLS += xpcf_xml_files
