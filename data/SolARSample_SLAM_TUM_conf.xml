@@ -327,13 +327,9 @@
 			<property name="maxTriangulationAngle" type="float" value="1.0"/>
 			<property name="cheiralityCheck" type="int" value ="1"/>
 		</configure>
-		<configure component="SolARKeyframeSelector">
-			<property name="minNbMatchesIsKeyframe" type="int" value="10"/>
-			<property name="minMeanDistanceIsKeyframe" type="float" value="0.05"/>			
-		</configure>
 		<configure component="SolARKeyframeSelector" name="BootstrapProperties">
 			<property name="minNbMatchesIsKeyframe" type="int" value="50"/>
-			<property name="minMeanDistanceIsKeyframe" type="float" value="0.03"/>			
+			<property name="minMeanDistanceIsKeyframe" type="float" value="0.04"/>			
 		</configure>
 		<configure component="SolARKeyframeRetrieverFBOW">
 			<property name="VOCpath" type="string" value="../../data/akaze.fbow"/>
