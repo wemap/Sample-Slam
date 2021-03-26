@@ -37,7 +37,8 @@
 #include "api/storage/ICovisibilityGraph.h"
 #include "api/storage/IKeyframesManager.h"
 #include "api/storage/IPointCloudManager.h"
-#include "api/solver/pose/IFiducialMarkerPose.h"
+#include "api/input/files/ITrackableLoader.h"
+#include "api/solver/pose/ITrackablePose.h"
 #include "api/solver/map/IBundler.h"
 #include "api/loop/ILoopClosureDetector.h"
 #include "api/loop/ILoopCorrector.h"
@@ -90,8 +91,8 @@ int main(int argc, char **argv) {
         auto descriptorExtractor = xpcfComponentManager->resolve<features::IDescriptorsExtractor>();
         auto imageViewer = xpcfComponentManager->resolve<display::IImageViewer>();
         auto viewer3DPoints = xpcfComponentManager->resolve<display::I3DPointsViewer>();
-        auto fiducialMarkerPoseEstimator = xpcfComponentManager->resolve<solver::pose::IFiducialMarkerPose>();
-        auto bundler = xpcfComponentManager->resolve<api::solver::map::IBundler>();
+        auto trackableLoader = xpcfComponentManager->resolve<input::files::ITrackableLoader>();
+        auto fiducialMarkerPoseEstimator = xpcfComponentManager->resolve<solver::pose::ITrackablePose>();        auto bundler = xpcfComponentManager->resolve<api::solver::map::IBundler>();
         auto globalBundler = xpcfComponentManager->resolve<api::solver::map::IBundler>();
         auto loopDetector = xpcfComponentManager->resolve<loop::ILoopClosureDetector>();
         auto loopCorrector = xpcfComponentManager->resolve<loop::ILoopCorrector>();
@@ -166,7 +167,23 @@ int main(int argc, char **argv) {
             bootstrapOk = true;
         }
         else
+        {
             LOG_INFO("Initialization from scratch");
+            SRef<Trackable> trackable;
+            if (trackableLoader->loadTrackable(trackable) != FrameworkReturnCode::_SUCCESS)
+            {
+                LOG_ERROR("cannot load fiducial marker");
+                return -1;
+            }
+            else
+            {
+                if (fiducialMarkerPoseEstimator->setTrackable(trackable)!= FrameworkReturnCode::_SUCCESS)
+                {
+                    LOG_ERROR("cannot set fiducial marker as a trackable ofr fiducial marker pose estimator");
+                    return -1;
+                }
+            }
+        }
 
         // Camera image capture task
         auto fnCamImageCapture = [&]()

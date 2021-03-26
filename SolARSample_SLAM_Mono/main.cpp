@@ -38,7 +38,8 @@
 #include "api/storage/IPointCloudManager.h"
 #include "api/loop/ILoopClosureDetector.h"
 #include "api/loop/ILoopCorrector.h"
-#include "api/solver/pose/IFiducialMarkerPose.h"
+#include "api/input/files/ITrackableLoader.h"
+#include "api/solver/pose/ITrackablePose.h"
 #include "api/solver/map/IBundler.h"
 #include "api/slam/IBootstrapper.h"
 #include "api/slam/ITracking.h"
@@ -102,8 +103,10 @@ int main(int argc, char **argv) {
         auto loopCorrector = xpcfComponentManager->resolve<loop::ILoopCorrector>();
         LOG_INFO("Resolving 3D overlay");
         auto overlay3D = xpcfComponentManager->resolve<display::I3DOverlay>();
+        LOG_INFO("Resolving Trackable Loader");
+        auto trackableLoader = xpcfComponentManager->resolve<input::files::ITrackableLoader>();
         LOG_INFO("Resolving Fiducial marker pose");
-        auto fiducialMarkerPoseEstimator = xpcfComponentManager->resolve<solver::pose::IFiducialMarkerPose>();
+        auto fiducialMarkerPoseEstimator = xpcfComponentManager->resolve<solver::pose::ITrackablePose>();
         LOG_INFO("Resolving bundle adjustment");
         auto bundler = xpcfComponentManager->resolve<api::solver::map::IBundler>();
         LOG_INFO("Resolving bootstrapper");
@@ -143,6 +146,20 @@ int main(int argc, char **argv) {
         }
         else {
             LOG_INFO("Initialization from scratch");
+            SRef<Trackable> trackable;
+            if (trackableLoader->loadTrackable(trackable) != FrameworkReturnCode::_SUCCESS)
+            {
+                LOG_ERROR("cannot load fiducial marker");
+                return -1;
+            }
+            else
+            {
+                if (fiducialMarkerPoseEstimator->setTrackable(trackable)!= FrameworkReturnCode::_SUCCESS)
+                {
+                    LOG_ERROR("cannot set fiducial marker as a trackable ofr fiducial marker pose estimator");
+                    return -1;
+                }
+            }
             bool bootstrapOk = false;
             while (!bootstrapOk) {
                 SRef<Image> image, view;

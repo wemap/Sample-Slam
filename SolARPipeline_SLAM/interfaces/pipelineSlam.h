@@ -30,7 +30,8 @@
 #include "api/storage/ICovisibilityGraph.h"
 #include "api/storage/IKeyframesManager.h"
 #include "api/storage/IPointCloudManager.h"
-#include "api/solver/pose/IFiducialMarkerPose.h"
+#include "api/input/files/ITrackableLoader.h"
+#include "api/solver/pose/ITrackablePose.h"
 #include "api/solver/map/IBundler.h"
 #include "api/loop/ILoopClosureDetector.h"
 #include "api/loop/ILoopCorrector.h"
@@ -74,7 +75,8 @@ namespace PIPELINES {
  * @SolARComponentInjectable{SolAR::api::solver::map::IBundler}
  * @SolARComponentInjectable{SolAR::api::features::IKeypointDetector}
  * @SolARComponentInjectable{SolAR::api::features::IDescriptorsExtractor}
- * @SolARComponentInjectable{SolAR::api::solver::pose::IFiducialMarkerPose}
+ * @SolARComponentInjectable{SolAR::input::files::ITrackableLoader}
+ * @SolARComponentInjectable{SolAR::api::solver::pose::ITrackablePose}
  * @SolARComponentInjectable{SolAR::api::image::IImageConvertor}
  * @SolARComponentInjectable{SolAR::api::loop::ILoopClosureDetector}
  * @SolARComponentInjectable{SolAR::api::loop::ILoopCorrector}
@@ -169,7 +171,8 @@ private:
     SRef<api::features::IDescriptorsExtractor>			m_descriptorExtractor;
 	SRef<api::solver::map::IBundler>					m_bundler;
 	SRef<api::solver::map::IBundler>					m_globalBundler;
-	SRef<api::solver::pose::IFiducialMarkerPose>		m_fiducialMarkerPoseEstimator;
+    SRef<api::input::files::ITrackableLoader>           m_trackableLoader;
+    SRef<api::solver::pose::ITrackablePose>             m_fiducialMarkerPoseEstimator;
 	SRef<api::loop::ILoopClosureDetector>				m_loopDetector;
 	SRef<api::loop::ILoopCorrector>						m_loopCorrector;
 	SRef<api::slam::IBootstrapper>						m_bootstrapper;
@@ -188,7 +191,7 @@ private:
 	SRef<api::source::ISourceImage>						m_source;
 
 	// SLAM variables
-	datastructure::Transform3Df							m_pose;
+    datastructure::Transform3Df							m_pose;
 	SRef<datastructure::Image>							m_camImage;
 	datastructure::Transform3Df                         m_poseFrame;
     SRef<datastructure::Keyframe>                       m_keyframe1, m_keyframe2;
