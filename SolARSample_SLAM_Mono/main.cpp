@@ -46,6 +46,7 @@
 #include "api/slam/IMapping.h"
 
 #define NB_NEWKEYFRAMES_LOOP 10
+#define NB_LOCALKEYFRAMES 10
 
 using namespace SolAR;
 using namespace SolAR::datastructure;
@@ -225,14 +226,12 @@ int main(int argc, char **argv) {
 				break;
 			// feature extraction
 			keypointsDetector->detect(view, keypoints);
-			LOG_DEBUG("Number of keypoints: {}", keypoints.size());
 			if (keypoints.size() == 0)
 				continue;
 			descriptorExtractor->extract(view, keypoints, descriptors);
 			// undistort keypoints
 			undistortKeypoints->undistort(keypoints, undistortedKeypoints);
 			frame = xpcf::utils::make_shared<Frame>(keypoints, undistortedKeypoints, descriptors, view);
-
 			// tracking
 			if (tracking->process(frame, displayImage) == FrameworkReturnCode::_SUCCESS) {
 				// used for display
@@ -245,13 +244,21 @@ int main(int argc, char **argv) {
 					// Local bundle adjustment
 					std::vector<uint32_t> bestIdx, bestIdxToOptimize;
 					covisibilityGraph->getNeighbors(keyframe->getId(), minWeightNeighbor, bestIdx);
-					if (bestIdx.size() < 10)
-						bestIdxToOptimize.swap(bestIdx);
+					if (bestIdx.size() < NB_LOCALKEYFRAMES)
+						bestIdxToOptimize = bestIdx;
 					else
-						bestIdxToOptimize.insert(bestIdxToOptimize.begin(), bestIdx.begin(), bestIdx.begin() + 10);
+						bestIdxToOptimize.insert(bestIdxToOptimize.begin(), bestIdx.begin(), bestIdx.begin() + NB_LOCALKEYFRAMES);
 					bestIdxToOptimize.push_back(keyframe->getId());
 					LOG_DEBUG("Nb keyframe to local bundle: {}", bestIdxToOptimize.size());
 					double bundleReprojError = bundler->bundleAdjustment(calibration, distortion, bestIdxToOptimize);
+					// local map pruning
+					std::vector<SRef<CloudPoint>> localPointCloud;
+					mapper->getLocalPointCloud(keyframe, 1.0, localPointCloud);
+					int nbRemovedCP = mapper->pointCloudPruning(localPointCloud);
+					std::vector<SRef<Keyframe>> localKeyframes;
+					keyframesManager->getKeyframes(bestIdx, localKeyframes);
+					int nbRemovedKf = mapper->keyframePruning(localKeyframes);
+					LOG_DEBUG("Nb of pruning cloud points / keyframes: {} / {}", nbRemovedCP, nbRemovedKf);
 					// loop closure
 					countNewKeyframes++;
 					if (countNewKeyframes >= NB_NEWKEYFRAMES_LOOP) {
@@ -268,10 +275,11 @@ int main(int argc, char **argv) {
 							loopCorrector->correct(keyframe, detectedLoopKeyframe, sim3Transform, duplicatedPointsIndices);
 							// Loop optimisation
 							bundler->bundleAdjustment(calibration, distortion);
+							// map pruning
+							mapper->pointCloudPruning();
+							mapper->keyframePruning();
 						}
-					}
-					// map pruning
-					mapper->pruning();
+					}					
 				}
 				// update reference keyframe
 				if (keyframe) {
@@ -297,7 +305,8 @@ int main(int argc, char **argv) {
 
 		// run global BA before exit
 		bundler->bundleAdjustment(calibration, distortion);
-		mapper->pruning();
+		mapper->pointCloudPruning();
+		mapper->keyframePruning();
 		LOG_INFO("Nb keyframes of map: {}", keyframesManager->getNbKeyframes());
 		LOG_INFO("Nb cloud points of map: {}", pointCloudManager->getNbPoints());
 

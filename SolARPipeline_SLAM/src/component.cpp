@@ -4,7 +4,8 @@
 #include "boost/log/core/core.hpp"
 #include <cmath>
 
-#define NB_NEWKEYFRAMES_BA 10
+#define NB_NEWKEYFRAMES_LOOP 10
+#define NB_LOCALKEYFRAMES 10
 
 // The pipeline component for the fiducial marker
 
@@ -194,6 +195,11 @@ FrameworkReturnCode PipelineSlam::stop()
         return FrameworkReturnCode::_ERROR_;
     }
     LOG_INFO("Pipeline has stopped: \n");
+	// run global BA before exit
+	m_globalBundler->bundleAdjustment(m_calibration, m_distortion);
+	// map pruning
+	m_mapper->pointCloudPruning();
+	m_mapper->keyframePruning();
 	// Save map
 	m_mapper->saveToFile();
 
@@ -288,11 +294,14 @@ void PipelineSlam::getDescriptors()
 		xpcf::DelegateTask::yield();
 		return;
 	}
-
-	m_descriptorExtractor->extract(frameKeypoints.first, frameKeypoints.second, m_descriptors);
+	
 	std::vector<Keypoint> undistortedKeypoints;
-	m_undistortKeypoints->undistort(frameKeypoints.second, undistortedKeypoints);
-	SRef<Frame> frame = xpcf::utils::make_shared<Frame>(frameKeypoints.second, undistortedKeypoints, m_descriptors, frameKeypoints.first);
+	SRef<datastructure::DescriptorBuffer> descriptors;
+	if (frameKeypoints.second.size() > 0) {		
+		m_undistortKeypoints->undistort(frameKeypoints.second, undistortedKeypoints);
+		m_descriptorExtractor->extract(frameKeypoints.first, frameKeypoints.second, descriptors);
+	}
+	SRef<Frame> frame = xpcf::utils::make_shared<Frame>(frameKeypoints.second, undistortedKeypoints, descriptors, frameKeypoints.first);
 	m_descriptorsBuffer.push(frame);
 };
 
@@ -339,14 +348,21 @@ void PipelineSlam::mapping()
 		// Local bundle adjustment
 		std::vector<uint32_t> bestIdx, bestIdxToOptimize;
 		m_covisibilityGraph->getNeighbors(keyframe->getId(), m_minWeightNeighbor, bestIdx);
-		if (bestIdx.size() < 10)
-			bestIdxToOptimize.swap(bestIdx);
+		if (bestIdx.size() < NB_LOCALKEYFRAMES)
+			bestIdxToOptimize = bestIdx;
 		else
-			bestIdxToOptimize.insert(bestIdxToOptimize.begin(), bestIdx.begin(), bestIdx.begin() + 10);
+			bestIdxToOptimize.insert(bestIdxToOptimize.begin(), bestIdx.begin(), bestIdx.begin() + NB_LOCALKEYFRAMES);
 		bestIdxToOptimize.push_back(keyframe->getId());
 		LOG_DEBUG("Nb keyframe to local bundle: {}", bestIdx.size());
 		double bundleReprojError = m_bundler->bundleAdjustment(m_calibration, m_distortion, bestIdxToOptimize);
-		m_mapper->pruning();
+		// local map pruning
+		std::vector<SRef<CloudPoint>> localPointCloud;
+		m_mapper->getLocalPointCloud(keyframe, 1.0, localPointCloud);
+		int nbRemovedCP = m_mapper->pointCloudPruning(localPointCloud);
+		std::vector<SRef<Keyframe>> localKeyframes;
+		m_keyframesManager->getKeyframes(bestIdx, localKeyframes);
+		int nbRemovedKf = m_mapper->keyframePruning(localKeyframes);
+		LOG_DEBUG("Nb of pruning cloud points / keyframes: {} / {}", nbRemovedCP, nbRemovedKf);
 		m_countNewKeyframes++;
 		m_newKeyframeLoopBuffer.push(keyframe);
 	}
@@ -360,7 +376,7 @@ void PipelineSlam::mapping()
 void PipelineSlam::loopClosure()
 {		
 	SRef<Keyframe> lastKeyframe;
-	if (m_stopFlag || !m_initOK || !m_startedOK || (m_countNewKeyframes < NB_NEWKEYFRAMES_BA) || (!m_newKeyframeLoopBuffer.tryPop(lastKeyframe))) {
+	if (m_stopFlag || !m_initOK || !m_startedOK || (m_countNewKeyframes < NB_NEWKEYFRAMES_LOOP) || (!m_newKeyframeLoopBuffer.tryPop(lastKeyframe))) {
 		xpcf::DelegateTask::yield();
 		return;
 	}
@@ -379,7 +395,9 @@ void PipelineSlam::loopClosure()
 		m_loopCorrector->correct(lastKeyframe, detectedLoopKeyframe, sim3Transform, duplicatedPointsIndices);		
 		// Loop optimisation
 		m_globalBundler->bundleAdjustment(m_calibration, m_distortion);
-		m_mapper->pruning();
+		// map pruning
+		m_mapper->pointCloudPruning();
+		m_mapper->keyframePruning();
 	}
 }
 

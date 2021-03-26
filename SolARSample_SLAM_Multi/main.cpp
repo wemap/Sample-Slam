@@ -46,7 +46,8 @@
 #include "api/slam/ITracking.h"
 #include "api/slam/IMapping.h"
 
-#define NB_NEWKEYFRAMES_LOOP 5
+#define NB_NEWKEYFRAMES_LOOP 10
+#define NB_LOCALKEYFRAMES 10
 
 using namespace SolAR;
 using namespace SolAR::datastructure;
@@ -248,10 +249,12 @@ int main(int argc, char **argv) {
 				xpcf::DelegateTask::yield();
 				return;
 			}
-			std::vector<Keypoint> undistortedKeypoints;
-			undistortKeypoints->undistort(frameKeypoints.second, undistortedKeypoints);
+			std::vector<Keypoint> undistortedKeypoints;			
 			SRef<DescriptorBuffer> descriptors;
-			descriptorExtractor->extract(frameKeypoints.first, frameKeypoints.second, descriptors);
+			if (frameKeypoints.second.size() > 0) {
+				undistortKeypoints->undistort(frameKeypoints.second, undistortedKeypoints);
+				descriptorExtractor->extract(frameKeypoints.first, frameKeypoints.second, descriptors);
+			}
 			SRef<Frame> frame = xpcf::utils::make_shared<Frame>(frameKeypoints.second, undistortedKeypoints, descriptors, frameKeypoints.first);
 			m_dropBufferFrameDescriptors.push(frame);
 		};
@@ -300,13 +303,20 @@ int main(int argc, char **argv) {
 				// Local bundle adjustment
 				std::vector<uint32_t> bestIdx, bestIdxToOptimize;
 				covisibilityGraph->getNeighbors(keyframe->getId(), minWeightNeighbor, bestIdx);
-				if (bestIdx.size() < 10)
-					bestIdxToOptimize.swap(bestIdx);
+				if (bestIdx.size() < NB_LOCALKEYFRAMES)
+					bestIdxToOptimize = bestIdx;
 				else
-					bestIdxToOptimize.insert(bestIdxToOptimize.begin(), bestIdx.begin(), bestIdx.begin() + 10);
+					bestIdxToOptimize.insert(bestIdxToOptimize.begin(), bestIdx.begin(), bestIdx.begin() + NB_LOCALKEYFRAMES);
 				bestIdxToOptimize.push_back(keyframe->getId());
 				double bundleReprojError = bundler->bundleAdjustment(calibration, distortion, bestIdxToOptimize);
-				mapper->pruning();
+				// local map pruning
+				std::vector<SRef<CloudPoint>> localPointCloud;
+				mapper->getLocalPointCloud(keyframe, 1.0, localPointCloud);
+				int nbRemovedCP = mapper->pointCloudPruning(localPointCloud);
+				std::vector<SRef<Keyframe>> localKeyframes;
+				keyframesManager->getKeyframes(bestIdx, localKeyframes);
+				int nbRemovedKf = mapper->keyframePruning(localKeyframes);
+				LOG_DEBUG("Nb of pruning cloud points / keyframes: {} / {}", nbRemovedCP, nbRemovedKf);
 				countNewKeyframes++;
 				m_dropBufferNewKeyframeLoop.push(keyframe);
 			}
@@ -340,7 +350,9 @@ int main(int argc, char **argv) {
 				// Loop optimisation
 				globalBundler->bundleAdjustment(calibration, distortion);
 				LOG_DEBUG("Global BA done");
-				mapper->pruning();
+				// map pruning
+				mapper->pointCloudPruning();
+				mapper->keyframePruning();
 			}
 		};
 
@@ -398,7 +410,9 @@ int main(int argc, char **argv) {
 
 		// run global BA before exit
 		bundler->bundleAdjustment(calibration, distortion);
-		mapper->pruning();
+		// map pruning
+		mapper->pointCloudPruning();
+		mapper->keyframePruning();
 		LOG_INFO("Nb keyframes of map: {}", keyframesManager->getNbKeyframes());
 		LOG_INFO("Nb cloud points of map: {}", pointCloudManager->getNbPoints());
 

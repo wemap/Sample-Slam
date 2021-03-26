@@ -52,9 +52,6 @@
 #include "xpcf/threading/DropBuffer.h"
 #include "xpcf/threading/BaseTask.h"
 
-//#define USE_IMAGES_SET
-//#define VIDEO_INPUT
-
 namespace xpcf = org::bcom::xpcf;
 
 namespace SolAR {
@@ -202,12 +199,12 @@ private:
 	float												m_reprojErrorThreshold;
 	datastructure::CamCalibration                       m_calibration;
 	datastructure::CamDistortion                        m_distortion;
-	std::vector<datastructure::Keypoint>				m_keypoints;
-	SRef<datastructure::DescriptorBuffer>				m_descriptors;
+	std::vector<datastructure::Keypoint>				m_keypoints;	
 	double												m_bundleReprojError;
 	std::mutex											m_mutexMapping;
 
 	xpcf::DropBuffer< SRef<datastructure::Image>>		m_CameraImagesBuffer;
+	xpcf::DropBuffer< SRef<datastructure::Image>>		m_CameraImagesBootstrapBuffer;
 	xpcf::DropBuffer< std::pair< SRef<datastructure::Image>, std::vector<datastructure::Keypoint> >> m_keypointsBuffer;
 	xpcf::DropBuffer< SRef<datastructure::Frame >>		m_descriptorsBuffer;
 	xpcf::DropBuffer<SRef<datastructure::Frame>>		m_addKeyframeBuffer;
