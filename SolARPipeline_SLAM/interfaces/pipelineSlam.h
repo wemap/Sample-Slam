@@ -33,6 +33,7 @@
 #include "api/input/files/ITrackableLoader.h"
 #include "api/solver/pose/ITrackablePose.h"
 #include "api/solver/map/IBundler.h"
+#include "api/geom/IUndistortPoints.h"
 #include "api/loop/ILoopClosureDetector.h"
 #include "api/loop/ILoopCorrector.h"
 #include "api/slam/IBootstrapper.h"
@@ -175,6 +176,7 @@ private:
     SRef<api::solver::pose::ITrackablePose>             m_fiducialMarkerPoseEstimator;
 	SRef<api::loop::ILoopClosureDetector>				m_loopDetector;
 	SRef<api::loop::ILoopCorrector>						m_loopCorrector;
+	SRef<api::geom::IUndistortPoints>					m_undistortKeypoints;
 	SRef<api::slam::IBootstrapper>						m_bootstrapper;
 	SRef<api::slam::ITracking>							m_tracking;
 	SRef<api::slam::IMapping>							m_mapping;

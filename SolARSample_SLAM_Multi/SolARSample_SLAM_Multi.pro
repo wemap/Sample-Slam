@@ -45,8 +45,14 @@ HEADERS += \
 SOURCES += \
     main.cpp
 
+linux {
+    ## Add rpath to find dependencies at runtime
+    QMAKE_LFLAGS_RPATH=
+    QMAKE_LFLAGS += "-Wl,-rpath,\'\$$ORIGIN\'"
+}
+
 unix {
-      LIBS += -ldl
+    LIBS += -ldl
 }
 
 macx {
@@ -74,6 +80,19 @@ config_files.files=$$files($${PWD}/SolARSample_SLAM_Multi_conf.xml)\
                     $$files($${PWD}/fiducialMarker.yml)\
                     $$files($${PWD}/FiducialMarker.gif)
 INSTALLS += config_files
+
+linux {
+  run_install.path = $${TARGETDEPLOYDIR}
+  run_install.files = $${PWD}/../run.sh
+  CONFIG(release,debug|release) {
+    run_install.extra = cp $$files($${PWD}/../runRelease.sh) $${PWD}/../run.sh
+  }
+  CONFIG(debug,debug|release) {
+    run_install.extra = cp $$files($${PWD}/../runDebug.sh) $${PWD}/../run.sh
+  }
+  INSTALLS += run_install
+}
+
 
 OTHER_FILES += \
     packagedependencies.txt \
