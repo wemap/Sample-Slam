@@ -3,7 +3,6 @@ Version="0.9.0"
 
 if [ -z "$1" ]
 then
-   echo "toto"
    filename="SolAR_SLAM_$Version"
 else
    filename=$1
