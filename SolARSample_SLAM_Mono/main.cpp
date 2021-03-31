@@ -104,8 +104,10 @@ int main(int argc, char **argv) {
 		auto loopCorrector = xpcfComponentManager->resolve<loop::ILoopCorrector>();
 		LOG_INFO("Resolving 3D overlay");
 		auto overlay3D = xpcfComponentManager->resolve<display::I3DOverlay>();
+        LOG_INFO("Resolving Trackable Loader");
+        auto trackableLoader = xpcfComponentManager->resolve<input::files::ITrackableLoader>();
 		LOG_INFO("Resolving Fiducial marker pose");
-		auto fiducialMarkerPoseEstimator = xpcfComponentManager->resolve<solver::pose::IFiducialMarkerPose>();
+        auto fiducialMarkerPoseEstimator = xpcfComponentManager->resolve<solver::pose::ITrackablePose>();
 		LOG_INFO("Resolving bundle adjustment");
 		auto bundler = xpcfComponentManager->resolve<api::solver::map::IBundler>();
 		LOG_INFO("Resolving undistort points");
