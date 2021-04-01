@@ -352,7 +352,7 @@
 		</configure>
 		<configure component="SolARKeyframeSelector" name="BootstrapProperties">
 			<property name="minNbMatchesIsKeyframe" type="int" value="50"/>
-			<property name="minMeanDistanceIsKeyframe" type="float" value="0.04"/>
+			<property name="minMeanDistanceIsKeyframe" type="float" value="0.05"/>
 		</configure>
 		<configure component="SolARKeyframeRetrieverFBOW">
 			<property name="VOCpath" type="string" value="../../data/akaze.fbow"/>

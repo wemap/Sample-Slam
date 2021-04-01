@@ -319,8 +319,8 @@
 		</configure>
 		<configure component="SolARDescriptorMatcherKNNOpencv">
 			<property name="distanceRatio" type="float" value="0.8"/>
-			<property name="radius" type="float" value="5"/>
-			<property name="matchingDistanceMax" type="float" value="600"/>
+			<property name="radius" type="float" value="15"/>
+			<property name="matchingDistanceMax" type="float" value="800"/>
 		</configure>
 		<configure component="SolARDescriptorMatcherHammingBruteForceOpencv">
 			<property name="distanceRatio" type="float" value="0.9"/>
@@ -346,8 +346,8 @@
 		</configure>
 		<configure component="SolARMapFilter">
 			<property name="reprojErrorThreshold" type="float" value="3.0"/>
-			<property name="minTriangulationAngle" type="float" value="0.02"/>
-			<property name="maxTriangulationAngle" type="float" value="1.0"/>
+			<property name="minTriangulationAngle" type="float" value="0.01"/>
+			<property name="maxTriangulationAngle" type="float" value="2.0"/>
 			<property name="cheiralityCheck" type="int" value="1"/>
 		</configure>
 		<configure component="SolARKeyframeSelector">
@@ -356,14 +356,14 @@
 		</configure>
 		<configure component="SolARKeyframeSelector" name="BootstrapProperties">
 			<property name="minNbMatchesIsKeyframe" type="int" value="50"/>
-			<property name="minMeanDistanceIsKeyframe" type="float" value="0.03"/>
+			<property name="minMeanDistanceIsKeyframe" type="float" value="0.05"/>
 		</configure>
 		<configure component="SolARKeyframeRetrieverFBOW">
 			<property name="VOCpath" type="string" value="../../data/akaze.fbow"/>
 			<property name="threshold" type="float" value="0.02"/>
 			<property name="level" type="int" value="3"/>
 			<property name="matchingDistanceRatio" type="float" value="0.8"/>
-			<property name="matchingDistanceMax" type="float" value="600"/>
+			<property name="matchingDistanceMax" type="float" value="800"/>
 		</configure>
 		<configure component="SolAR3DTransformEstimationSACFrom3D3D">
 			<property name="iterationsCount" type="int" value="500"/>
@@ -398,7 +398,7 @@
 			<property name="nbIterationsGlobal" type="int" value="20"/>
 			<property name="setVerbose" type="int" value="0"/>
 			<property name="nbMaxFixedKeyframes" type="int" value="30"/>
-			<property name="errorOutlier" type="float" value="5.0"/>
+			<property name="errorOutlier" type="float" value="10.0"/>
 			<property name="useSpanningTree" type="int" value="0"/>
 			<property name="isRobust" type="int" value="0"/>
 			<property name="fixedMap" type="int" value="0"/>
