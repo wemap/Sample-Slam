@@ -1,25 +1,22 @@
 node("master") {
 
 SolArModulePipeline {
-    moduleName="PipelineSlam"
+    moduleName="SolARPipeline_Slam"
     dirName="SolARBuild"
-    buildDir="Plugin"
+    buildDir="SolARPipeline_SLAM"
+    makeTarget="install install_deps" 
     android=true
 }    
 
 SolArModulePipeline {
-    moduleName="PipelineSlam"
+    moduleName="SolARSample_Slam"
     dirName="SolARBuild"
-    buildDir="Multi"
+    buildDir="SolARSample_SLAM_Mono,SolARSample_SLAM_Multi,SolARPipeline_SLAM/tests/SolARPipelineTest_SLAM"
+    makeTarget="install install_deps"
     android=false
+    packageScripts="bundleSamples"
 }
 
-SolArModulePipeline {
-    moduleName="PipelineSlam"
-    dirName="SolARBuild"
-    buildDir="Mono"
-    android=false
-}
 
 }
 
