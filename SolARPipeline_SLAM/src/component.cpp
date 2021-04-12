@@ -26,9 +26,9 @@ PipelineSlam::PipelineSlam():ConfigurableBase(xpcf::toUUID<PipelineSlam>())
     declareInjectable<input::devices::ICamera>(m_camera);
 	declareInjectable<IPointCloudManager>(m_pointCloudManager);
 	declareInjectable<IKeyframesManager>(m_keyframesManager);
-	declareInjectable<ICovisibilityGraph>(m_covisibilityGraph);
+	declareInjectable<ICovisibilityGraphManager>(m_covisibilityGraphManager);
 	declareInjectable<reloc::IKeyframeRetriever>(m_kfRetriever);
-	declareInjectable<solver::map::IMapper>(m_mapper);
+	declareInjectable<IMapManager>(m_mapManager);
 	declareInjectable<solver::map::IBundler>(m_bundler);
 	declareInjectable<solver::map::IBundler>(m_globalBundler, "GlobalBA");
 	declareInjectable<features::IKeypointDetector>(m_keypointsDetector);
@@ -75,7 +75,7 @@ FrameworkReturnCode PipelineSlam::init(SRef<xpcf::IComponentManager> xpcfCompone
 
 		// get properties
 		m_minWeightNeighbor = m_mapping->bindTo<xpcf::IConfigurable>()->getProperty("minWeightNeighbor")->getFloatingValue();
-		m_reprojErrorThreshold = m_mapper->bindTo<xpcf::IConfigurable>()->getProperty("reprojErrorThreshold")->getFloatingValue();
+		m_reprojErrorThreshold = m_mapManager->bindTo<xpcf::IConfigurable>()->getProperty("reprojErrorThreshold")->getFloatingValue();
 
         m_initOK = true;	
 		m_haveToBeFlip = false;
@@ -109,7 +109,7 @@ FrameworkReturnCode PipelineSlam::start(void* imageDataBuffer)
 	}
 
 	// Load map from file
-	if (m_mapper->loadFromFile() == FrameworkReturnCode::_SUCCESS) {
+	if (m_mapManager->loadFromFile() == FrameworkReturnCode::_SUCCESS) {
 		LOG_INFO("Load map done!");
 	}
 	else
@@ -198,10 +198,10 @@ FrameworkReturnCode PipelineSlam::stop()
 	// run global BA before exit
 	m_globalBundler->bundleAdjustment(m_calibration, m_distortion);
 	// map pruning
-	m_mapper->pointCloudPruning();
-	m_mapper->keyframePruning();
+	m_mapManager->pointCloudPruning();
+	m_mapManager->keyframePruning();
 	// Save map
-	m_mapper->saveToFile();
+	m_mapManager->saveToFile();
 
     return FrameworkReturnCode::_SUCCESS;
 }
@@ -347,7 +347,7 @@ void PipelineSlam::mapping()
 		LOG_DEBUG("New keyframe id: {}", keyframe->getId());
 		// Local bundle adjustment
 		std::vector<uint32_t> bestIdx, bestIdxToOptimize;
-		m_covisibilityGraph->getNeighbors(keyframe->getId(), m_minWeightNeighbor, bestIdx);
+		m_covisibilityGraphManager->getNeighbors(keyframe->getId(), m_minWeightNeighbor, bestIdx);
 		if (bestIdx.size() < NB_LOCALKEYFRAMES)
 			bestIdxToOptimize = bestIdx;
 		else
@@ -357,11 +357,11 @@ void PipelineSlam::mapping()
 		double bundleReprojError = m_bundler->bundleAdjustment(m_calibration, m_distortion, bestIdxToOptimize);
 		// local map pruning
 		std::vector<SRef<CloudPoint>> localPointCloud;
-		m_mapper->getLocalPointCloud(keyframe, 1.0, localPointCloud);
-		int nbRemovedCP = m_mapper->pointCloudPruning(localPointCloud);
+		m_mapManager->getLocalPointCloud(keyframe, 1.0, localPointCloud);
+		int nbRemovedCP = m_mapManager->pointCloudPruning(localPointCloud);
 		std::vector<SRef<Keyframe>> localKeyframes;
 		m_keyframesManager->getKeyframes(bestIdx, localKeyframes);
-		int nbRemovedKf = m_mapper->keyframePruning(localKeyframes);
+		int nbRemovedKf = m_mapManager->keyframePruning(localKeyframes);
 		LOG_DEBUG("Nb of pruning cloud points / keyframes: {} / {}", nbRemovedCP, nbRemovedKf);
 		m_countNewKeyframes++;
 		m_newKeyframeLoopBuffer.push(keyframe);
@@ -396,8 +396,8 @@ void PipelineSlam::loopClosure()
 		// Loop optimisation
 		m_globalBundler->bundleAdjustment(m_calibration, m_distortion);
 		// map pruning
-		m_mapper->pointCloudPruning();
-		m_mapper->keyframePruning();
+		m_mapManager->pointCloudPruning();
+		m_mapManager->keyframePruning();
 	}
 }
 

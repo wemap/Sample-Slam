@@ -28,12 +28,12 @@
 #include "api/input/devices/ICamera.h"
 #include "api/features/IKeypointDetector.h"
 #include "api/features/IDescriptorsExtractor.h"
-#include "api/solver/map/IMapper.h"
+#include "api/storage/IMapManager.h"
 #include "api/display/I3DOverlay.h"
 #include "api/display/IImageViewer.h"
 #include "api/display/I3DPointsViewer.h"
 #include "api/reloc/IKeyframeRetriever.h"
-#include "api/storage/ICovisibilityGraph.h"
+#include "api/storage/ICovisibilityGraphManager.h"
 #include "api/storage/IKeyframesManager.h"
 #include "api/storage/IPointCloudManager.h"
 #include "api/loop/ILoopClosureDetector.h"
@@ -85,11 +85,11 @@ int main(int argc, char **argv) {
 		LOG_INFO("Resolving key frames manager");
 		auto keyframesManager = xpcfComponentManager->resolve<IKeyframesManager>();
 		LOG_INFO("Resolving covisibility graph");
-		auto covisibilityGraph = xpcfComponentManager->resolve<ICovisibilityGraph>();
+		auto covisibilityGraphManager = xpcfComponentManager->resolve<ICovisibilityGraphManager>();
 		LOG_INFO("Resolving key frame retriever");
 		auto keyframeRetriever = xpcfComponentManager->resolve<IKeyframeRetriever>();
 		LOG_INFO("Resolving key mapper");
-		auto mapper = xpcfComponentManager->resolve<solver::map::IMapper>();
+		auto mapManager = xpcfComponentManager->resolve<IMapManager>();
 		LOG_INFO("Resolving key points detector");
 		auto  keypointsDetector = xpcfComponentManager->resolve<features::IKeypointDetector>();
 		LOG_INFO("Resolving descriptor extractor");
@@ -132,7 +132,7 @@ int main(int argc, char **argv) {
 		LOG_DEBUG("Intrincic parameters : \n {}", calibration);
 		// get properties
 		float minWeightNeighbor = mapping->bindTo<xpcf::IConfigurable>()->getProperty("minWeightNeighbor")->getFloatingValue();
-		float reprojErrorThreshold = mapper->bindTo<xpcf::IConfigurable>()->getProperty("reprojErrorThreshold")->getFloatingValue();
+		float reprojErrorThreshold = mapManager->bindTo<xpcf::IConfigurable>()->getProperty("reprojErrorThreshold")->getFloatingValue();
 
 		if (camera->start() != FrameworkReturnCode::_SUCCESS)
 		{
@@ -141,7 +141,7 @@ int main(int argc, char **argv) {
 		}
 
         // Load map from file
-        if (mapper->loadFromFile() == FrameworkReturnCode::_SUCCESS)
+        if (mapManager->loadFromFile() == FrameworkReturnCode::_SUCCESS)
         {
             LOG_INFO("Load map done!");
         }
@@ -243,7 +243,7 @@ int main(int argc, char **argv) {
 					LOG_DEBUG("New keyframe id: {}", keyframe->getId());
 					// Local bundle adjustment
 					std::vector<uint32_t> bestIdx, bestIdxToOptimize;
-					covisibilityGraph->getNeighbors(keyframe->getId(), minWeightNeighbor, bestIdx);
+					covisibilityGraphManager->getNeighbors(keyframe->getId(), minWeightNeighbor, bestIdx);
 					if (bestIdx.size() < NB_LOCALKEYFRAMES)
 						bestIdxToOptimize = bestIdx;
 					else
@@ -253,11 +253,11 @@ int main(int argc, char **argv) {
 					double bundleReprojError = bundler->bundleAdjustment(calibration, distortion, bestIdxToOptimize);
 					// local map pruning
 					std::vector<SRef<CloudPoint>> localPointCloud;
-					mapper->getLocalPointCloud(keyframe, 1.0, localPointCloud);
-					int nbRemovedCP = mapper->pointCloudPruning(localPointCloud);
+					mapManager->getLocalPointCloud(keyframe, 1.0, localPointCloud);
+					int nbRemovedCP = mapManager->pointCloudPruning(localPointCloud);
 					std::vector<SRef<Keyframe>> localKeyframes;
 					keyframesManager->getKeyframes(bestIdx, localKeyframes);
-					int nbRemovedKf = mapper->keyframePruning(localKeyframes);
+					int nbRemovedKf = mapManager->keyframePruning(localKeyframes);
 					LOG_DEBUG("Nb of pruning cloud points / keyframes: {} / {}", nbRemovedCP, nbRemovedKf);
 					// loop closure
 					countNewKeyframes++;
@@ -276,8 +276,8 @@ int main(int argc, char **argv) {
 							// Loop optimisation
 							bundler->bundleAdjustment(calibration, distortion);
 							// map pruning
-							mapper->pointCloudPruning();
-							mapper->keyframePruning();
+							mapManager->pointCloudPruning();
+							mapManager->keyframePruning();
 						}
 					}					
 				}
@@ -305,8 +305,8 @@ int main(int argc, char **argv) {
 
 		// run global BA before exit
 		bundler->bundleAdjustment(calibration, distortion);
-		mapper->pointCloudPruning();
-		mapper->keyframePruning();
+		mapManager->pointCloudPruning();
+		mapManager->keyframePruning();
 		LOG_INFO("Nb keyframes of map: {}", keyframesManager->getNbKeyframes());
 		LOG_INFO("Nb cloud points of map: {}", pointCloudManager->getNbPoints());
 
@@ -314,7 +314,7 @@ int main(int argc, char **argv) {
 		while (fnDisplay(framePoses)) {}
 
 		// Save map
-		mapper->saveToFile();
+		mapManager->saveToFile();
 	}
 	catch (xpcf::Exception e)
 	{

@@ -20,14 +20,14 @@
 #include "api/input/devices/ICamera.h"
 #include "api/features/IKeypointDetector.h"
 #include "api/features/IDescriptorsExtractor.h"
-#include "api/solver/map/IMapper.h"
+#include "api/storage/IMapManager.h"
 #include "api/display/I2DOverlay.h"
 #include "api/display/IMatchesOverlay.h"
 #include "api/display/I3DOverlay.h"
 #include "api/display/IImageViewer.h"
 #include "api/display/I3DPointsViewer.h"
 #include "api/reloc/IKeyframeRetriever.h"
-#include "api/storage/ICovisibilityGraph.h"
+#include "api/storage/ICovisibilityGraphManager.h"
 #include "api/storage/IKeyframesManager.h"
 #include "api/storage/IPointCloudManager.h"
 #include "api/solver/pose/IFiducialMarkerPose.h"
@@ -157,9 +157,9 @@ private:
 	// storage components
 	SRef<api::storage::IPointCloudManager>				m_pointCloudManager;
 	SRef<api::storage::IKeyframesManager>				m_keyframesManager;
-	SRef<api::storage::ICovisibilityGraph>				m_covisibilityGraph;
+	SRef<api::storage::ICovisibilityGraphManager>		m_covisibilityGraphManager;
 	SRef<api::reloc::IKeyframeRetriever>				m_kfRetriever;
-	SRef<api::solver::map::IMapper>						m_mapper;
+	SRef<api::storage::IMapManager>						m_mapManager;
 
 	// components
     SRef<api::input::devices::ICamera>					m_camera;
