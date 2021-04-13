@@ -65,9 +65,9 @@ namespace PIPELINES {
  * @SolARComponentInjectable{SolAR::api::input::devices::ICamera}
  * @SolARComponentInjectable{SolAR::api::storage::IPointCloudManager}
  * @SolARComponentInjectable{SolAR::api::storage::IKeyframesManager}
- * @SolARComponentInjectable{SolAR::api::storage::ICovisibilityGraph}
+ * @SolARComponentInjectable{SolAR::api::storage::ICovisibilityGraphManager}
  * @SolARComponentInjectable{SolAR::api::reloc::IKeyframeRetriever}
- * @SolARComponentInjectable{SolAR::api::solver::map::IMapper}
+ * @SolARComponentInjectable{SolAR::api::storage::IMapManager}
  * @SolARComponentInjectable{SolAR::api::solver::map::IBundler}
  * @SolARComponentInjectable{SolAR::api::solver::map::IBundler}
  * @SolARComponentInjectable{SolAR::api::features::IKeypointDetector}
