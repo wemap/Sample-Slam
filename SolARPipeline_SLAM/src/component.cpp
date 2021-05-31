@@ -33,7 +33,8 @@ PipelineSlam::PipelineSlam():ConfigurableBase(xpcf::toUUID<PipelineSlam>())
 	declareInjectable<solver::map::IBundler>(m_globalBundler, "GlobalBA");
 	declareInjectable<features::IKeypointDetector>(m_keypointsDetector);
 	declareInjectable<features::IDescriptorsExtractor>(m_descriptorExtractor);
-	declareInjectable<solver::pose::IFiducialMarkerPose>(m_fiducialMarkerPoseEstimator);
+    declareInjectable<input::files::ITrackableLoader>(m_trackableLoader);
+    declareInjectable<solver::pose::ITrackablePose>(m_fiducialMarkerPoseEstimator);
 	declareInjectable<image::IImageConvertor>(m_imageConvertorUnity);
 	declareInjectable<loop::ILoopClosureDetector>(m_loopDetector);
 	declareInjectable<loop::ILoopCorrector>(m_loopCorrector);
@@ -58,7 +59,7 @@ PipelineSlam::~PipelineSlam()
      LOG_DEBUG(" Pipeline destructor")
 }
 
-FrameworkReturnCode PipelineSlam::init(SRef<xpcf::IComponentManager> xpcfComponentManager)
+FrameworkReturnCode PipelineSlam::init()
 {    
     // component creation
     try {
@@ -104,7 +105,7 @@ FrameworkReturnCode PipelineSlam::start(void* imageDataBuffer)
 		if (m_camera->start() != FrameworkReturnCode::_SUCCESS)
 		{
 			LOG_ERROR("Camera cannot start")
-				return FrameworkReturnCode::_ERROR_;
+            return FrameworkReturnCode::_ERROR_;
 		}
 	}
 
@@ -131,6 +132,20 @@ FrameworkReturnCode PipelineSlam::start(void* imageDataBuffer)
 	{
 		// Either no or empty map files
 		LOG_INFO("Initialization from scratch");
+        SRef<Trackable> trackable;
+        if (m_trackableLoader->loadTrackable(trackable) != FrameworkReturnCode::_SUCCESS)
+        {
+            LOG_ERROR("cannot load fiducial marker");
+            return FrameworkReturnCode::_ERROR_;
+        }
+        else
+        {
+            if (m_fiducialMarkerPoseEstimator->setTrackable(trackable)!= FrameworkReturnCode::_SUCCESS)
+            {
+                LOG_ERROR("cannot set fiducial marker as a trackable ofr fiducial marker pose estimator");
+                return FrameworkReturnCode::_ERROR_;
+            }
+        }
 	}
 
     // create and start threads
