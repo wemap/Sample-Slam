@@ -3,7 +3,6 @@ Version="0.9.0"
 
 if [ -z "$1" ]
 then
-   echo "toto"
    filename="SolAR_SLAM_$Version"
 else
    filename=$1
@@ -34,5 +33,5 @@ cp ./runFromBundle.sh ./run.sh
 mv ./run.sh ./bin/Debug
 
 
-zip --symlinks -r "./bin/${filename}_release.zip" ./bin/Release ./README.md ./installData.sh ./LICENSE
-zip --symlinks -r "./bin/${filename}_debug.zip" ./bin/Debug ./README.md ./installData.sh ./LICENSE 
+zip --symlinks -r "./bin/${filename}_release.zip" ./bin/Release ./README.md ./installData.sh ./LICENSE data/SolARPipelineTest_SLAM_TUM_conf.xml data/SolARSample_SLAM_TUM_conf.xml data/tum_camera_calibration.yml
+zip --symlinks -r "./bin/${filename}_debug.zip" ./bin/Debug ./README.md ./installData.sh ./LICENSE data/SolARPipelineTest_SLAM_TUM_conf.xml data/SolARSample_SLAM_TUM_conf.xml data/tum_camera_calibration.yml
