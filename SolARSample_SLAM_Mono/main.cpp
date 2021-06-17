@@ -46,6 +46,8 @@
 #include "api/slam/ITracking.h"
 #include "api/slam/IMapping.h"
 
+
+// TODO: should not hardcode this
 #define NB_NEWKEYFRAMES_LOOP 10
 #define NB_LOCALKEYFRAMES 10
 
@@ -190,6 +192,7 @@ int main(int argc, char **argv) {
                     double bundleReprojError = bundler->bundleAdjustment(calibration, distortion);
                     bootstrapOk = true;
                 }
+				// TODO: change conditioning using FrameworkReturnCode (more complicated)
                 if (!pose.isApprox(Transform3Df::Identity()))
                     overlay3D->draw(pose, view);
                 if (imageViewer->display(view) == SolAR::FrameworkReturnCode::_STOP)
@@ -233,6 +236,7 @@ int main(int argc, char **argv) {
 		start = clock();
 		while (true)
 		{
+			// TODO: frame, view? refactor?
 			SRef<Image>											view, displayImage;
 			std::vector<Keypoint>								keypoints, undistortedKeypoints;
 			SRef<DescriptorBuffer>                              descriptors;
@@ -249,16 +253,18 @@ int main(int argc, char **argv) {
 			// undistort keypoints
 			undistortKeypoints->undistort(keypoints, undistortedKeypoints);
 			frame = xpcf::utils::make_shared<Frame>(keypoints, undistortedKeypoints, descriptors, view);
-			// tracking
+			// 1) Tracking
 			if (tracking->process(frame, displayImage) == FrameworkReturnCode::_SUCCESS) {
-				// used for display
+				// used only for display
 				framePoses.push_back(frame->getPose());
 				// draw cube
 				overlay3D->draw(frame->getPose(), displayImage);
-				// mapping
+				// 2) Mapping
+				// TODO: refactor (see SolARSLAMMapping.cpp for more info)
 				if (mapping->process(frame, keyframe) == FrameworkReturnCode::_SUCCESS) {
 					LOG_DEBUG("New keyframe id: {}", keyframe->getId());
-					// Local bundle adjustment
+
+					// Local bundle adjustment based on keyframes connected in the covisibility graph
 					std::vector<uint32_t> bestIdx, bestIdxToOptimize;
 					covisibilityGraphManager->getNeighbors(keyframe->getId(), minWeightNeighbor, bestIdx);
 					if (bestIdx.size() < NB_LOCALKEYFRAMES)
@@ -268,7 +274,8 @@ int main(int argc, char **argv) {
 					bestIdxToOptimize.push_back(keyframe->getId());
 					LOG_DEBUG("Nb keyframe to local bundle: {}", bestIdxToOptimize.size());
 					double bundleReprojError = bundler->bundleAdjustment(calibration, distortion, bestIdxToOptimize);
-					// local map pruning
+					
+					// Local keyframe culling -> prevent redundant keyframes
 					std::vector<SRef<CloudPoint>> localPointCloud;
 					mapManager->getLocalPointCloud(keyframe, 1.0, localPointCloud);
 					int nbRemovedCP = mapManager->pointCloudPruning(localPointCloud);
@@ -276,21 +283,24 @@ int main(int argc, char **argv) {
 					keyframesManager->getKeyframes(bestIdx, localKeyframes);
 					int nbRemovedKf = mapManager->keyframePruning(localKeyframes);
 					LOG_DEBUG("Nb of pruning cloud points / keyframes: {} / {}", nbRemovedCP, nbRemovedKf);
-					// loop closure
+
+					// 3) Loop closure
+					// Loop closure can only be performed is sufficiently enough keyframes have been added
 					countNewKeyframes++;
 					if (countNewKeyframes >= NB_NEWKEYFRAMES_LOOP) {
 						SRef<Keyframe> detectedLoopKeyframe;
 						Transform3Df sim3Transform;
 						std::vector<std::pair<uint32_t, uint32_t>> duplicatedPointsIndices;
+						// Detect loop closure thanks to BoW
 						if (loopDetector->detect(keyframe, detectedLoopKeyframe, sim3Transform, duplicatedPointsIndices) == FrameworkReturnCode::_SUCCESS) {
 							// detected loop keyframe
 							LOG_INFO("Detected loop keyframe id: {}", detectedLoopKeyframe->getId());
 							LOG_INFO("Nb of duplicatedPointsIndices: {}", duplicatedPointsIndices.size());
 							LOG_INFO("sim3Transform: \n{}", sim3Transform.matrix());
-							// performs loop correction 
+							// performs loop correction and loop fusion
 							countNewKeyframes = 0;
 							loopCorrector->correct(keyframe, detectedLoopKeyframe, sim3Transform, duplicatedPointsIndices);
-							// Loop optimisation
+							// Loop optimisation by carrying bundleAdjustment on all keyframes
 							bundler->bundleAdjustment(calibration, distortion);
 							// map pruning
 							mapManager->pointCloudPruning();
